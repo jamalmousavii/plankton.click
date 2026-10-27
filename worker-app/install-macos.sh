@@ -144,7 +144,7 @@ EXISTING_CONFIG="$INSTALL_DIR/worker-app/config.json"
 PLIST_LABEL="click.plankton.worker"
 PLIST_FILE="$HOME/Library/LaunchAgents/${PLIST_LABEL}.plist"
 
-# --- Management mode (v3.42.0): same contract as the Linux installers ---
+# --- Management mode: same contract as the Linux installers ---
 manage_config_models() { # $1 = add|remove, $2 = space-separated models
   local op="$1" list="$2" cfg="$EXISTING_CONFIG"
   node -e '

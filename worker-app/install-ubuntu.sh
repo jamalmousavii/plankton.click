@@ -179,7 +179,7 @@ if [ -n "$SUDO" ]; then
   fi
 fi
 
-# --- Management mode (v3.41.0) ---
+# --- Management mode ---
 # Re-running the installer on a box that already has one opens this menu
 # instead of redoing the full install: add/remove/repair models, rotate
 # identity, update the worker app, or service controls. Fresh installs and

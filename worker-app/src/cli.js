@@ -29,7 +29,7 @@ const ws = new WorkerWebSocket(
   config.worker_token,
   async (prompt, model, media, history) => {
     ollama.setModel(model);
-    // v3.41.0: tasks with conversation context go through /api/chat with
+    // tasks with conversation context go through /api/chat with
     // the window; plain single-prompt tasks keep the legacy paths.
     if (history && history.length > 0) {
       return ollama.chatWithHistory(prompt, model, media, history);
@@ -43,7 +43,7 @@ const ws = new WorkerWebSocket(
 );
 
 // Installed models (config.csv `models`) verified against `ollama list` —
-// what the server routes to this worker (v3.41.0 multi-model).
+// what the server routes to this worker (multi-model).
 function installedModels(configModels, tags) {
   const wanted = String(configModels || 'llama3.1:8b')
     .split(',')

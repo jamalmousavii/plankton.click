@@ -23,7 +23,7 @@ class WorkerWebSocket {
     this.heartbeatInterval = null;
     this.heartbeatWorkerService = null;
     this.heartbeatDefaultModel = null;
-    // v3.41.0: every installed model (verified against `ollama list` by the
+    // every installed model (verified against `ollama list` by the
     // entry point) — reported at auth + heartbeat so the server can route
     // any of them to this worker.
     this.installedModels = [];
@@ -58,7 +58,7 @@ class WorkerWebSocket {
     this.authed = false;
     const wsUrl = process.env.API_WS_URL || 'wss://plankton.click:443/ws';
     const isLocal = /^wss?:\/\/(127\.0\.0\.1|localhost|::1)/.test(wsUrl);
-    // v3.18.4: full TLS verification with pinned ISRG roots (PLANKTON_PIN=0 → system CAs)
+    // full TLS verification with pinned ISRG roots (PLANKTON_PIN=0 → system CAs)
     const pinEnabled = process.env.PLANKTON_PIN !== '0';
     const ws = new WebSocket(wsUrl, isLocal ? {} : {
       ca: pinEnabled ? PINNED_ROOTS : undefined,
@@ -112,14 +112,14 @@ class WorkerWebSocket {
 
   authenticate() {
     // Send worker_token (primary) or wallet_address (legacy).
-    // v3.13.0+: each server-worker has its own unique token, and the token
+    // each server-worker has its own unique token, and the token
     // IS the worker identity — no machine_id needed.
     const authMsg = { type: 'auth' };
-    // v3.20.0: the server only routes media tasks (images/voice notes) to
+    // the server only routes media tasks (images/voice notes) to
     // workers that advertise a version new enough to handle `attachment`.
     authMsg.app_version = require('../../package.json').version;
     authMsg.protocol = PROTOCOL;
-    // v3.41.0: advertise every installed model for multi-model routing.
+    // advertise every installed model for multi-model routing.
     if (this.installedModels.length > 0) authMsg.models = this.installedModels;
     if (isWorkerToken(this.walletAddress)) {
       authMsg.worker_token = this.walletAddress;
@@ -201,7 +201,7 @@ class WorkerWebSocket {
         plainPrompt = decrypt(deriveKey(this.walletAddress), prompt);
       }
 
-      // v3.20.0: optional media payload — { type, name, mime, data(base64) }.
+      // optional media payload — { type, name, mime, data(base64) }.
       // Encrypted as a JSON string when e2e is negotiated, plain object otherwise.
       let media = null;
       if (attachment) {
@@ -215,7 +215,7 @@ class WorkerWebSocket {
         media = typeof plainAttachment === 'string' ? JSON.parse(plainAttachment) : plainAttachment;
       }
 
-      // v3.41.0: optional conversation window — [{ role, content }...],
+      // optional conversation window — [{ role, content }...],
       // encrypted as a JSON string when e2e is negotiated. Old entry points
       // ignore the 4th onTask argument (backward compatible).
       let history = [];
@@ -273,7 +273,7 @@ class WorkerWebSocket {
       disk_usage: stats.disk_usage || 0,
       current_model: stats.current_model
     };
-    // v3.41.0: re-report installed models so added/removed models take
+    // re-report installed models so added/removed models take
     // effect without reconnecting.
     if (this.installedModels.length > 0) payload.models = this.installedModels;
     console.log(`💓 Sending heartbeat (model: ${stats.current_model || '?'}, ws: ${this.ws ? this.ws.readyState : 'none'})`);

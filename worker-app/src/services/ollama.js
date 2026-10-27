@@ -86,7 +86,7 @@ class OllamaService {
     }
   }
 
-  // v3.20.0: chat with an attachment. Images and audio (base64 WAV) both ride
+  // chat with an attachment. Images and audio (base64 WAV) both ride
   // the `images` slot of a chat message — Ollama detects RIFF/WAVE audio by
   // magic bytes and routes it to the audio encoder on supported platforms.
   async chat(prompt, model, media) {
@@ -112,7 +112,7 @@ class OllamaService {
     }
   }
 
-  // v3.41.0: answer with conversation context. History entries are
+  // answer with conversation context. History entries are
   // [{ role: 'user'|'assistant', content }] (already capped server-side);
   // media still rides the `images` slot of the final user message.
   async chatWithHistory(prompt, model, media, history) {

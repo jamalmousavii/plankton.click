@@ -85,7 +85,7 @@ app.whenReady().then(() => {
     config.worker_token || process.env.WALLET_ADDRESS || '',
     async (prompt, model, media, history) => {
       ollamaService.setModel(model);
-      // v3.41.0: tasks with conversation context go through /api/chat with
+      // tasks with conversation context go through /api/chat with
       // the window; plain single-prompt tasks keep the legacy paths.
       if (history && history.length > 0) {
         return ollamaService.chatWithHistory(prompt, model, media, history);
