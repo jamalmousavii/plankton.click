@@ -214,8 +214,13 @@ const migrate = async () => {
     // Admin user
     await client.query(`
       DO $$ BEGIN
-        INSERT INTO users (email, name, role) VALUES ('admin@plankton.click', 'Admin', 'admin')
-        ON CONFLICT (email) DO NOTHING;
+        -- Seed a placeholder admin only on an empty install: a database that
+        -- already has an admin must not grow a second one (the 1.0.0 domain
+        -- change otherwise inserted a fresh admin@plankton.click row).
+        IF NOT EXISTS (SELECT 1 FROM users WHERE role = 'admin') THEN
+          INSERT INTO users (email, name, role) VALUES ('admin@plankton.click', 'Admin', 'admin')
+          ON CONFLICT (email) DO NOTHING;
+        END IF;
       EXCEPTION WHEN OTHERS THEN null;
       END $$;
     `);
