@@ -1,4 +1,4 @@
-// v3.45.0 — one canonical version marker for the whole repo. The bump script
+// One canonical version marker for the whole repo. The bump script
 // (scripts/bump-version.js) must leave every surface above/below in sync; this
 // test fails the build when a release bumps one place but misses another.
 
@@ -8,21 +8,22 @@ const path = require('path');
 const root = path.join(__dirname, '..', '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const version = JSON.parse(read('backend/package.json')).version;
-const MINER_SH = [
+const WORKER_SH = [
   'install-ubuntu.sh', 'install-redhat.sh', 'install-macos.sh',
   'uninstall-ubuntu.sh', 'uninstall-redhat.sh', 'uninstall-macos.sh',
 ];
-const MINER_PS1 = ['install-windows.ps1', 'uninstall-windows.ps1'];
+const WORKER_PS1 = ['install-windows.ps1', 'uninstall-windows.ps1'];
 
-describe('version parity (v3.45.0)', () => {
+describe('version parity', () => {
   it('all three manifests agree', () => {
     expect(JSON.parse(read('frontend/package.json')).version).toBe(version);
-    expect(JSON.parse(read('miner-app/package.json')).version).toBe(version);
+    expect(JSON.parse(read('worker-app/package.json')).version).toBe(version);
   });
 
   it('lockfiles carry the same version', () => {
     expect(read('backend/package-lock.json')).toContain(`"version": "${version}"`);
     expect(read('frontend/package-lock.json')).toContain(`"version": "${version}"`);
+    expect(read('worker-app/package-lock.json')).toContain(`"version": "${version}"`);
   });
 
   it('CHANGELOG has a section for the current version', () => {
@@ -33,12 +34,12 @@ describe('version parity (v3.45.0)', () => {
     expect(read('docs/api.md')).toContain(`نسخه بک‌اند: \`${version}\``);
   });
 
-  it('miner installers pin KRELZ_VERSION', () => {
-    for (const f of MINER_SH) {
-      expect(read(path.join('miner-app', f))).toContain(`KRELZ_VERSION="${version}"`);
+  it('worker installers pin PLANKTON_VERSION', () => {
+    for (const f of WORKER_SH) {
+      expect(read(path.join('worker-app', f))).toContain(`PLANKTON_VERSION="${version}"`);
     }
-    for (const f of MINER_PS1) {
-      expect(read(path.join('miner-app', f))).toContain(`$KRELZ_VERSION = "${version}"`);
+    for (const f of WORKER_PS1) {
+      expect(read(path.join('worker-app', f))).toContain(`$PLANKTON_VERSION = "${version}"`);
     }
   });
 

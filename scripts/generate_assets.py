@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the missing PWA/social assets for krelz-public/frontend/public.
+"""Generate the PWA/social assets for frontend/public (Plankton mark).
 
 Pure-stdlib (zlib + struct) so it runs without PIL: writes RGBA PNGs and an
 ICO that embeds a PNG (supported by every modern browser).
@@ -42,8 +42,14 @@ FONT = {
     ".": ["00000", "00000", "00000", "00000", "00000", "00000", "00100"],
 }
 
-TOP = (30, 27, 75)      # #1e1b4b (manifest theme_color)
-BOTTOM = (56, 189, 248)  # #38bdf8 (accent)
+# Plankton palette (frontend/tailwind.config.js): abyss → lagoon background,
+# bioluminescent glow ring, sea-foam cilia and one coral cilium.
+TOP = (8, 43, 51)        # #082b33
+BOTTOM = (18, 123, 136)  # #127b88
+GLOW = (124, 245, 198)   # #7cf5c6
+FOAM = (173, 233, 232)   # #ade9e8
+CORAL = (255, 138, 115)  # #ff8a73
+LAGOON = (54, 185, 192)  # #36b9c0
 
 
 class Canvas:
@@ -54,6 +60,53 @@ class Canvas:
     def put(self, x, y, color):
         if 0 <= x < self.w and 0 <= y < self.h:
             self.px[y][x] = color
+
+    def blend(self, x, y, rgb, alpha):
+        """Alpha-composite rgb over the pixel at (x, y) with coverage alpha."""
+        if alpha <= 0 or not (0 <= x < self.w and 0 <= y < self.h):
+            return
+        alpha = min(1.0, alpha)
+        r, g, b, a = self.px[y][x]
+        na = alpha + (a / 255) * (1 - alpha)
+        if na <= 0:
+            return
+        mix = lambda c0, c1: int((c1 * alpha + c0 * (a / 255) * (1 - alpha)) / na)
+        self.px[y][x] = (mix(r, rgb[0]), mix(g, rgb[1]), mix(b, rgb[2]), int(na * 255))
+
+    def soft_circle(self, cx, cy, r, rgb, alpha=1.0, inner=None):
+        """Anti-aliased disc (or ring when `inner` radius is given)."""
+        x0, x1 = int(cx - r - 2), int(cx + r + 2)
+        y0, y1 = int(cy - r - 2), int(cy + r + 2)
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                d = ((x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2) ** 0.5
+                cov = max(0.0, min(1.0, r + 0.5 - d))
+                if inner is not None:
+                    cov = min(cov, max(0.0, min(1.0, d - inner + 0.5)))
+                self.blend(x, y, rgb, cov * alpha)
+
+    def glow(self, cx, cy, r, rgb, strength=0.6):
+        """Radial falloff halo."""
+        for y in range(int(cy - r), int(cy + r) + 1):
+            for x in range(int(cx - r), int(cx + r) + 1):
+                d = ((x - cx) ** 2 + (y - cy) ** 2) ** 0.5
+                if d < r:
+                    self.blend(x, y, rgb, strength * (1 - d / r) ** 2)
+
+    def diagonal_bg(self, a=TOP, b=BOTTOM, radius=0):
+        for y in range(self.h):
+            for x in range(self.w):
+                t = (x / max(1, self.w - 1) + y / max(1, self.h - 1)) / 2
+                c = tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
+                if radius:
+                    cx = min(x, self.w - 1 - x) + 0.5
+                    cy = min(y, self.h - 1 - y) + 0.5
+                    if cx < radius and cy < radius:
+                        d = ((radius - cx) ** 2 + (radius - cy) ** 2) ** 0.5
+                        cov = max(0.0, min(1.0, radius + 0.5 - d))
+                        self.px[y][x] = (c[0], c[1], c[2], int(255 * cov))
+                        continue
+                self.px[y][x] = (c[0], c[1], c[2], 255)
 
     def gradient_bg(self, top=TOP, bottom=BOTTOM):
         for y in range(self.h):
@@ -135,86 +188,63 @@ def png_bytes(canvas):
     )
 
 
+def draw_mark(c, cx, cy, size):
+    """The Plankton cell: glow ring, gradient nucleus, six cilia (one coral)."""
+    import math
+    k = size / 64.0
+    c.glow(cx, cy, 26 * k, GLOW, 0.22)
+    c.soft_circle(cx, cy, 16.5 * k, GLOW, 0.92, inner=13.5 * k)
+    # nucleus: white core fading into glow then lagoon
+    steps = max(6, int(7 * k))
+    for i in range(steps, 0, -1):
+        t = i / steps
+        col = tuple(int(255 + (GLOW[j] - 255) * min(1, t * 1.6)) if t < 0.6
+                    else int(GLOW[j] + (LAGOON[j] - GLOW[j]) * (t - 0.6) / 0.4) for j in range(3))
+        c.soft_circle(cx, cy, 7 * k * t, col)
+    for deg in (0, 60, 120, 180, 240, 300):
+        rad = math.radians(deg)
+        px, py = cx + math.cos(rad) * 23 * k, cy + math.sin(rad) * 23 * k
+        if deg == 300:
+            c.soft_circle(px, py, 3.4 * k, CORAL)
+        else:
+            c.soft_circle(px, py, 2.4 * k, FOAM)
+
+
 def draw_icon(size, path):
     c = Canvas(size, size)
-    c.gradient_bg()
-    accent = (255, 255, 255, 255)
-
-    # network motif, tucked into the top-right corner so it never crosses the K
-    m = max(6, size // 20)
-    nodes = [(size - m, m), (size - 3 * m, int(m * 2.2)), (size - int(m * 2.5), int(m * 3.8))]
-    for i in range(len(nodes) - 1):
-        c.line(*nodes[i], *nodes[i + 1], (255, 255, 255, 70), width=max(1, size // 160))
-    for (x, y) in nodes:
-        c.circle(x, y, max(2, size // 40), (255, 255, 255, 150))
-
-    # large K
-    scale = max(4, size // 14)
-    kw = 5 * scale
-    kx = (size - kw) // 2
-    ky = (size - 7 * scale) // 2 - size // 16
-    for row, bits in enumerate(FONT["K"]):
-        for col, bit in enumerate(bits):
-            if bit == "1":
-                c.fill_rect(kx + col * scale, ky + row * scale,
-                            kx + (col + 1) * scale, ky + (row + 1) * scale,
-                            (56, 189, 248, 255) if size >= 256 else accent)
-
-    # wordmark
-    wscale = max(1, size // 48)
-    word = "KRELZ"
-    wt = c.text_width(word, wscale)
-    c.text((size - wt) // 2, ky + 7 * scale + size // 16, word, wscale, accent)
-
+    c.diagonal_bg(radius=int(size * 18 / 64))
+    draw_mark(c, size / 2, size / 2, size)
     with open(path, "wb") as fh:
         fh.write(png_bytes(c))
     return c
 
 
 def draw_og(path):
+    import random
     w, h = 1200, 630
     c = Canvas(w, h)
-    c.gradient_bg((15, 23, 42), (30, 64, 175))
-
-    # faint grid
-    for x in range(0, w, 60):
-        c.line(x, 0, x, h, (255, 255, 255, 14), width=0)
-    for y in range(0, h, 60):
-        c.line(0, y, w, y, (255, 255, 255, 14), width=0)
-
+    c.diagonal_bg((5, 22, 28), (20, 99, 112))
+    rnd = random.Random(1337)
+    for _ in range(70):
+        x, y = rnd.randint(0, w), rnd.randint(0, h)
+        r = rnd.uniform(1.5, 5)
+        c.glow(x, y, r * 4, GLOW, rnd.uniform(0.15, 0.4))
+        c.soft_circle(x, y, r, FOAM, rnd.uniform(0.4, 0.9))
+    draw_mark(c, 300, h / 2, 300)
     white = (255, 255, 255, 255)
-    cyan = (56, 189, 248, 255)
-
-    title, scale = "KRELZ", 12
-    tw = c.text_width(title, scale)
-    c.text((w - tw) // 2, h // 2 - 7 * scale - 40, title, scale, white)
-
-    sub = "DECENTRALIZED LLM INFERENCE NETWORK"
-    sscale = 4
-    sw = c.text_width(sub, sscale)
-    c.text((w - sw) // 2, h // 2 + 7 * scale + 30, sub, sscale, cyan)
-
-    ctext = "SHARE GPU POWER. EARN KRELZ."
-    cscale = 3
-    cw = c.text_width(ctext, cscale)
-    c.text((w - cw) // 2, h // 2 + 7 * scale + 30 + 7 * cscale + 40, ctext, cscale, white)
-
+    glow = GLOW + (255,)
+    c.text(500, 205, "PLANKTON", 13, white)
+    c.text(504, 330, "DECENTRALIZED LLM NETWORK", 4, glow)
+    c.text(504, 380, "GPU WORKERS ANSWER YOUR CHATS.", 3, white)
+    c.text(504, 470, "PLANKTON.CLICK", 4, CORAL + (255,))
     with open(path, "wb") as fh:
         fh.write(png_bytes(c))
 
 
 def draw_favicon(path, size=32):
     c = Canvas(size, size)
-    c.gradient_bg()
-    scale = 3
-    kx, ky = (size - 5 * scale) // 2, (size - 7 * scale) // 2
-    for row, bits in enumerate(FONT["K"]):
-        for col, bit in enumerate(bits):
-            if bit == "1":
-                c.fill_rect(kx + col * scale, ky + row * scale,
-                            kx + (col + 1) * scale, ky + (row + 1) * scale,
-                            (255, 255, 255, 255))
-
+    c.diagonal_bg(radius=9)
+    draw_mark(c, size / 2, size / 2, size)
     data = png_bytes(c)
     header = struct.pack("<HHH", 0, 1, 1)
     entry = struct.pack("<BBBBHHII", size, size, 0, 0, 1, 32, len(data), 22)
@@ -238,19 +268,8 @@ def main():
     draw_favicon(os.path.join(out, "favicon.ico"))
     print("wrote favicon.ico")
 
-    # SVG favicon keeps a crisp icon at any DPR (referenced from _document).
-    svg = (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
-        '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">'
-        '<stop offset="0" stop-color="#1e1b4b"/>'
-        '<stop offset="1" stop-color="#38bdf8"/></linearGradient></defs>'
-        '<rect width="64" height="64" rx="12" fill="url(#g)"/>'
-        '<path fill="#fff" d="M18 14h8v13l9-13h10L34 30l12 20H35l-9-15v15h-8z"/>'
-        "</svg>"
-    )
-    with open(os.path.join(out, "favicon.svg"), "w") as fh:
-        fh.write(svg)
-    print("wrote favicon.svg")
+    # favicon.svg is hand-maintained in frontend/public (same mark as
+    # components/Logo.js) — not generated here.
 
 
 if __name__ == "__main__":

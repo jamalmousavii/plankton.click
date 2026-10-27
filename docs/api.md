@@ -1,6 +1,6 @@
-# مستندات API — Krelz Network
+# مستندات API — Plankton Network
 
-نسخه بک‌اند: `3.45.0` — پایه: `https://krelz.xyz` (نمونه: `https://krelz.xyz/api/chat`)
+نسخه بک‌اند: `1.0.0` — پایه: `https://plankton.click` (نمونه: `https://plankton.click/api/chat`)
 
 همه پاسخ‌ها JSON هستند. در حالت موفقیت معمولاً `success: true` برمی‌گردد و در حالت خطا `error` (رشته) یا `details` (لیست خطاهای اعتبارسنجی).
 
@@ -12,13 +12,13 @@
 
 | توکن | کاربرد |
 |------|--------|
-| JWT کاربر (`Authorization: Bearer <token>`) | پروفایل، کیف پول، چت، ماینرهای کاربر |
-| `miner_token` (`kz_...`) | فقط برای ماینرها: heartbeat و ثبت دستگاه |
+| JWT کاربر (`Authorization: Bearer <token>`) | پروفایل، کیف پول، چت، ورکرهای کاربر |
+| `worker_token` (`pw_...`) | فقط برای ورکرها: heartbeat و ثبت دستگاه |
 
 نکات:
 
 - JWT فقط با الگوریتم `HS256` و `JWT_SECRET` سرور پذیرفته می‌شود (`alg: none` یا کلید دیگر → `401`).
-- `role` در ثبت‌نام فقط `user` یا `miner` است؛ مقدار `admin` پذیرفته نمی‌شود (`400`).
+- `role` در ثبت‌نام فقط `user` یا `worker` است؛ مقدار `admin` پذیرفته نمی‌شود (`400`).
 - نقش ادمین در هر درخواستِ `admin` دوباره از دیتابیس خوانده می‌شود (کش ۶۰ ثانیه‌ای) و در صورت خطا `fail-closed` است.
 - حساب مسدود (`users.banned`، v3.39.0) هم هنگام ورود و هم در هر درخواستِ احرازشده رد می‌شود: `403` با پیام `Account banned.` (کش وضعیت ۱۰ ثانیه‌ای؛ تغییر `ban`/`role` کش را باطل می‌کند).
 
@@ -108,10 +108,10 @@
   "tokens_used": 420,
   "cost": 0.00007,
   "coin": "USD",
-  "payment_status": "free | free_miner | tokens | paid",
-  "miner_id": 7,
-  "source": "miner | local",
-  "miner_credit_remaining": 0.99,
+  "payment_status": "free | free_worker | tokens | paid",
+  "worker_id": 7,
+  "source": "worker | local",
+  "worker_credit_remaining": 0.99,
   "free_tokens_remaining": 1999580,
   "token_balance_remaining": 4200000,
   "notice": "upgrade_recommended",
@@ -122,14 +122,14 @@
 
 `notice` فقط روی پیام‌های `paid` می‌آید (فرانت‌اند بنر روزانهٔ ارتقا نشان می‌دهد) و همراهش `plans` + `token_bundle` می‌آید. فیلد `token_balance_remaining` فقط روی پایهٔ توکن (`payment_status: "tokens"`) می‌آید.
 
-**پیش‌بررسی پوشش (v3.28.0):** قبل از dispatch بررسی می‌شود: سقف رایگان روزانه > 0 یا اعتبار ماینر > 0 یا موجودی کیف توکن > 0 یا کیف پول > 0؟ اگر **هیچ پوششی** نباشد → `402 { code: "upgrade_required", free, plans, token_bundle, signed_in }` (دیوار ارتقای سه‌سطحی + پیشنهاد بسته توکن؛ برای مهمان با پیام ثبت‌نام). خطای خودِ این بررسی هرگز چت را بلاک نمی‌کند.
+**پیش‌بررسی پوشش (v3.28.0):** قبل از dispatch بررسی می‌شود: سقف رایگان روزانه > 0 یا اعتبار ورکر > 0 یا موجودی کیف توکن > 0 یا کیف پول > 0؟ اگر **هیچ پوششی** نباشد → `402 { code: "upgrade_required", free, plans, token_bundle, signed_in }` (دیوار ارتقای سه‌سطحی + پیشنهاد بسته توکن؛ برای مهمان با پیام ثبت‌نام). خطای خودِ این بررسی هرگز چت را بلاک نمی‌کند.
 
 **زنجیره پرداخت (یک تراکنش با قفل ردیف):**
 
-1. **سقف رایگان روزانه (v3.27.0)**: ۲,۰۰۰,۰۰۰ توکن به ازای هر UTC-day — کاربران عضو در `daily_tokens`، مهمان‌ها با IP در `daily_tokens_guest`؛ پلن‌های پولی سقف را بالا می‌برند (تا ۸۰,۰۰۰,۰۰۰ روی مکس) → `payment_status: "free"` (منبع پلتفرم، **بدون سهم ماینر**).
-2. **اعتبار رایگان ماینر (v3.25.0)**: ماینر `online`/`busy` → سقف **$۱ هر روز UTC** → `"free_miner"` (نه از کیف پول، نه سهم ماینر).
-3. **کیف توکن (بستهٔ پیش‌پرداخت، v3.28.0)**: `chargeTokenPot` تمام‌یا-هیچ کم می‌کند (race-safe) → `"tokens"` + `token_balance_remaining`؛ ماینر **۹۰٪** ارزش کاتالوگ پیام را می‌گیرد (از درآمد بسته‌ها) با `source = 'tokens'`.
-4. **کیف پول USD**: سهم ماینر **۹۰٪ ثابت** صرف‌نظر از پلن خریدار (فقط اگر واقعاً ماینر جواب داده باشد)، با `source = 'wallet'` و `plan_type` خریدار. اگر موجودی از `cost` کمتر باشد **به‌طور کامل** کم می‌شود تا کیف پول به صفر برسد و دیوار در پیام بعدی نمایان شود → `"paid"` + `notice: "upgrade_recommended"`.
+1. **سقف رایگان روزانه (v3.27.0)**: ۲,۰۰۰,۰۰۰ توکن به ازای هر UTC-day — کاربران عضو در `daily_tokens`، مهمان‌ها با IP در `daily_tokens_guest`؛ پلن‌های پولی سقف را بالا می‌برند (تا ۸۰,۰۰۰,۰۰۰ روی مکس) → `payment_status: "free"` (منبع پلتفرم، **بدون سهم ورکر**).
+2. **اعتبار رایگان ورکر (v3.25.0)**: ورکر `online`/`busy` → سقف **$۱ هر روز UTC** → `"free_worker"` (نه از کیف پول، نه سهم ورکر).
+3. **کیف توکن (بستهٔ پیش‌پرداخت، v3.28.0)**: `chargeTokenPot` تمام‌یا-هیچ کم می‌کند (race-safe) → `"tokens"` + `token_balance_remaining`؛ ورکر **۹۰٪** ارزش کاتالوگ پیام را می‌گیرد (از درآمد بسته‌ها) با `source = 'tokens'`.
+4. **کیف پول USD**: سهم ورکر **۹۰٪ ثابت** صرف‌نظر از پلن خریدار (فقط اگر واقعاً ورکر جواب داده باشد)، با `source = 'wallet'` و `plan_type` خریدار. اگر موجودی از `cost` کمتر باشد **به‌طور کامل** کم می‌شود تا کیف پول به صفر برسد و دیوار در پیام بعدی نمایان شود → `"paid"` + `notice: "upgrade_recommended"`.
 5. مسابقه بعد از pre-flight (سقف همزمان تمام شده) → پاسخِ تولیدشده سرو می‌شود با `"free"` — تولیدِ انجام‌شده هرگز تلف نمی‌شود.
 6. مهمان بدون پوشش → از همان pre-flight دیوار می‌بیند.
 
@@ -161,9 +161,9 @@
 |---------|--------|------|
 | 400 | `ATTACHMENT_UNSUPPORTED` | نوع فایل/مدل نامناسب (مثلاً تصویر با مدل بدون vision) |
 | 400 | `ATTACHMENT_TOO_LARGE` / `ATTACHMENT_INVALID` / `ATTACHMENT_EMPTY` / `ATTACHMENT_PARSE_FAILED` / `AUDIO_FORMAT` | سایز/فرمت/استخراج ناموفق |
-| 409 | `MEDIA_NO_MINER` | ماینرِ سازگار (نسخه ≥ 3.20.0) برای رسانه آنلاین نیست (fallback محلی در v3.40.0 حذف شد) |
-| 409 | `MODEL_UNAVAILABLE` | ماینر آنلاین هست ولی مدل درخواستی را ندارد — `requested_model` + تا ۶ `alternatives` (اول هم‌دسته، بعد پرماینرترین)؛ بدون شارژ |
-| 503 | `MINER_OFFLINE` | هیچ ماینری آنلاین نیست — `retryable: true`؛ بدون شارژ (کلاینت auto-retry می‌کند) |
+| 409 | `MEDIA_NO_WORKER` | ورکرِ سازگار (نسخه ≥ 3.20.0) برای رسانه آنلاین نیست (fallback محلی در v3.40.0 حذف شد) |
+| 409 | `MODEL_UNAVAILABLE` | ورکر آنلاین هست ولی مدل درخواستی را ندارد — `requested_model` + تا ۶ `alternatives` (اول هم‌دسته، بعد پرورکرترین)؛ بدون شارژ |
+| 503 | `WORKER_OFFLINE` | هیچ ورکری آنلاین نیست — `retryable: true`؛ بدون شارژ (کلاینت auto-retry می‌کند) |
 
 تاریخچه: پیام‌های کاربر در `GET /api/chat/sessions/:id` فیلد `media` (JSONB از `tasks.media`) دارند.
 
@@ -180,69 +180,69 @@
 
 ---
 
-## ماینرها
+## ورکرها
 
-### `GET /api/miners` (عمومی)
+### `GET /api/workers` (عمومی)
 
-لیست ماینرهای آنلاین برای نمایش عمومی — **بدون** `wallet_address` و `miner_token`، حداکثر ۱۰۰ ردیف.
+لیست ورکرهای آنلاین برای نمایش عمومی — **بدون** `wallet_address` و `worker_token`، حداکثر ۱۰۰ ردیف.
 
-### `GET /api/miners/:id` (فقط مالک)
+### `GET /api/workers/:id` (فقط مالک)
 
-### `POST /api/miners` (نیازمند JWT)
+### `POST /api/workers` (نیازمند JWT)
 
-ساخت ماینر جدید: `{ "name": "miner1" }` → پاسخ شامل `miner_token` (فقط یک بار نمایش داده می‌شود).
+ساخت ورکر جدید: `{ "name": "worker1" }` → پاسخ شامل `worker_token` (فقط یک بار نمایش داده می‌شود).
 
-### `GET /api/miners/mine`
+### `GET /api/workers/mine`
 
-ماینرهای خودِ کاربر (به‌جز `removed`)؛ `miner_token` بعد از اولین اتصال `null` می‌شود.
-از `v3.22.0` ماینرهایی که بیش از **۱۰ روز** است تماس نگرفته‌اند هم از این لیست حذف و به History می‌روند (با اتصال دوباره خودبه‌خود برمی‌گردند).
+ورکرهای خودِ کاربر (به‌جز `removed`)؛ `worker_token` بعد از اولین اتصال `null` می‌شود.
+از `v3.22.0` ورکرهایی که بیش از **۱۰ روز** است تماس نگرفته‌اند هم از این لیست حذف و به History می‌روند (با اتصال دوباره خودبه‌خود برمی‌گردند).
 
-### `GET /api/miners/history` (نیازمند JWT)
+### `GET /api/workers/history` (نیازمند JWT)
 
-تاریخچه ماینرها: ماینرهای `removed` + ماینرهای بیش از ۱۰ روز آفلاین.
+تاریخچه ورکرها: ورکرهای `removed` + ورکرهای بیش از ۱۰ روز آفلاین.
 
 - هر ردیف: `id`, `name`, `gpu_model`, `total_tasks`, `earnings`, `created_at`, `last_seen`, `uninstalled_at`, `reason` (`uninstalled` | `offline>10d`)
-- `summary`: `total_added`, `total_tasks`, `total_earnings` (روی همه ماینرهای کاربر)
+- `summary`: `total_added`, `total_tasks`, `total_earnings` (روی همه ورکرهای کاربر)
 
 ### متدهای مدیریت (نیازمند JWT و مالکیت)
 
 | متد و مسیر | توضیح |
 |-----------|-------|
-| `PUT /api/miners/mine/model` | تغییر مدل (`model`, `miner_id` اختیاری) |
-| `PUT /api/miners/mine/:id` | تغییر نام |
-| `PUT /api/miners/mine/:id/token` | ساخت توکن جدید (نصب مجدد) |
-| `DELETE /api/miners/mine/:id` | حذف نرم — `uninstalled_at` ثبت، تاریخچه در History محفوظ می‌ماند |
-| `GET /api/miners/mine/:id/earnings` | درآمد طول‌عمر یک ماینر + تفکیک ۵‌طرفه (شامل `removed`ها؛ فقط مالک؛ ناموجود/غیرمالک → `404`) |
+| `PUT /api/workers/mine/model` | تغییر مدل (`model`, `worker_id` اختیاری) |
+| `PUT /api/workers/mine/:id` | تغییر نام |
+| `PUT /api/workers/mine/:id/token` | ساخت توکن جدید (نصب مجدد) |
+| `DELETE /api/workers/mine/:id` | حذف نرم — `uninstalled_at` ثبت، تاریخچه در History محفوظ می‌ماند |
+| `GET /api/workers/mine/:id/earnings` | درآمد طول‌عمر یک ورکر + تفکیک ۵‌طرفه (شامل `removed`ها؛ فقط مالک؛ ناموجود/غیرمالک → `404`) |
 
 ### `POST /api/token` (نیازمند JWT)
 
 دریافت/ساخت توکن سطح حساب (legacy).
 
-### `POST /api/miners/setup` (عمومی، با توکن)
+### `POST /api/workers/setup` (عمومی، با توکن)
 
 ```json
-{ "email": "a@b.co", "miner_token": "kz_...", "gpu_model": "...", "ram": "32 GB", "cpu": "...", "models": ["llama3.1:8b"], "machine_id": "...", "name": "vps1" }
+{ "email": "a@b.co", "worker_token": "pw_...", "gpu_model": "...", "ram": "32 GB", "cpu": "...", "models": ["llama3.1:8b"], "machine_id": "...", "name": "vps1" }
 ```
 
-- توکنِ ماینرِ اختصاصی → بلافاصله ثبت/به‌روزرسانی.
-- توکنِ سطح حساب → فقط وقتی کاربر دقیقاً یک ماینر فعال دارد؛ در غیر این صورت `409`.
-- ماینرِ `removed` دوباره زنده نمی‌شود → `401`.
+- توکنِ ورکرِ اختصاصی → بلافاصله ثبت/به‌روزرسانی.
+- توکنِ سطح حساب → فقط وقتی کاربر دقیقاً یک ورکر فعال دارد؛ در غیر این صورت `409`.
+- ورکرِ `removed` دوباره زنده نمی‌شود → `401`.
 
-### `POST /api/miners/unregister` (عمومی، با توکن)
+### `POST /api/workers/unregister` (عمومی، با توکن)
 
 ```json
-{ "miner_token": "kz_..." }
+{ "worker_token": "pw_..." }
 ```
 
-از `v3.22.0` — توسط اسکریپت‌های `uninstall-*.sh` قبل از حذف فایل‌ها صدا زده می‌شود: ماینر `removed` + `uninstalled_at` ثبت و اتصال WS آن بسته می‌شود. **Idempotent**: توکل نامعتبر/تکراری هم `200 { success: true, unregistered: false }` برمی‌گرداند تا uninstall هرگز به‌خاطر سرور شکست نخورد.
+از `v3.22.0` — توسط اسکریپت‌های `uninstall-*.sh` قبل از حذف فایل‌ها صدا زده می‌شود: ورکر `removed` + `uninstalled_at` ثبت و اتصال WS آن بسته می‌شود. **Idempotent**: توکل نامعتبر/تکراری هم `200 { success: true, unregistered: false }` برمی‌گرداند تا uninstall هرگز به‌خاطر سرور شکست نخورد.
 
-### `PUT /api/miners/:id/heartbeat`
+### `PUT /api/workers/:id/heartbeat`
 
-بدون JWT؛ با `miner_token` در body. `status` فقط `online|offline|busy` پذیرفته می‌شود، `tasks_completed` بین ۰ تا ۱۰۰۰ محدود است و ماینرِ `removed` به‌روز نمی‌شود.
+بدون JWT؛ با `worker_token` در body. `status` فقط `online|offline|busy` پذیرفته می‌شود، `tasks_completed` بین ۰ تا ۱۰۰۰ محدود است و ورکرِ `removed` به‌روز نمی‌شود.
 
-### `POST /api/miners/register`
+### `POST /api/workers/register`
 
-غیرفعال است (`403`) — از `/api/miners/setup` استفاده شود.
+غیرفعال است (`403`) — از `/api/workers/setup` استفاده شود.
 
 ---
 
@@ -265,12 +265,12 @@
 - اعتبارسنجی HMAC-SHA512 با `NOWPAYMENTS_IPN_SECRET` (**fail-closed**: بدون تنظیم بودنِ secret هیچ وب‌هوکی پذیرفته نمی‌شود).
 - ادعا (claim) ایدمپوتنت با `order_id`/`processor_id` در یک تراکنش: وب‌هوکِ تکراری اعتباری اضافه نمی‌کند.
 - مبلغ از **ردیف دیتابیس** خوانده می‌شود، نه از payload.
-- `order_id` با پیشوند `plus-`/`pro-`/`max-` → اشتراک همان پلن: ادعای `plan_purchases` (`pending` → `completed`، دقیقاً یک‌بار) و سپس فعال‌سازی ۳۰ روزه (`expires_at = max(expires, now) + 30d`)؛ با پیشوند `tok-` → شارژ بستهٔ توکن (`creditTokens`)؛ **هرگز** موجودی کیف پول را تغییر نمی‌دهند. واریزهای معمولی (`krelz-…`) فقط موجودی را شارژ می‌کنند.
+- `order_id` با پیشوند `plus-`/`pro-`/`max-` → اشتراک همان پلن: ادعای `plan_purchases` (`pending` → `completed`، دقیقاً یک‌بار) و سپس فعال‌سازی ۳۰ روزه (`expires_at = max(expires, now) + 30d`)؛ با پیشوند `tok-` → شارژ بستهٔ توکن (`creditTokens`)؛ **هرگز** موجودی کیف پول را تغییر نمی‌دهند. واریزهای معمولی (`plankton-…`) فقط موجودی را شارژ می‌کنند.
 
 ### `GET /api/payments/balance` (نیازمند JWT)
 
 ```json
-{ "success": true, "balances": { "USD": { "available": 12.5, "total_earned": 30, "total_spent": 17.5 } }, "miner_credit": { "eligible": true, "limit": 1, "used": 0.01, "remaining": 0.99 }, "free_tokens": { "limit": 2000000, "used": 420, "remaining": 1999580 }, "plan": { "name": "plus", "active": true, "expires_at": "2026-11-02T00:00:00.000Z" }, "plans": [ ... ], "token_bundle": { "price_per_million": 1, "tokens_per_usd": 1000000, "min_usd": 1, "max_usd": 500, "balance": 5000000 } }
+{ "success": true, "balances": { "USD": { "available": 12.5, "total_earned": 30, "total_spent": 17.5 } }, "worker_credit": { "eligible": true, "limit": 1, "used": 0.01, "remaining": 0.99 }, "free_tokens": { "limit": 2000000, "used": 420, "remaining": 1999580 }, "plan": { "name": "plus", "active": true, "expires_at": "2026-11-02T00:00:00.000Z" }, "plans": [ ... ], "token_bundle": { "price_per_million": 1, "tokens_per_usd": 1000000, "min_usd": 1, "max_usd": 500, "balance": 5000000 } }
 ```
 
 ### `POST /api/payments/withdraw`
@@ -336,7 +336,7 @@ IPN با پیشوند `tok-` → ادعای exactly-once `plan_purchases` → `c
 ### `GET /api/token/balance` (نیازمند JWT)
 
 ```json
-{ "success": true, "available": 5.0, "total_earned": 2.0, "total_spent": 0.5, "miner_credit": { "eligible": true, "limit": 1, "used": 0.01, "remaining": 0.99 }, "free_tokens": { "limit": 2000000, "used": 420, "remaining": 1999580 }, "plan": { "name": "free", "active": false, "expires_at": null }, "plans": [ ... ], "token_bundle": { "price_per_million": 1, "tokens_per_usd": 1000000, "min_usd": 1, "max_usd": 500, "balance": 5000000 } }
+{ "success": true, "available": 5.0, "total_earned": 2.0, "total_spent": 0.5, "worker_credit": { "eligible": true, "limit": 1, "used": 0.01, "remaining": 0.99 }, "free_tokens": { "limit": 2000000, "used": 420, "remaining": 1999580 }, "plan": { "name": "free", "active": false, "expires_at": null }, "plans": [ ... ], "token_bundle": { "price_per_million": 1, "tokens_per_usd": 1000000, "min_usd": 1, "max_usd": 500, "balance": 5000000 } }
 ```
 
 ### `POST /api/token/deposit|deduct|transfer`
@@ -360,12 +360,12 @@ IPN با پیشوند `tok-` → ادعای exactly-once `plan_purchases` → `c
 نمونه:
 
 ```bash
-curl https://krelz.xyz/v1/chat/completions \
+curl https://plankton.click/v1/chat/completions \
   -H "Authorization: Bearer sk_..." -H "Content-Type: application/json" \
   -d '{"model":"qwen3-coder:30b","messages":[{"role":"user","content":"write fizzbuzz in python"}]}'
 ```
 
-اتصال opencode (`opencode.json` + `export KRELZ_API_KEY=sk_...`): provider `krelz` با `npm: @ai-sdk/openai-compatible` و `baseURL: https://krelz.xyz/v1`؛ مدل‌ها `qwen3-coder:30b` (context 262144/output 32768) و `qwen2.5-coder:32b` (32768/8192).
+اتصال opencode (`opencode.json` + `export PLANKTON_API_KEY=sk_...`): provider `plankton` با `npm: @ai-sdk/openai-compatible` و `baseURL: https://plankton.click/v1`؛ مدل‌ها `qwen3-coder:30b` (context 262144/output 32768) و `qwen2.5-coder:32b` (32768/8192).
 
 محدودیت فاز ۱: `stream:true` → `400 stream_not_supported`؛ `tools` → `400 tool_not_supported`.
 
@@ -385,7 +385,7 @@ curl https://krelz.xyz/v1/chat/completions \
 
 ## سازمان‌ها (v3.44.0 — نیازمند JWT؛ ساخت سازمان فقط توسط ادمین)
 
-سازمان = یک سطل مشترک از سقف پلنِ لیدر. کاربرها خودشان ثبت‌نام می‌کنند و لیدر با ایمیل اضافه‌شان می‌کند. سقف مؤثر هر عضو = `max(سقف خودِ عضو, سقف لیدر)`؛ پات توکن، کیف پول و اعتبار ماینر هر عضو جداست. یک عضویت فعال برای هر کاربر (v3.45.0: با ایندکس unique در دیتابیس تضمین می‌شود).
+سازمان = یک سطل مشترک از سقف پلنِ لیدر. کاربرها خودشان ثبت‌نام می‌کنند و لیدر با ایمیل اضافه‌شان می‌کند. سقف مؤثر هر عضو = `max(سقف خودِ عضو, سقف لیدر)`؛ پات توکن، کیف پول و اعتبار ورکر هر عضو جداست. یک عضویت فعال برای هر کاربر (v3.45.0: با ایندکس unique در دیتابیس تضمین می‌شود).
 
 | متد و مسیر | توضیح |
 |------|-------|
@@ -404,17 +404,17 @@ curl https://krelz.xyz/v1/chat/completions \
 
 | مسیر | توضیح |
 |------|-------|
-| `GET /api/models` | کاتالوگ مدل‌ها + تعداد ماینر آنلاین هر مدل (`unknown_models` برای مدل‌های خارج از کاتالوگ) — کش ۱۵ ثانیه |
+| `GET /api/models` | کاتالوگ مدل‌ها + تعداد ورکر آنلاین هر مدل (`unknown_models` برای مدل‌های خارج از کاتالوگ) — کش ۱۵ ثانیه |
 | `GET /api/models/categories` | دسته‌بندی‌ها |
-| `GET /api/leaderboard/miners` | ۵۰ ماینر برتر |
+| `GET /api/leaderboard/workers` | ۵۰ ورکر برتر |
 | `GET /api/leaderboard/users` | ۵۰ کاربر برتر |
-| `GET /api/leaderboard/mine` | رتبه خودِ کاربر بین ماینرها (نیازمند JWT؛ `RANK()` روی درآمد + `breakdown: {tokens, wallet, plus, pro, max}` از `miner_coin_earnings`، v3.28.0) |
+| `GET /api/leaderboard/mine` | رتبه خودِ کاربر بین ورکرها (نیازمند JWT؛ `RANK()` روی درآمد + `breakdown: {tokens, wallet, plus, pro, max}` از `worker_coin_earnings`، v3.28.0) |
 
 ---
 
 ## تیکت‌های پشتیبانی (v3.39.0 — نیازمند JWT؛ فقط تیکتِ خودِ کاربر)
 
-وضعیت‌ها: `open` (در انتظار پاسخ) → `answered` (پاسخ ادمین) → با پاسخ کاربر دوباره `open` → `closed` (هر دو طرف؛ پاسخ به تیکت بسته → `409`). دسته‌ها: `support` | `billing` | `miner`.
+وضعیت‌ها: `open` (در انتظار پاسخ) → `answered` (پاسخ ادمین) → با پاسخ کاربر دوباره `open` → `closed` (هر دو طرف؛ پاسخ به تیکت بسته → `409`). دسته‌ها: `support` | `billing` | `worker`.
 
 | متد و مسیر | توضیح |
 |------|-------|
@@ -436,7 +436,7 @@ curl https://krelz.xyz/v1/chat/completions \
 |------|-------|
 | `GET /api/admin/dashboard` | شمارنده‌ها + درآمد پلتفرم + تیکت‌های کل/باز |
 | `GET /api/admin/users` | ۱۰۰ کاربر اخیر + موجودی دلار/توکن + پلن فعال + `banned` |
-| `GET /api/admin/miners` | ۱۰۰ ماینر + ایمیل کاربر |
+| `GET /api/admin/workers` | ۱۰۰ ورکر + ایمیل کاربر |
 | `GET /api/admin/tasks` | ۱۰۰ تسک اخیر + ایمیل کاربر |
 | `GET /api/admin/tickets?status=&q=` | لیست تیکت‌ها با ایمیل کاربر (فیلتر وضعیت + جستجو در موضوع/ایمیل) |
 | `GET /api/admin/tickets/:id` | تیکت + ایمیل مالک + رشته پیام‌ها |
@@ -450,12 +450,12 @@ curl https://krelz.xyz/v1/chat/completions \
 |------|-------|
 | `POST /api/admin/tickets/:id/messages` | پاسخ ادمین → وضعیت `answered`؛ تیکت بسته → `409` |
 | `POST /api/admin/tickets/:id/status` | `{status: "open"\|"closed"}` — بازگشایی/بستن (ثبت در audit) |
-| `PUT /api/admin/users/:id/role` | `{role: "user"\|"miner"\|"admin"}` — تغییر نقش خود → `409` |
+| `PUT /api/admin/users/:id/role` | `{role: "user"\|"worker"\|"admin"}` — تغییر نقش خود → `409` |
 | `PUT /api/admin/users/:id/ban` | `{banned: true\|false}` — مسدودی خود → `409`؛ کش نشست‌ها باطل می‌شود |
 | `POST /api/admin/users/:id/balance` | `{delta_usd, reason}` — دلار ± (سقف ±۱M، `reason` ≥۳ حرف، موجودی منفی → `400`) |
 | `POST /api/admin/users/:id/tokens` | `{delta_tokens, reason}` — توکن پات ± (عدد صحیح، کف صفر) |
 | `PUT /api/admin/users/:id/plan` | `{plan: "plus"\|"pro"\|"max"}` — فعال‌سازی/تمدید ۳۰ روزه از `plans.activatePlan` |
-| `PUT /api/admin/miners/:id/status` | `{status: "removed"\|"offline"}` — حذف/بازگردانی ماینر |
+| `PUT /api/admin/workers/:id/status` | `{status: "removed"\|"offline"}` — حذف/بازگردانی ورکر |
 | `POST /api/admin/orgs` | `{name, leader_email}` — ساخت سازمان + ردیف لیدر (v3.44.0، تراکنش + audit) |
 | `POST /api/admin/orgs/:id/members` | `{email}` — افزودن کاربر ثبت‌نام‌شده (v3.44.0) |
 | `DELETE /api/admin/orgs/:id/members/:userId` | حذف عضو (لیدر حذف نمی‌شود؛ v3.44.0) |
@@ -467,16 +467,16 @@ curl https://krelz.xyz/v1/chat/completions \
 
 | مسیر | رفتار |
 |------|-------|
-| `GET /health` | readiness: بدون Postgres → `503` + `status: "degraded"`؛ Redis فقط گزارشی است؛ `chatUsable = online_miners > 0` (فیلد `ollama` در v3.40.0 حذف شد) |
+| `GET /health` | readiness: بدون Postgres → `503` + `status: "degraded"`؛ Redis فقط گزارشی است؛ `chatUsable = online_workers > 0` (فیلد `ollama` در v3.40.0 حذف شد) |
 | `GET /health/live` | liveness: همیشه `200` |
 
 ---
 
 ## WebSocket
 
-آدرس: `wss://krelz.xyz/ws` (از داخل سرور: `ws://127.0.0.1:8444/ws`)
+آدرس: `wss://plankton.click/ws` (از داخل سرور: `ws://127.0.0.1:8444/ws`)
 
-- احراز هویت ماینر با `miner_token`.
+- احراز هویت ورکر با `worker_token`.
 - پیام‌های کلیدی: `register`, `task_dispatch`, `task_result`, `heartbeat`.
 - نتیجه تکراری (`task_result` برای تسکی که دیگر `pending/processing` نیست) نادیده گرفته می‌شود.
 
@@ -487,12 +487,12 @@ curl https://krelz.xyz/v1/chat/completions \
 | کد | معنا |
 |----|------|
 | `400` | اعتبارسنجی ناموفق (`details` شامل فیلدهاست) |
-| `401` | توکن نامعتبر/نبودن توکن/توکنِ ماینر نامعتبر |
-| `402` | **دیوار ارتقا (v3.28.0)**: هیچ پوششی برای پیام بعدی — `code: "upgrade_required"` + `free`/`plans`/`token_bundle`/`signed_in` (سقف رایگان تمام‌شده + بدون اعتبار ماینر + کیف توکن خالی + کیف پول خالی) |
+| `401` | توکن نامعتبر/نبودن توکن/توکنِ ورکر نامعتبر |
+| `402` | **دیوار ارتقا (v3.28.0)**: هیچ پوششی برای پیام بعدی — `code: "upgrade_required"` + `free`/`plans`/`token_bundle`/`signed_in` (سقف رایگان تمام‌شده + بدون اعتبار ورکر + کیف توکن خالی + کیف پول خالی) |
 | `402` | **گیت Coder API (v3.43.0)**: `code: "api_payment_required"` + `plans`/`token_bundle` (فقط `/v1`؛ plan رایگان خالی) |
 | `403` | دسترسی ادمین لازم است / CORS |
 | `404` | پیدا نشد |
-| `409` | تعارض (چند ماینر با توکن سطح حساب) |
+| `409` | تعارض (چند ورکر با توکن سطح حساب) |
 | `410` | endpoint قدیمی حذف شده |
 | `429` | نرخ محدودیت |
 | `500` | خطای داخلی |

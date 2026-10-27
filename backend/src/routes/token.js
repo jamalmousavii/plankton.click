@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../database/pool');
 const { logger } = require('../logger');
-const { getMinerCreditStatus } = require('../services/minerCredit');
+const { getWorkerCreditStatus } = require('../services/workerCredit');
 const { FREE_DAILY_TOKENS, PLANS, TOKEN_BUNDLE, listPlans, getActivePlan } = require('../services/plans');
 const { getFreeStatus } = require('../services/freeAllowance');
 const { getTokenBalance } = require('../services/tokenBundles');
@@ -20,7 +20,7 @@ router.get('/balance', async (req, res) => {
     );
 
     const balance = balanceResult.rows[0] || { available: 0, total_earned: 0, total_spent: 0 };
-    const minerCredit = await getMinerCreditStatus(userId);
+    const workerCredit = await getWorkerCreditStatus(userId);
     const plan = await getActivePlan(userId);
     const cap = plan ? PLANS[plan.plan_type].daily_tokens : FREE_DAILY_TOKENS;
     const freeStatus = await getFreeStatus({ userId, cap });
@@ -31,11 +31,11 @@ router.get('/balance', async (req, res) => {
       available: parseFloat(balance.available),
       total_earned: parseFloat(balance.total_earned),
       total_spent: parseFloat(balance.total_spent),
-      miner_credit: {
-        eligible: minerCredit.eligible,
-        limit: minerCredit.limit,
-        used: minerCredit.used,
-        remaining: minerCredit.remaining,
+      worker_credit: {
+        eligible: workerCredit.eligible,
+        limit: workerCredit.limit,
+        used: workerCredit.used,
+        remaining: workerCredit.remaining,
       },
       free_tokens: {
         limit: freeStatus.limit,

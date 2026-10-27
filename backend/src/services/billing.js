@@ -1,26 +1,26 @@
 const pool = require('../database/pool');
 const { chargeFreeTokens } = require('./freeAllowance');
-const { chargeMinerCredit } = require('./minerCredit');
+const { chargeWorkerCredit } = require('./workerCredit');
 const { chargeTokenPot } = require('./tokenBundles');
-const { getActivePlan, MINER_REVENUE_SHARE } = require('./plans');
+const { getActivePlan, WORKER_REVENUE_SHARE } = require('./plans');
 const { invalidateCache } = require('../cache');
 const { logger } = require('../logger');
 
 // Single money mutation point (extracted verbatim from routes/chat.js).
 // Chain, in order, inside ONE row-locked transaction:
-//   1. daily free allowance (platform-funded, no miner share);
-//   2. miner $1/day credit (platform-funded, no miner share);
-//   3. prepaid token pot (miner earns 90% of catalog value from revenue);
-//   4. USD wallet (miner earns 90% of the debit; dust drained in full);
+//   1. daily free allowance (platform-funded, no worker share);
+//   2. worker $1/day credit (platform-funded, no worker share);
+//   3. prepaid token pot (worker earns 90% of catalog value from revenue);
+//   4. USD wallet (worker earns 90% of the debit; dust drained in full);
 //   5. race with nothing left → served as 'free' (generation never wasted).
 // Guests (no userId) only ever reach legs 1 and 5.
 // Returns the settlement snapshot; throws on DB errors (caller 500s).
-async function settleMessage({ userId, guestKey, tokensUsed, cost, minerId, servedByMiner, freeCap, freeRemainingInit = null, bucketUserId = null, paymentCoin = 'USD', taskId = null }) {
+async function settleMessage({ userId, guestKey, tokensUsed, cost, workerId, servedByWorker, freeCap, freeRemainingInit = null, bucketUserId = null, paymentCoin = 'USD', taskId = null }) {
   // v3.44.0 org shared bucket: the free leg drains the bucket owner's row
   // (the org leader when the org plan wins); every other leg stays per-user.
   const bucket = bucketUserId || userId;
   let paymentStatus = 'free';
-  let minerCreditRemaining = null;
+  let workerCreditRemaining = null;
   let freeRemaining = freeRemainingInit;
   let tokenBalanceRemaining = null;
   let upgradeNotice = false;
@@ -28,16 +28,16 @@ async function settleMessage({ userId, guestKey, tokensUsed, cost, minerId, serv
   let freeLow = false;
   let freeExhausted = false;
 
-  const creditMinerEarning = async (client, earning, source) => {
+  const creditWorkerEarning = async (client, earning, source) => {
     const payerPlan = await getActivePlan(userId, client);
     await client.query(
-      'UPDATE miners SET earnings = earnings + $1 WHERE id = $2',
-      [earning, minerId]
+      'UPDATE workers SET earnings = earnings + $1 WHERE id = $2',
+      [earning, workerId]
     );
     await client.query(
-      `INSERT INTO miner_coin_earnings (miner_id, coin, amount, task_id, source, plan_type)
+      `INSERT INTO worker_coin_earnings (worker_id, coin, amount, task_id, source, plan_type)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [minerId, paymentCoin, earning, taskId, source, payerPlan ? payerPlan.plan_type : 'free']
+      [workerId, paymentCoin, earning, taskId, source, payerPlan ? payerPlan.plan_type : 'free']
     );
   };
 
@@ -59,11 +59,11 @@ async function settleMessage({ userId, guestKey, tokensUsed, cost, minerId, serv
             freeLow = true;
           }
         } else if (userId) {
-        const creditCharge = await chargeMinerCredit(userId, cost, client);
-        minerCreditRemaining = creditCharge.remaining;
+        const creditCharge = await chargeWorkerCredit(userId, cost, client);
+        workerCreditRemaining = creditCharge.remaining;
 
         if (creditCharge.charged) {
-          paymentStatus = 'free_miner';
+          paymentStatus = 'free_worker';
         } else {
           const potCharge = await chargeTokenPot({ userId, tokens: tokensUsed, client });
 
@@ -72,8 +72,8 @@ async function settleMessage({ userId, guestKey, tokensUsed, cost, minerId, serv
             paymentStatus = 'tokens';
             // Flat 90% of the message's catalog value — same rate as the
             // wallet leg, paid from the platform's bundle revenue.
-            if (minerId && servedByMiner) {
-              await creditMinerEarning(client, cost * MINER_REVENUE_SHARE, 'tokens');
+            if (workerId && servedByWorker) {
+              await creditWorkerEarning(client, cost * WORKER_REVENUE_SHARE, 'tokens');
             }
           } else {
             const balanceResult = await client.query(
@@ -93,10 +93,10 @@ async function settleMessage({ userId, guestKey, tokensUsed, cost, minerId, serv
                 [debit, userId, paymentCoin]
               );
 
-              // Only a miner that actually served the task earns.
+              // Only a worker that actually served the task earns.
               // Flat 90% for every payer (Free/Plus/Pro/Max alike).
-              if (minerId && servedByMiner) {
-                await creditMinerEarning(client, debit * MINER_REVENUE_SHARE, 'wallet');
+              if (workerId && servedByWorker) {
+                await creditWorkerEarning(client, debit * WORKER_REVENUE_SHARE, 'wallet');
               }
               paymentStatus = 'paid';
               upgradeNotice = true;
@@ -128,7 +128,7 @@ async function settleMessage({ userId, guestKey, tokensUsed, cost, minerId, serv
 
   return {
     paymentStatus,
-    minerCreditRemaining,
+    workerCreditRemaining,
     freeRemaining,
     tokenBalanceRemaining,
     upgradeNotice,
@@ -137,4 +137,4 @@ async function settleMessage({ userId, guestKey, tokensUsed, cost, minerId, serv
   };
 }
 
-module.exports = { settleMessage, MINER_REVENUE_SHARE };
+module.exports = { settleMessage, WORKER_REVENUE_SHARE };

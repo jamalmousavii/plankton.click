@@ -1,7 +1,7 @@
 {
-  "name": "krelz-backend",
-  "version": "3.45.0",
-  "description": "Krelz Network Backend API",
+  "name": "plankton-backend",
+  "version": "1.0.0",
+  "description": "Plankton Network Backend API",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

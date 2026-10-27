@@ -1,0 +1,10 @@
+[Unit]
+Description=Nightly Plankton database backup (03:30 UTC)
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

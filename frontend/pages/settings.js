@@ -125,12 +125,12 @@ export default function Settings() {
   const opencodeSnippet = `{
   "$schema": "https://opencode.ai/config.json",
   "provider": {
-    "krelz": {
+    "plankton": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "Krelz",
+      "name": "Plankton",
       "options": {
-        "baseURL": "https://krelz.xyz/v1",
-        "apiKey": "{env:KRELZ_API_KEY}"
+        "baseURL": "https://plankton.click/v1",
+        "apiKey": "{env:PLANKTON_API_KEY}"
       },
       "models": {
         "qwen3-coder:30b": {
@@ -256,7 +256,7 @@ export default function Settings() {
 
   if (loading || !user) {
     return (
-      <div className="flex-1 bg-gradient-to-br from-sky-50 via-blue-50 to-cyan-50 flex items-center justify-center">
+      <div className="flex-1 page-surface flex items-center justify-center">
         <div className="text-gray-600 text-lg">Loading...</div>
       </div>
     );
@@ -275,8 +275,8 @@ export default function Settings() {
   );
 
   return (
-    <div className={`flex-1 bg-gradient-to-br from-sky-50 via-blue-50 to-cyan-50`}>
-      <Head><title>{t('profile.settings')} - Krelz Network</title></Head>
+    <div className={`flex-1 page-surface`}>
+      <Head><title>{t('profile.settings')} - Plankton Network</title></Head>
 
       <Navbar />
         {errorBanner}
@@ -285,7 +285,7 @@ export default function Settings() {
         {/* Quick nav */}
         <div className="flex gap-2 mb-6 flex-wrap">
           <Link href="/profile" className="px-4 py-2 min-h-[40px] inline-flex items-center rounded-lg text-sm font-bold bg-white text-gray-600 border border-sky-200 hover:bg-sky-50">📊 {t('nav.dashboard')}</Link>
-          <Link href="/miners" className="px-4 py-2 min-h-[40px] inline-flex items-center rounded-lg text-sm font-bold bg-white text-gray-600 border border-sky-200 hover:bg-sky-50">⛏️ {t('nav.miners')}</Link>
+          <Link href="/workers" className="px-4 py-2 min-h-[40px] inline-flex items-center rounded-lg text-sm font-bold bg-white text-gray-600 border border-sky-200 hover:bg-sky-50">🖥️ {t('nav.workers')}</Link>
           <Link href="/support" className="px-4 py-2 min-h-[40px] inline-flex items-center rounded-lg text-sm font-bold bg-white text-gray-600 border border-sky-200 hover:bg-sky-50">🎫 {t('nav.support')}</Link>
           <Link href="/settings" className="px-4 py-2 min-h-[40px] inline-flex items-center rounded-lg text-sm font-bold bg-sky-500 text-white">⚙️ {t('nav.settings')}</Link>
         </div>

@@ -15,10 +15,10 @@ jest.mock('../src/database/pool', () => {
 });
 
 jest.mock('../src/services/billing', () => ({
-  MINER_REVENUE_SHARE: 0.9,
+  WORKER_REVENUE_SHARE: 0.9,
   settleMessage: jest.fn(async () => ({
     paymentStatus: 'tokens',
-    minerCreditRemaining: null,
+    workerCreditRemaining: null,
     freeRemaining: 0,
     tokenBalanceRemaining: 999000,
     upgradeNotice: false,
@@ -53,10 +53,10 @@ function v1App(wsServer) {
 }
 
 const fakeWs = () => ({
-  findMinersForModel: jest.fn(() => [{ minerId: 1, model: 'qwen3-coder:30b' }]),
-  countUsableMiners: jest.fn(() => 1),
+  findWorkersForModel: jest.fn(() => [{ workerId: 1, model: 'qwen3-coder:30b' }]),
+  countUsableWorkers: jest.fn(() => 1),
   onlineModelCounts: jest.fn(() => ({})),
-  pickCandidate: jest.fn(({ exclude } = {}) => (exclude && exclude.size > 0 ? null : { minerId: 1, model: 'qwen3-coder:30b' })),
+  pickCandidate: jest.fn(({ exclude } = {}) => (exclude && exclude.size > 0 ? null : { workerId: 1, model: 'qwen3-coder:30b' })),
   recordModelResult: jest.fn(),
   dispatchTask: jest.fn(async () => ({ response: 'print(1)', tokens_used: 5 })),
 });
@@ -158,7 +158,7 @@ describe('GET /v1/models', () => {
     expect(res.status).toBe(200);
     expect(res.body.object).toBe('list');
     expect(res.body.data.map((m) => m.id).sort()).toEqual(['qwen2.5-coder:32b', 'qwen3-coder:30b']);
-    expect(res.body.data[0]).toMatchObject({ object: 'model', owned_by: 'krelz' });
+    expect(res.body.data[0]).toMatchObject({ object: 'model', owned_by: 'plankton' });
   });
 });
 
@@ -232,14 +232,14 @@ describe('POST /v1/chat/completions', () => {
     expect(dispatched).toMatch(/^System: you are terse/);
   });
 
-  it('503s retryable when miners are down', async () => {
+  it('503s retryable when workers are down', async () => {
     authedDb({ pot: 1000000 });
     const ws = fakeWs();
-    ws.findMinersForModel.mockReturnValue([]);
-    ws.countUsableMiners.mockReturnValue(0);
+    ws.findWorkersForModel.mockReturnValue([]);
+    ws.countUsableWorkers.mockReturnValue(0);
     const app = v1App(ws);
     const res = await request(app).post('/v1/chat/completions').set('Authorization', key()).send(body());
     expect(res.status).toBe(503);
-    expect(res.body.error.code).toBe('miner_offline');
+    expect(res.body.error.code).toBe('worker_offline');
   });
 });

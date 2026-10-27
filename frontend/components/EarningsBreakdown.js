@@ -1,8 +1,8 @@
 import { useLanguage } from '../i18n/LanguageContext';
 
 // v3.29.0 — shared 5-way earnings breakdown (source × payer plan).
-// Used by profile (rank card), /miners (account totals) and /miner (real
-// numbers when the visitor has a miner). `breakdown` = { tokens, wallet,
+// Used by profile (rank card), /workers (account totals) and /worker (real
+// numbers when the visitor has a worker). `breakdown` = { tokens, wallet,
 // plus, pro, max } from GET /api/leaderboard/mine.
 const ROWS = [
   { key: 'tokens', emoji: '🎟️', label: 'profile.bdTokens', color: 'text-sky-700' },

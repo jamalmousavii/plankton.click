@@ -112,7 +112,7 @@ export function isRtl(code) {
 export function detectLanguage() {
   if (typeof window === 'undefined') return 'en';
   try {
-    const saved = sessionStorage.getItem('krelz-lang');
+    const saved = sessionStorage.getItem('plankton-lang');
     if (saved && CODES.has(saved)) return saved;
   } catch (e) {}
   const prefs = navigator.languages || [navigator.language || 'en'];

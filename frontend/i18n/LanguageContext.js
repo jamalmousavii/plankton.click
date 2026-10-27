@@ -31,7 +31,7 @@ export function LanguageProvider({ children }) {
     const commit = () => {
       setLang(newLang);
       if (typeof window !== 'undefined') {
-        try { sessionStorage.setItem('krelz-lang', newLang); } catch (e) {}
+        try { sessionStorage.setItem('plankton-lang', newLang); } catch (e) {}
         document.documentElement.dir = isRtl(newLang) ? 'rtl' : 'ltr';
         document.documentElement.lang = newLang;
       }

@@ -15,7 +15,7 @@ const { logger } = require('./logger');
 const { authenticate } = require('./middleware/auth');
 
 const authRoutes = require('./routes/auth');
-const minerRoutes = require('./routes/miners');
+const workerRoutes = require('./routes/workers');
 const chatRoutes = require('./routes/chat');
 const paymentRoutes = require('./routes/payments');
 const planRoutes = require('./routes/plans');
@@ -74,11 +74,11 @@ app.set('wsServer', wsServer);
 // B13: localhost origins are a DEV convenience only — shipping them in prod
 // lets any local page on the box (or a crafted Host) ride the CORS allow-list.
 const allowedOrigins = [
-  'https://krelz.xyz',
-  'https://www.krelz.xyz',
+  'https://plankton.click',
+  'https://www.plankton.click',
 ];
 if (process.env.NODE_ENV !== 'production') {
-  allowedOrigins.push('http://localhost:3000', 'http://localhost:3002');
+  allowedOrigins.push('http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002');
 }
 app.use(cors({
   origin: (origin, cb) => {
@@ -95,7 +95,7 @@ app.use(helmet({
       scriptSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
-        connectSrc: ["'self'", "https://krelz.xyz", "wss://krelz.xyz", "wss://krelz.xyz:8443", "https://accounts.google.com"],
+      connectSrc: ["'self'", "https://plankton.click", "wss://plankton.click", "https://accounts.google.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       frameSrc: ["'self'", "https://accounts.google.com"],
     },
@@ -162,17 +162,17 @@ app.use('/api/payments/deposit/create', moneyLimiter);
 app.use('/api/payments/withdraw', moneyLimiter);
 app.use('/api/plans', moneyLimiter);
 
-// Miner setup/unregister: low-frequency ops, tight budget. Heartbeat is NOT
-// limited here (30s per miner by design + token auth).
+// Worker setup/unregister: low-frequency ops, tight budget. Heartbeat is NOT
+// limited here (30s per worker by design + token auth).
 const setupLimiter = makeLimiter({
   name: 'setup',
   windowMs: 15 * 60 * 1000,
   max: 20,
-  message: { error: 'Too many miner setup requests, try again later.' },
+  message: { error: 'Too many worker setup requests, try again later.' },
 });
-app.use('/api/miners/setup', setupLimiter);
-app.use('/api/miners/unregister', setupLimiter);
-app.use('/api/miners/register', setupLimiter);
+app.use('/api/workers/setup', setupLimiter);
+app.use('/api/workers/unregister', setupLimiter);
+app.use('/api/workers/register', setupLimiter);
 
 // Webhook: skipped by globalLimiter (payment-critical), but still needs a
 // generous ceiling so invalid-signature floods cannot saturate the DB.
@@ -239,8 +239,8 @@ app.use('/api/keys', apiKeyRoutes);
 app.use('/api/orgs', orgRoutes);
 app.use('/v1', v1Routes);
 app.use('/api/auth', authRoutes);
-// /api/miners responses are per-user (they contain miner_token) — never cache them.
-app.use('/api/miners', minerRoutes);
+// /api/workers responses are per-user (they contain worker_token) — never cache them.
+app.use('/api/workers', workerRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/plans', planRoutes);
@@ -270,23 +270,23 @@ app.get('/health', async (req, res) => {
     logger.error({ err: e }, 'Health check: Postgres unreachable');
   }
 
-  // v3.40.0 miner-only inference: chat is usable iff at least one miner is
+  // v3.40.0 worker-only inference: chat is usable iff at least one worker is
   // online. There is no local Ollama anymore, so nothing probes it — the
-  // `ollama` field is gone (monitors: watch `online_miners` + `status`).
+  // `ollama` field is gone (monitors: watch `online_workers` + `status`).
   // Report degraded but keep HTTP 200 when Postgres is fine: pulling this
   // box from rotation would take the whole API down, not just chat.
-  let onlineMiners = null;
+  let onlineWorkers = null;
   if (dbOk) {
     try {
       const pool = require('./database/pool');
-      const r = await pool.query("SELECT COUNT(*)::int AS n FROM miners WHERE status = 'online'");
-      onlineMiners = r.rows[0].n;
+      const r = await pool.query("SELECT COUNT(*)::int AS n FROM workers WHERE status = 'online'");
+      onlineWorkers = r.rows[0].n;
     } catch (e) {
-      logger.error({ err: e }, 'Health check: miner count failed');
+      logger.error({ err: e }, 'Health check: worker count failed');
     }
   }
 
-  const chatUsable = onlineMiners !== null && onlineMiners > 0;
+  const chatUsable = onlineWorkers !== null && onlineWorkers > 0;
   res.status(dbOk ? 200 : 503).json({
     status: !dbOk ? 'degraded' : (chatUsable ? 'ok' : 'degraded'),
     version: require('../package.json').version,
@@ -295,7 +295,7 @@ app.get('/health', async (req, res) => {
     redis: cache.connected ? 'connected' : 'disconnected',
     postgres: dbStatus,
     db_latency_ms: dbLatencyMs,
-    online_miners: onlineMiners,
+    online_workers: onlineWorkers,
     sentry: !!process.env.SENTRY_DSN,
   });
 });
@@ -331,20 +331,20 @@ app.use((err, req, res, next) => {
 
 // v3.18.4: bind to loopback only — nginx is the sole public entry point
 server.listen(PORT, '127.0.0.1', () => {
-  logger.info({ port: PORT }, 'Krelz Backend started');
+  logger.info({ port: PORT }, 'Plankton Backend started');
   logger.info({ redis: getCacheStats().connected ? 'connected' : 'disconnected' }, 'Cache status');
 
   // v3.41.1: a restart drops every WS socket without running the close
   // handler, so DB rows stay 'online'/'busy' forever (stale dashboard,
-  // lying /health online_miners). Reset them — live miners re-auth within
+  // lying /health online_workers). Reset them — live workers re-auth within
   // seconds and flip right back to online via auth/heartbeat.
   try {
     const pool = require('./database/pool');
-    pool.query("UPDATE miners SET status = 'offline' WHERE status IN ('online', 'busy')")
-      .then((r) => logger.info({ reset: r.rowCount }, 'Boot: stale miner statuses reset to offline'))
-      .catch((err) => logger.error({ err }, 'Boot: miner status reset failed'));
+    pool.query("UPDATE workers SET status = 'offline' WHERE status IN ('online', 'busy')")
+      .then((r) => logger.info({ reset: r.rowCount }, 'Boot: stale worker statuses reset to offline'))
+      .catch((err) => logger.error({ err }, 'Boot: worker status reset failed'));
   } catch (err) {
-    logger.error({ err }, 'Boot: miner status reset failed');
+    logger.error({ err }, 'Boot: worker status reset failed');
   }
 
   // B4/B11: hourly payment reconciliation + old-media prune. Both jobs are

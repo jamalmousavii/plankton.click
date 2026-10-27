@@ -2,47 +2,66 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --canvas: #f3f8f8;
+  --ink: #142328;
+  --lagoon: #1798a3;
+  --glow: #7cf5c6;
+  --coral: #ff8a73;
+}
+
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  color: var(--ink);
+  font-feature-settings: 'cv11', 'ss01';
 }
 
 html {
-  /* Neutral canvas (ChatGPT/Gemini-style) instead of the old sky tint. */
-  background-color: #f7f7f8;
+  background-color: var(--canvas);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   overscroll-behavior: none;
 }
 
+h1, h2, h3 {
+  font-family: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.015em;
+}
+
 ::selection {
-  background-color: rgba(14, 165, 233, 0.25);
+  background-color: rgba(54, 185, 192, 0.28);
 }
 
 /* Thin, quiet scrollbars like modern chat UIs. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #d4d4d8 transparent;
+  scrollbar-color: #b9c8ca transparent;
 }
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background-color: #d4d4d8;
+  background-color: #b9c8ca;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 
-/* Reliable taps: no 300ms double-tap delay, no gray flash over the sky theme. */
+/* Reliable taps: no 300ms double-tap delay, no gray flash. */
 button,
 a,
 [role="button"],
 select,
 summary {
   touch-action: manipulation;
-  -webkit-tap-highlight-color: rgba(14, 165, 233, 0.15);
+  -webkit-tap-highlight-color: rgba(54, 185, 192, 0.15);
+}
+
+:focus-visible {
+  outline: 2px solid var(--lagoon);
+  outline-offset: 2px;
 }
 
 /* iOS Safari zooms the whole page when a focused field is below 16px.
@@ -53,5 +72,77 @@ summary {
   textarea,
   select {
     font-size: 16px !important;
+  }
+}
+
+@layer components {
+  /* Shared page canvas: sea-foam base with soft bioluminescent light pools. */
+  .page-surface {
+    background-color: var(--canvas);
+    background-image:
+      radial-gradient(60rem 30rem at 110% -10%, rgba(124, 245, 198, 0.16), transparent 60%),
+      radial-gradient(50rem 28rem at -10% 0%, rgba(54, 185, 192, 0.14), transparent 60%),
+      radial-gradient(40rem 24rem at 50% 120%, rgba(255, 138, 115, 0.08), transparent 60%);
+    background-attachment: fixed;
+  }
+
+  .glass {
+    @apply bg-white/70 backdrop-blur-xl border border-white/60 shadow-card;
+  }
+
+  .text-bioluminescent {
+    background-image: linear-gradient(100deg, #127b88 0%, #1798a3 30%, #36c9a8 60%, #ff8a73 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .btn-glow {
+    @apply relative inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 font-semibold text-white transition;
+    background-image: linear-gradient(120deg, #127b88, #1798a3 45%, #2fb8a2);
+    box-shadow: 0 8px 24px -10px rgba(23, 152, 163, 0.7);
+  }
+  .btn-glow:hover {
+    filter: brightness(1.06);
+    box-shadow: 0 10px 30px -10px rgba(23, 152, 163, 0.85);
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-sky-200/80 bg-white/70 px-3 py-1 text-xs font-medium text-sky-800 backdrop-blur;
+  }
+}
+
+/* Plankton field: drifting glowing particles behind hero sections. */
+.plankton-field {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 40%, transparent 75%);
+  mask-image: radial-gradient(ellipse at center, #000 40%, transparent 75%);
+}
+.plankton-field span {
+  position: absolute;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(124, 245, 198, 0.95) 0%, rgba(54, 185, 192, 0.55) 45%, transparent 70%);
+  filter: blur(0.3px);
+  animation: pf-drift var(--t, 14s) ease-in-out infinite, pf-pulse 3.2s ease-in-out infinite;
+  animation-delay: var(--d, 0s);
+}
+@keyframes pf-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(var(--dx, 12px), var(--dy, -24px), 0) scale(1.15); }
+}
+@keyframes pf-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plankton-field span,
+  .animate-drift,
+  .animate-pulse-glow,
+  .animate-rise {
+    animation: none !important;
   }
 }

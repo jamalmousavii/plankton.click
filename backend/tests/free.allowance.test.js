@@ -2,7 +2,7 @@ const { getFreeStatus, chargeFreeTokens } = require('../src/services/freeAllowan
 const { FREE_DAILY_TOKENS, PLANS } = require('../src/services/plans');
 
 // Sequential fake client: each query() pops the next scripted response —
-// no real database involved (same pattern as miner.credit.test.js).
+// no real database involved (same pattern as worker.credit.test.js).
 function makeClient(...responses) {
   const statements = [];
   let i = 0;

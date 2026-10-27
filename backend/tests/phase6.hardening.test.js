@@ -1,7 +1,7 @@
 // Phase 6 (v3.36.0) — hardening regressions:
 //  * the error branch of task_result got the same replay guard as the success
 //    branch (a duplicate must not resolve a callback or re-run state changes);
-//  * miner-controlled text reflected into chat's 503 is sanitised;
+//  * worker-controlled text reflected into chat's 503 is sanitised;
 //  * POST /api/payments/deduct was removed (self-deduct with no ledger), and
 //    NowPayments provider error bodies never reach the client.
 
@@ -54,7 +54,7 @@ beforeEach(() => {
 describe('task_result error replay guard', () => {
   function bareWs() {
     const ws = Object.create(WSServer.prototype);
-    ws.miners = new Map();
+    ws.workers = new Map();
     ws.taskCallbacks = new Map();
     return ws;
   }
@@ -62,24 +62,24 @@ describe('task_result error replay guard', () => {
   function authenticated() {
     const ws = bareWs();
     const sock = { send: jest.fn() };
-    ws.miners.set(1, { id: 1, ws: sock });
+    ws.workers.set(1, { id: 1, ws: sock });
     return { ws, sock };
   }
 
   it('resolves the pending callback once and guards the UPDATE', async () => {
     const { ws, sock } = authenticated();
     pool.__state.queryImpl = async (sql) => {
-      if (/SELECT miner_id FROM tasks/.test(sql)) return { rows: [{ miner_id: 1 }] };
+      if (/SELECT worker_id FROM tasks/.test(sql)) return { rows: [{ worker_id: 1 }] };
       if (/UPDATE tasks/.test(sql)) return { rows: [{ id: 5 }] };
       return { rows: [] };
     };
     const cb = { timeout: setTimeout(() => {}, 60000), resolve: jest.fn() };
     ws.taskCallbacks.set(5, cb);
 
-    await ws.handleTaskResult(sock, { task_id: 5, error: 'miner exploded' });
+    await ws.handleTaskResult(sock, { task_id: 5, error: 'worker exploded' });
 
     expect(cb.resolve).toHaveBeenCalledTimes(1);
-    expect(cb.resolve).toHaveBeenCalledWith(expect.objectContaining({ error: 'miner exploded' }));
+    expect(cb.resolve).toHaveBeenCalledWith(expect.objectContaining({ error: 'worker exploded' }));
     clearTimeout(cb.timeout);
 
     const update = pool.__state.statements.find((s) => s.startsWith('UPDATE tasks'));
@@ -92,7 +92,7 @@ describe('task_result error replay guard', () => {
   it('ignores a replayed error without resolving a callback', async () => {
     const { ws, sock } = authenticated();
     pool.__state.queryImpl = async (sql) => {
-      if (/SELECT miner_id FROM tasks/.test(sql)) return { rows: [{ miner_id: 1 }] };
+      if (/SELECT worker_id FROM tasks/.test(sql)) return { rows: [{ worker_id: 1 }] };
       if (/UPDATE tasks/.test(sql)) return { rows: [] }; // task already terminal
       return { rows: [] };
     };
@@ -106,10 +106,10 @@ describe('task_result error replay guard', () => {
     clearTimeout(cb.timeout);
   });
 
-  it('still rejects results for tasks assigned to another miner', async () => {
+  it('still rejects results for tasks assigned to another worker', async () => {
     const { ws, sock } = authenticated();
     pool.__state.queryImpl = async (sql) => {
-      if (/SELECT miner_id FROM tasks/.test(sql)) return { rows: [{ miner_id: 99 }] };
+      if (/SELECT worker_id FROM tasks/.test(sql)) return { rows: [{ worker_id: 99 }] };
       return { rows: [] };
     };
 
@@ -117,15 +117,15 @@ describe('task_result error replay guard', () => {
 
     const update = pool.__state.statements.find((s) => s.startsWith('UPDATE tasks'));
     expect(update).toBeUndefined();
-    expect(sock.send).toHaveBeenCalledWith(expect.stringContaining('Task not assigned to this miner'));
+    expect(sock.send).toHaveBeenCalledWith(expect.stringContaining('Task not assigned to this worker'));
   });
 });
 
 // ---------------------------------------------------------------------------
-// chat 503: miner-controlled error text is sanitised before it reaches users.
+// chat 503: worker-controlled error text is sanitised before it reaches users.
 // ---------------------------------------------------------------------------
-describe('sanitise miner detail in the 503 body', () => {
-  const sanitize = chatRouter.__sanitizeMinerDetail;
+describe('sanitise worker detail in the 503 body', () => {
+  const sanitize = chatRouter.__sanitizeWorkerDetail;
 
   it('is exposed by the router', () => {
     expect(typeof sanitize).toBe('function');

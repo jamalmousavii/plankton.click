@@ -32,7 +32,7 @@ function sign(payload) {
   return jwt.sign(payload, SECRET, { algorithm: 'HS256', expiresIn: '1h' });
 }
 
-const ADMIN = sign({ id: 1, email: 'admin@krelz.xyz', role: 'admin', token_version: 0 });
+const ADMIN = sign({ id: 1, email: 'admin@plankton.click', role: 'admin', token_version: 0 });
 const PLAIN = sign({ id: 2, email: 'plain@t.t', role: 'user', token_version: 0 });
 
 function app() {

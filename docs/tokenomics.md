@@ -1,11 +1,11 @@
-# توکنومیکس KRELZ
+# توکنومیکس PLANKTON
 
 ## خلاصه
 
 | مورد | مقدار |
 |------|-------|
-| نام توکن | Krelz |
-| نماد | KRELZ |
+| نام توکن | Plankton |
+| نماد | PLANKTON |
 | بلاکچین | BNB Chain (BSC) |
 | استاندارد | ERC-20 (BEP-20) |
 | تعداد کل | 1,000,000,000 |
@@ -51,9 +51,9 @@
 مثال: ۵۰ توکن برای چت → ۱ توکن سوزانده
 ```
 
-### ۳. جریمه ماینر
+### ۳. جریمه ورکر
 ```
-۵٪ از استیک ماینر متخلف سوزانده می‌شود
+۵٪ از استیک ورکر متخلف سوزانده می‌شود
 ```
 
 ### ۴. سوزاندن دوره‌ای
@@ -63,7 +63,7 @@
 
 ---
 
-## پاداش ماینرها
+## پاداش ورکرها
 
 ### فرمول پاداش
 ```
@@ -107,8 +107,8 @@ Reward = (GPU_Score × Uptime_Factor × Task_Score) / Total_Network_Power
 ```
 درآمد کل: ۲۰٪
 
-├── ۱۰٪ از ماینرها
-│   └── از کل پاداش ماینرها
+├── ۱۰٪ از ورکرها
+│   └── از کل پاداش ورکرها
 │
 └── ۱۰٪ از کاربران
     └── از کل هزینه استفاده
@@ -116,10 +116,10 @@ Reward = (GPU_Score × Uptime_Factor × Task_Score) / Total_Network_Power
 
 ### مثال
 ```
-ماینر: GPU با قیمت 1000 توکن
+ورکر: GPU با قیمت 1000 توکن
 ├── کاربر: 2000 توکن پرداخت می‌کند
-├── ماینر: 1700 توکن دریافت می‌کند
-├── پلتفرم: 200 توکن (10% ماینر + 10% کاربر)
+├── ورکر: 1700 توکن دریافت می‌کند
+├── پلتفرم: 200 توکن (10% ورکر + 10% کاربر)
 └── سوزاندن: 20 توکن (1% تراکنش + 2% LLM)
 ```
 
@@ -139,7 +139,7 @@ Reward = (GPU_Score × Uptime_Factor × Task_Score) / Total_Network_Power
 
 ## قرارداد هوشمند
 
-### KrelzToken.sol
+### PlanktonToken.sol
 ```solidity
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
@@ -147,10 +147,10 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract KrelzToken is ERC20, Ownable {
+contract PlanktonToken is ERC20, Ownable {
     uint256 public constant MAX_SUPPLY = 1_000_000_000 * 10**18;
     
-    constructor() ERC20("Krelz", "KRELZ") Ownable(msg.sender) {
+    constructor() ERC20("Plankton", "PLANKTON") Ownable(msg.sender) {
         _mint(msg.sender, MAX_SUPPLY);
     }
     

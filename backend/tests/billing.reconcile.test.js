@@ -24,7 +24,7 @@ jest.mock('../src/services/paymentClaims', () => ({
 }));
 
 jest.mock('../src/services/billing', () => ({
-  MINER_REVENUE_SHARE: 0.9,
+  WORKER_REVENUE_SHARE: 0.9,
   settleMessage: jest.fn(async () => ({ paymentStatus: 'free' })),
 }));
 
@@ -43,7 +43,7 @@ beforeEach(() => {
   pool.__state.queryImpl = async () => ({ rows: [] });
 });
 
-const pendingTask = { id: 42, user_id: 7, miner_id: 9, tokens_used: '120', cost: '0.00001896' };
+const pendingTask = { id: 42, user_id: 7, worker_id: 9, tokens_used: '120', cost: '0.00001896' };
 
 describe('reconcileBilling (v3.45.0)', () => {
   it('does nothing when there are no pending tasks', async () => {
@@ -62,7 +62,7 @@ describe('reconcileBilling (v3.45.0)', () => {
     expect(resolveCap).toHaveBeenCalledWith(7, null);
     expect(settleMessage).toHaveBeenCalledTimes(1);
     const arg = settleMessage.mock.calls[0][0];
-    expect(arg).toMatchObject({ userId: 7, minerId: 9, taskId: 42, servedByMiner: true });
+    expect(arg).toMatchObject({ userId: 7, workerId: 9, taskId: 42, servedByWorker: true });
     expect(arg.tokensUsed).toBe(120);
     expect(arg.cost).toBeCloseTo(0.00001896, 12);
     expect(pool.__state.statements.join('\n')).toMatch(/UPDATE tasks SET billing_status = 'settled'/);

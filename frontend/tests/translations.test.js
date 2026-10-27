@@ -71,12 +71,12 @@ describe('detectLanguage', () => {
   });
 
   it('prefers a saved valid locale', () => {
-    sessionStorage.setItem('krelz-lang', 'de');
+    sessionStorage.setItem('plankton-lang', 'de');
     expect(detectLanguage()).toBe('de');
   });
 
   it('ignores a saved invalid locale', () => {
-    sessionStorage.setItem('krelz-lang', 'xx');
+    sessionStorage.setItem('plankton-lang', 'xx');
     expect(detectLanguage()).toBe('en');
   });
 

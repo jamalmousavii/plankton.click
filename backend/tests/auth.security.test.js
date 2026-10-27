@@ -21,13 +21,13 @@ describe('password reset flow', () => {
   it('fails with 503 (not 200) when no email provider is wired up', async () => {
     // Checked BEFORE any account lookup, so the status code cannot be used to
     // enumerate accounts, and the caller never believes a mail was sent.
-    const res = await request(app).post('/api/auth/forgot-password').send({ email: 'victim@krelz.xyz' });
+    const res = await request(app).post('/api/auth/forgot-password').send({ email: 'victim@plankton.click' });
     expect(res.status).toBe(503);
     expect(res.body.reset_token).toBeUndefined();
   });
 
   it('never returns a reset token', async () => {
-    const res = await request(app).post('/api/auth/forgot-password').send({ email: 'victim@krelz.xyz' });
+    const res = await request(app).post('/api/auth/forgot-password').send({ email: 'victim@plankton.click' });
     expect(JSON.stringify(res.body)).not.toMatch(/reset_token/);
   });
 

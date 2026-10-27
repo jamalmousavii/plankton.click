@@ -104,7 +104,7 @@ router.post('/tokens/purchase', authenticate, async (req, res) => {
       userId,
       amount: amountUsd,
       orderId,
-      description: `Krelz token bundle - ${tokens.toLocaleString('en-US')} tokens (never expires)`,
+      description: `Plankton token bundle - ${tokens.toLocaleString('en-US')} tokens (never expires)`,
     });
 
     if (!result.success) {
@@ -176,7 +176,7 @@ router.post('/:tier/purchase', authenticate, async (req, res) => {
       userId,
       amount: plan.price,
       orderId,
-      description: `Krelz ${plan.label} plan - ${plan.interval_days} days (${plan.daily_tokens.toLocaleString('en-US')} tokens/day)`,
+      description: `Plankton ${plan.label} plan - ${plan.interval_days} days (${plan.daily_tokens.toLocaleString('en-US')} tokens/day)`,
     });
 
     if (!result.success) {

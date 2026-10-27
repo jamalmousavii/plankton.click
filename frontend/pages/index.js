@@ -1,7 +1,10 @@
 import Head from 'next/head';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLanguage } from '../i18n/LanguageContext';
+import Link from 'next/link';
 import Navbar from '../components/Navbar';
+import PlanktonField from '../components/PlanktonField';
+import { LogoMark } from '../components/Logo';
 import PlansContent from '../components/PlansContent';
 import PlansModal from '../components/PlansModal';
 import Sidebar from '../components/chat/Sidebar';
@@ -9,7 +12,7 @@ import MessageList from '../components/chat/MessageList';
 import Composer from '../components/chat/Composer';
 import { apiFetch, ApiError } from '../utils/api';
 import { audioBlobToWav16k } from '../lib/audio';
-import { sortModels, topOnlineModel, minerCount } from '../utils/models';
+import { sortModels, topOnlineModel, workerCount } from '../utils/models';
 
 const AUTO_RETRY_MAX = 3;
 const AUTO_RETRY_MS = 10000;
@@ -98,7 +101,7 @@ export default function Home() {
   // plan catalog ({plans, token_bundle}) from the backend.
   const [upgradeNotice, setUpgradeNotice] = useState(null); // { plans, token_bundle } | null
   const [quotaNotice, setQuotaNotice] = useState(null); // v3.42.1: 'low' | 'exhausted' | null (once/day each)
-  // v3.40.0 — auto-switch notice when the selected model loses its miners.
+  // v3.40.0 — auto-switch notice when the selected model loses its workers.
   const [modelNotice, setModelNotice] = useState('');
   // Live mirrors for timers/intervals (F8-style: async work reads refs).
   const chatRef = useRef([]);
@@ -169,11 +172,11 @@ export default function Home() {
       setToken(tk);
       setIsLoggedIn(!!tk);
     };
-    window.addEventListener('krelz:auth-changed', onAuthChanged);
-    return () => window.removeEventListener('krelz:auth-changed', onAuthChanged);
+    window.addEventListener('plankton:auth-changed', onAuthChanged);
+    return () => window.removeEventListener('plankton:auth-changed', onAuthChanged);
   }, []);
 
-  // v3.40.0 — keep miner counts fresh so the dropdown sort stays truthful.
+  // v3.40.0 — keep worker counts fresh so the dropdown sort stays truthful.
   // Skipped while the picker is open (no reordering mid-selection) and
   // always cleaned up on unmount, like the retry timers below.
   useEffect(() => {
@@ -186,17 +189,17 @@ export default function Home() {
   }, []);
 
   // v3.30.0 — three triggers for the pricing modal: deep link with #plans on
-  // mount, a hashchange, or Navbar dispatching krelz:show-plans (avoids
+  // mount, a hashchange, or Navbar dispatching plankton:show-plans (avoids
   // Next.js same-path hash quirks). setPlansOpen(true) is idempotent.
   useEffect(() => {
     if (window.location.hash === '#plans') setPlansOpen(true);
     const onHash = () => { if (window.location.hash === '#plans') setPlansOpen(true); };
     const onShow = () => setPlansOpen(true);
     window.addEventListener('hashchange', onHash);
-    window.addEventListener('krelz:show-plans', onShow);
+    window.addEventListener('plankton:show-plans', onShow);
     return () => {
       window.removeEventListener('hashchange', onHash);
-      window.removeEventListener('krelz:show-plans', onShow);
+      window.removeEventListener('plankton:show-plans', onShow);
     };
   }, []);
 
@@ -352,7 +355,7 @@ export default function Home() {
   }, [token, t, bundleAmount]);
 
   const dismissUpgradeNotice = () => {
-    try { localStorage.setItem('krelz_upg_notice', new Date().toISOString().slice(0, 10)); } catch (e) {}
+    try { localStorage.setItem('plankton_upg_notice', new Date().toISOString().slice(0, 10)); } catch (e) {}
     setUpgradeNotice(null);
   };
 
@@ -398,12 +401,12 @@ export default function Home() {
       // Busiest model first (shared util, stable for ties).
       const sorted = sortModels(data.models);
       setModels(sorted);
-      // v3.40.0 auto-switch: the selected model has no miners but others
+      // v3.40.0 auto-switch: the selected model has no workers but others
       // do — move to the busiest online one instead of 409ing every send.
       // Offline rows are not selectable, so this never fights a manual pick.
       const cur = selectedModelRef.current;
       const curData = sorted.find((m) => m.id === cur);
-      if ((!curData || minerCount(curData) === 0)) {
+      if ((!curData || workerCount(curData) === 0)) {
         const top = topOnlineModel(sorted);
         if (top && top.id !== cur) {
           setSelectedModel(top.id);
@@ -591,7 +594,7 @@ export default function Home() {
     if (mr && mr.state === 'recording') mr.stop();
   };
 
-  // v3.40.0 miner-only flow: failed sends live on as bubbles the user can
+  // v3.40.0 worker-only flow: failed sends live on as bubbles the user can
   // retry or re-target, instead of vanishing into a generic error line.
   const replaceBubble = (id, patch) =>
     setChat((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
@@ -600,7 +603,7 @@ export default function Home() {
     replaceBubble(id, {
       content: data.response,
       source: data.source || null,
-      miner_id: data.miner_id || null,
+      worker_id: data.worker_id || null,
       payment_status: data.payment_status || null,
       waiting: undefined,
       model_switch: undefined,
@@ -634,7 +637,7 @@ export default function Home() {
       if (data.success) {
         applyReplyBubble(id, data);
         if (data.session_id) fetchSessions(token);
-      } else if (data && data.code === 'MINER_OFFLINE') {
+      } else if (data && data.code === 'WORKER_OFFLINE') {
         if (attempts + 1 < AUTO_RETRY_MAX) scheduleAutoRetry(id);
         else replaceBubble(id, { waiting: { ...msg.waiting, attempts: attempts + 1, auto: false } });
       } else {
@@ -644,7 +647,7 @@ export default function Home() {
         });
       }
     } catch (err) {
-      if (err instanceof ApiError && err.status === 503 && err.data && err.data.code === 'MINER_OFFLINE') {
+      if (err instanceof ApiError && err.status === 503 && err.data && err.data.code === 'WORKER_OFFLINE') {
         if (attempts + 1 < AUTO_RETRY_MAX) scheduleAutoRetry(id);
         else replaceBubble(id, { waiting: { ...msg.waiting, attempts: attempts + 1, auto: false } });
       } else if (err instanceof ApiError && err.data && err.data.error) {
@@ -733,14 +736,14 @@ export default function Home() {
           role: 'assistant',
           content: data.response,
           source: data.source || null,
-          miner_id: data.miner_id || null,
+          worker_id: data.worker_id || null,
           payment_status: data.payment_status || null,
         }]);
         // Wallet-funded reply → suggest plans (once per UTC day, dismissible).
         if (data.notice === 'upgrade_recommended') {
           try {
             const today = new Date().toISOString().slice(0, 10);
-            if (localStorage.getItem('krelz_upg_notice') !== today) {
+            if (localStorage.getItem('plankton_upg_notice') !== today) {
               setUpgradeNotice({ plans: data.plans || [], token_bundle: data.token_bundle || null });
             }
           } catch (e) {}
@@ -751,7 +754,7 @@ export default function Home() {
           try {
             const today = new Date().toISOString().slice(0, 10);
             const kind = data.free_exhausted ? 'exhausted' : 'low';
-            const key = data.free_exhausted ? 'krelz_free_done' : 'krelz_free_low';
+            const key = data.free_exhausted ? 'plankton_free_done' : 'plankton_free_low';
             if (localStorage.getItem(key) !== today) {
               localStorage.setItem(key, today);
               setQuotaNotice(kind);
@@ -772,7 +775,7 @@ export default function Home() {
         // F8: aborted by a session switch (or the stale thread already moved
         // on) — there is no chat to append the failure to.
       } else if (err instanceof ApiError && err.status === 401) {
-        // apiFetch already cleared the session + fired krelz:auth-expired;
+        // apiFetch already cleared the session + fired plankton:auth-expired;
         // the backend now 401s bad bearers instead of answering as a guest,
         // so tell the user why the reply never came.
         setChat(prev => [...prev, { role: 'assistant', content: t('chat.errorSessionExpired') }]);
@@ -789,8 +792,8 @@ export default function Home() {
             free: wall.free,
           },
         }]);
-      } else if (err instanceof ApiError && err.status === 503 && err.data && err.data.code === 'MINER_OFFLINE') {
-        // v3.40.0: no miners online — waiting bubble with auto-retry.
+      } else if (err instanceof ApiError && err.status === 503 && err.data && err.data.code === 'WORKER_OFFLINE') {
+        // v3.40.0: no workers online — waiting bubble with auto-retry.
         const failId = `w${Date.now()}${Math.floor(Math.random() * 1e6)}`;
         const payload = {
           message: userMessage,
@@ -835,21 +838,29 @@ export default function Home() {
   // ===== EMPTY STATE: centered hero =====
   if (!hasStarted) {
     return (
-      <div className="flex-1 bg-[#f7f7f8] flex flex-col">
+      <div className="flex-1 page-surface flex flex-col">
         <Head>
-          <title>Krelz Network - Decentralized LLM Inference</title>
+          <title>Plankton Network - Decentralized LLM Inference</title>
           <meta name="description" content="Decentralized LLM Inference Network. Chat with AI models." />
         </Head>
 
         <Navbar />
 
-        <main className="flex-1 flex flex-col items-center justify-center px-4 pb-16">
-          <div className="text-center mb-8 md:mb-10">
-            <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-gray-900 mb-3">🚀 Krelz Network</h1>
-            <p className="text-lg md:text-xl text-gray-500">{t('home.subtitle')}</p>
+        <main className="relative flex-1 flex flex-col items-center justify-center px-4 pb-16 overflow-hidden">
+          <PlanktonField />
+          <div className="relative text-center mb-8 md:mb-10 animate-rise">
+            <span className="chip mb-5">
+              <span className="w-1.5 h-1.5 rounded-full bg-glow shadow-[0_0_10px_#7cf5c6] animate-pulse-glow" />
+              {t('home.title')}
+            </span>
+            <h1 className="flex items-center justify-center gap-3 text-5xl md:text-7xl font-bold tracking-tight mb-3">
+              <LogoMark size={56} className="hidden sm:block drop-shadow-[0_8px_24px_rgba(23,152,163,0.45)]" />
+              <span className="text-bioluminescent">plankton</span>
+            </h1>
+            <p className="text-lg md:text-xl text-gray-500 max-w-xl mx-auto">{t('home.subtitle')}</p>
           </div>
 
-          <div className="w-full max-w-2xl">
+          <div className="relative w-full max-w-2xl animate-rise" style={{ animationDelay: '80ms' }}>
             <Composer
               variant="hero"
               t={t}
@@ -878,7 +889,12 @@ export default function Home() {
             />
           </div>
 
-          <p className="text-gray-400 text-sm mt-6">{t('chat.startTyping')}</p>
+          <div className="relative mt-6 flex flex-wrap items-center justify-center gap-2 text-sm">
+            <span className="text-gray-400">{t('chat.startTyping')}</span>
+            <Link href="/worker" className="chip hover:border-sky-400 hover:text-sky-900 transition">
+              🖥️ {t('home.becomeWorker')} →
+            </Link>
+          </div>
 
           {/* v3.29.0 — public pricing inline (empty state only); v3.30.0 — cards
               live in PlansContent and also open as a modal via #plans.
@@ -930,7 +946,7 @@ export default function Home() {
 
   // ===== ACTIVE STATE: sidebar + messages + bottom input =====
   return (
-    <div className="flex-1 min-h-0 bg-[#f7f7f8] flex flex-col">
+    <div className="flex-1 min-h-0 page-surface flex flex-col">
       <Head><title>{t('chat.title')}</title></Head>
 
       <Navbar />
@@ -1000,7 +1016,7 @@ export default function Home() {
             onSwitchModel={onSwitchModel}
           />
 
-          {/* v3.40.0 — auto-switch notice when the model lost its miners */}
+          {/* v3.40.0 — auto-switch notice when the model lost its workers */}
           {modelNotice && (
             <div className="flex items-center gap-2 mb-2 bg-sky-50 border border-sky-200 text-sky-800 rounded-xl px-3 py-2 text-xs md:text-sm">
               <span className="flex-1">🔀 {modelNotice}</span>

@@ -1,5 +1,5 @@
 import { memo, useEffect } from 'react';
-import { CATEGORY_ICONS, CATEGORY_I18N_KEY, groupModels, minerCount } from '../../utils/models';
+import { CATEGORY_ICONS, CATEGORY_I18N_KEY, groupModels, workerCount } from '../../utils/models';
 
 // Shared composer for both homepage states: ChatGPT-style card with an
 // auto-growing textarea on top and a tools row underneath (model picker,
@@ -8,7 +8,7 @@ import { CATEGORY_ICONS, CATEGORY_I18N_KEY, groupModels, minerCount } from '../.
 // module-level component (F7: an inline component type would remount the
 // hidden file input on every keystroke and drop the selection).
 // v3.40.0: models arrive pre-sorted (busiest first) and render grouped by
-// category with sticky headers; zero-miner rows stay disabled.
+// category with sticky headers; zero-worker rows stay disabled.
 
 function Composer({
   variant = 'chat',
@@ -51,8 +51,8 @@ function Composer({
               </div>
               {group.items.map((model) => {
                 const isSelected = selectedModel === model.id;
-                const hasMiners = minerCount(model) > 0;
-                const canSelect = hasMiners;
+                const hasWorkers = workerCount(model) > 0;
+                const canSelect = hasWorkers;
                 return (
                   <button
                     key={model.id}
@@ -69,8 +69,8 @@ function Composer({
                       <span className="text-sky-600 text-xs">{model.size}</span>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      {hasMiners ? (
-                        <span className="text-emerald-600 text-xs">✅ {minerCount(model)}</span>
+                      {hasWorkers ? (
+                        <span className="text-emerald-600 text-xs">✅ {workerCount(model)}</span>
                       ) : (
                         <span className="text-red-400 text-xs">⚠️ 0</span>
                       )}

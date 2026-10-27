@@ -20,7 +20,7 @@ const payload = {
   price_amount: 25,
   price_currency: 'usd',
   pay_amount: 0.001,
-  order_id: 'krelz-7-1700000000',
+  order_id: 'plankton-7-1700000000',
 };
 
 describe('NowPayments IPN verification (fail closed)', () => {

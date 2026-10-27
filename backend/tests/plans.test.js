@@ -2,7 +2,7 @@ const {
   FREE_DAILY_TOKENS,
   PLANS,
   TOKEN_BUNDLE,
-  MINER_REVENUE_SHARE,
+  WORKER_REVENUE_SHARE,
   listPlans,
   quoteTokens,
   tokenValueUsd,
@@ -39,8 +39,8 @@ describe('plan catalog (v3.28.0)', () => {
     expect(PLANS.max).toMatchObject({ price: 19.99, daily_tokens: 80000000, interval_days: 30 });
   });
 
-  it('keeps the flat miner share at 90% for every paid leg', () => {
-    expect(MINER_REVENUE_SHARE).toBe(0.9);
+  it('keeps the flat worker share at 90% for every paid leg', () => {
+    expect(WORKER_REVENUE_SHARE).toBe(0.9);
   });
 
   it('prices every tier below the catalog value it unlocks (30 days)', () => {
@@ -231,7 +231,7 @@ describe('NowPayments order ids carry the purchase type', () => {
 
   it('still parses legacy deposit order ids', async () => {
     const result = await nowpayments.processIPN({
-      order_id: 'krelz-7-1700000000',
+      order_id: 'plankton-7-1700000000',
       payment_status: 'finished',
       price_amount: 25,
     });

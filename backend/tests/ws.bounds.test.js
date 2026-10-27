@@ -1,6 +1,6 @@
 // v3.45.0 — the WS task-result handler is the LAST trust boundary for
-// miner-reported numbers: tokens_used drives both the user charge and the
-// miner share, so out-of-bounds reports are rejected here (marked failed,
+// worker-reported numbers: tokens_used drives both the user charge and the
+// worker share, so out-of-bounds reports are rejected here (marked failed,
 // resolved as an error for failover) and never persisted.
 
 jest.mock('../src/database/pool', () => {
@@ -20,10 +20,10 @@ const pool = require('../src/database/pool');
 
 function makeServer() {
   const ws = Object.create(WSServer.prototype);
-  ws.miners = new Map();
+  ws.workers = new Map();
   ws.taskCallbacks = new Map();
   const socket = { send: jest.fn() };
-  ws.miners.set(5, { id: 5, ws: socket, models: [], modelHealth: {} });
+  ws.workers.set(5, { id: 5, ws: socket, models: [], modelHealth: {} });
   return { ws, socket };
 }
 
@@ -43,7 +43,7 @@ describe('handleTaskResult token bounds (v3.45.0)', () => {
     const { ws, socket } = makeServer();
     const resolve = armCallback(ws, 7);
     pool.__state.queryImpl = async (sql) => {
-      if (String(sql).includes('SELECT miner_id FROM tasks')) return { rows: [{ miner_id: 5 }] };
+      if (String(sql).includes('SELECT worker_id FROM tasks')) return { rows: [{ worker_id: 5 }] };
       if (String(sql).includes('UPDATE tasks')) return { rows: [{ id: 7 }] };
       return { rows: [] };
     };
@@ -59,7 +59,7 @@ describe('handleTaskResult token bounds (v3.45.0)', () => {
     const { ws, socket } = makeServer();
     const resolve = armCallback(ws, 8);
     pool.__state.queryImpl = async (sql) => {
-      if (String(sql).includes('SELECT miner_id FROM tasks')) return { rows: [{ miner_id: 5 }] };
+      if (String(sql).includes('SELECT worker_id FROM tasks')) return { rows: [{ worker_id: 5 }] };
       if (String(sql).includes('UPDATE tasks')) return { rows: [{ id: 8 }] };
       return { rows: [] };
     };
@@ -77,7 +77,7 @@ describe('handleTaskResult token bounds (v3.45.0)', () => {
     const { ws, socket } = makeServer();
     const resolve = armCallback(ws, 9);
     pool.__state.queryImpl = async (sql) => {
-      if (String(sql).includes('SELECT miner_id FROM tasks')) return { rows: [{ miner_id: 5 }] };
+      if (String(sql).includes('SELECT worker_id FROM tasks')) return { rows: [{ worker_id: 5 }] };
       if (String(sql).includes('UPDATE tasks')) return { rows: [{ id: 9 }] };
       return { rows: [] };
     };

@@ -5,13 +5,13 @@ import Navbar from '../components/Navbar';
 import { useAuth, apiFetch, ApiError } from '../utils/api';
 
 // v3.39.0 — full admin panel: read views + management actions (tickets,
-// role/ban, USD/token adjustments, plan grants, miner remove/restore).
+// role/ban, USD/token adjustments, plan grants, worker remove/restore).
 // Every mutation lands in admin_audit_log server-side; the UI just refetches.
 
 const TABS = [
   { id: 'dashboard', icon: '📈', key: 'admin.tabDashboard' },
   { id: 'users', icon: '👥', key: 'admin.tabUsers' },
-  { id: 'miners', icon: '⛏️', key: 'admin.tabMiners' },
+  { id: 'workers', icon: '🖥️', key: 'admin.tabWorkers' },
   { id: 'tasks', icon: '🧩', key: 'admin.tabTasks' },
   { id: 'tickets', icon: '🎫', key: 'admin.tabTickets' },
   { id: 'payments', icon: '💰', key: 'admin.tabPayments' },
@@ -25,7 +25,7 @@ export default function Admin() {
   const { t } = useLanguage();
   const [dashboard, setDashboard] = useState(null);
   const [users, setUsers] = useState([]);
-  const [miners, setMiners] = useState([]);
+  const [workers, setWorkers] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [payments, setPayments] = useState(null);
@@ -79,9 +79,9 @@ export default function Admin() {
     const data = await apiFetch('/api/admin/users');
     if (data.success) setUsers(data.users);
   });
-  const fetchMiners = () => wrap(async () => {
-    const data = await apiFetch('/api/admin/miners');
-    if (data.success) setMiners(data.miners);
+  const fetchWorkers = () => wrap(async () => {
+    const data = await apiFetch('/api/admin/workers');
+    if (data.success) setWorkers(data.workers);
   });
   const fetchTasks = () => wrap(async () => {
     const data = await apiFetch('/api/admin/tasks');
@@ -138,7 +138,7 @@ export default function Admin() {
     setActionUser(null);
     setActionMsg('');
     if (tb === 'users') fetchUsers();
-    else if (tb === 'miners') fetchMiners();
+    else if (tb === 'workers') fetchWorkers();
     else if (tb === 'tasks') fetchTasks();
     else if (tb === 'tickets') wrap(() => fetchTickets(ticketFilter, ticketQuery));
     else if (tb === 'payments') fetchPayments();
@@ -270,20 +270,20 @@ export default function Admin() {
     'admin.saved'
   );
 
-  // ---- Miner actions ----
-  const setMinerStatus = async (m, status) => {
-    const confirmMsg = status === 'removed' ? t('admin.confirmRemoveMiner') : t('admin.confirmRestoreMiner');
+  // ---- Worker actions ----
+  const setWorkerStatus = async (m, status) => {
+    const confirmMsg = status === 'removed' ? t('admin.confirmRemoveWorker') : t('admin.confirmRestoreWorker');
     if (!window.confirm(confirmMsg)) return;
     try {
-      const data = await apiFetch(`/api/admin/miners/${m.id}/status`, {
+      const data = await apiFetch(`/api/admin/workers/${m.id}/status`, {
         method: 'PUT',
         body: JSON.stringify({ status }),
       });
-      if (data.success) await fetchMiners();
+      if (data.success) await fetchWorkers();
     } catch (err) { handle(err); }
   };
 
-  const roleLabel = (r) => (r === 'admin' ? t('admin.roleAdmin') : r === 'miner' ? t('admin.roleMiner') : t('admin.roleUser'));
+  const roleLabel = (r) => (r === 'admin' ? t('admin.roleAdmin') : r === 'worker' ? t('admin.roleWorker') : t('admin.roleUser'));
   const statusBadge = (status) => {
     const cls = status === 'open'
       ? 'bg-amber-100 text-amber-700'
@@ -299,8 +299,8 @@ export default function Admin() {
   };
 
   return (
-    <div className="flex-1 bg-gradient-to-br from-sky-50 via-blue-50 to-cyan-50 min-h-screen">
-      <Head><title>{t('admin.pageTitle')} - Krelz Network</title></Head>
+    <div className="flex-1 page-surface min-h-screen">
+      <Head><title>{t('admin.pageTitle')} - Plankton Network</title></Head>
       <Navbar />
 
       <main className="container mx-auto px-4 md:px-6 py-6 max-w-5xl">
@@ -348,12 +348,12 @@ export default function Admin() {
         {isAdmin && !loading && !loadError && tab === 'dashboard' && dashboard && (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="bg-white border border-sky-100 shadow-sm rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold text-emerald-600">{dashboard.miners.online}</div>
-              <div className="text-gray-500 text-sm">{t('admin.onlineMiners')}</div>
+              <div className="text-2xl font-bold text-emerald-600">{dashboard.workers.online}</div>
+              <div className="text-gray-500 text-sm">{t('admin.onlineWorkers')}</div>
             </div>
             <div className="bg-white border border-sky-100 shadow-sm rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold text-gray-800">{dashboard.miners.total}</div>
-              <div className="text-gray-500 text-sm">{t('admin.totalMiners')}</div>
+              <div className="text-2xl font-bold text-gray-800">{dashboard.workers.total}</div>
+              <div className="text-gray-500 text-sm">{t('admin.totalWorkers')}</div>
             </div>
             <div className="bg-white border border-sky-100 shadow-sm rounded-xl p-4 text-center">
               <div className="text-2xl font-bold text-sky-600">{dashboard.users}</div>
@@ -397,7 +397,7 @@ export default function Admin() {
                       <select value={roleSel} onChange={(e) => setRoleSel(e.target.value)}
                         className="flex-1 border border-sky-200 rounded-lg px-2 py-2 text-sm bg-white">
                         <option value="user">{t('admin.roleUser')}</option>
-                        <option value="miner">{t('admin.roleMiner')}</option>
+                        <option value="worker">{t('admin.roleWorker')}</option>
                         <option value="admin">{t('admin.roleAdmin')}</option>
                       </select>
                       <button onClick={applyRole} disabled={actionBusy}
@@ -502,13 +502,13 @@ export default function Admin() {
           </>
         )}
 
-        {isAdmin && !loading && !loadError && tab === 'miners' && (
+        {isAdmin && !loading && !loadError && tab === 'workers' && (
           <div className="grid md:grid-cols-2 gap-4">
-            {miners.length === 0 && <p className="text-gray-400 text-center col-span-2 py-10">{t('admin.noMiners')}</p>}
-            {miners.map((m) => (
+            {workers.length === 0 && <p className="text-gray-400 text-center col-span-2 py-10">{t('admin.noWorkers')}</p>}
+            {workers.map((m) => (
               <div key={m.id} className="bg-white border border-sky-100 shadow-sm rounded-xl p-4">
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-gray-800 font-bold">Miner #{m.id} <span className="text-xs font-normal text-gray-400">{m.email || ''}</span></span>
+                  <span className="text-gray-800 font-bold">Worker #{m.id} <span className="text-xs font-normal text-gray-400">{m.email || ''}</span></span>
                   <span className={`px-2 py-0.5 rounded text-xs ${m.status === 'online' ? 'bg-emerald-100 text-emerald-700' : m.status === 'removed' ? 'bg-gray-200 text-gray-500' : 'bg-red-100 text-red-600'}`}>{m.status}</span>
                 </div>
                 <div className="text-gray-600 text-xs space-y-1 mb-3">
@@ -518,14 +518,14 @@ export default function Admin() {
                 </div>
                 <div className="flex gap-2">
                   {m.status === 'removed' ? (
-                    <button onClick={() => setMinerStatus(m, 'offline')}
+                    <button onClick={() => setWorkerStatus(m, 'offline')}
                       className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100">
-                      {t('admin.restoreMiner')}
+                      {t('admin.restoreWorker')}
                     </button>
                   ) : (
-                    <button onClick={() => setMinerStatus(m, 'removed')}
+                    <button onClick={() => setWorkerStatus(m, 'removed')}
                       className="px-3 py-1.5 rounded-lg text-xs font-bold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100">
-                      {t('admin.removeMiner')}
+                      {t('admin.removeWorker')}
                     </button>
                   )}
                 </div>

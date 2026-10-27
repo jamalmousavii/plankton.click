@@ -6,17 +6,30 @@ const { deriveKey, encrypt, decrypt, isEncrypted } = require('./services/e2e');
 const { MAX_TASK_TOKENS } = require('./services/plans');
 const { logger } = require('./logger');
 
-const TOKEN_RE = /^kz_[0-9a-f]{32,64}$/;
+// pw_ = Plankton worker token; kz_ tokens issued before the 1.0.0 relaunch
+// stay valid so already-installed workers keep connecting.
+const TOKEN_RE = /^(pw|kz)_[0-9a-f]{32,64}$/;
+// Wire names used by pre-1.0 binaries (auth field in, id field out of auth_ok;
+// the old client re-auths only once it has stored that id).
+const { LEGACY_TOKEN_FIELD, LEGACY_ID_FIELD } = require('./legacy');
 const AUTH_FAIL_LIMIT = 10;
 const AUTH_FAIL_WINDOW = 5 * 60 * 1000;
 // v3.41.0 multi-model routing tunables.
-const MODEL_DOWN_AFTER_FAILS = 3; // consecutive task errors before a model is skipped for that miner
-const SPILL_CAP = 2; // in-flight tasks before a sticky session spills to the next miner
-const HISTORY_APP_VERSION = { major: 3, minor: 41 }; // miners at/above this understand `history`
+const MODEL_DOWN_AFTER_FAILS = 3; // consecutive task errors before a model is skipped for that worker
+const SPILL_CAP = 2; // in-flight tasks before a sticky session spills to the next worker
+const HISTORY_APP_VERSION = { major: 3, minor: 41 }; // legacy (pre-1.0) binaries at/above this understand `history`
+// 1.0.0 reset app versions, so capabilities are negotiated with an explicit
+// protocol number instead: protocol >= 2 understands attachment + history.
+const FULL_PROTOCOL = 2;
+const HEARTBEAT_STATUSES = new Set(['online', 'busy', 'offline']);
+const clampPct = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0;
+};
 
 // Power weight from free-form setup strings (gpu_model like
 // "NVIDIA GeForce RTX 4090", ram like "16GB"). Unknown → 1. Used by the
-// smooth weighted round-robin so stronger miners get proportionally more
+// smooth weighted round-robin so stronger workers get proportionally more
 // new sessions.
 const GPU_TIERS = [
   [/h100|h800/i, 10], [/a100/i, 9], [/rtx\s*4090|a6000|a40/i, 8],
@@ -33,8 +46,9 @@ function computeWeight(gpuModel) {
   return 1;
 }
 
-// History protocol gate (same scheme as minerSupportsMedia).
-function minerSupportsHistory(version) {
+// History protocol gate (same scheme as workerSupportsMedia).
+function workerSupportsHistory(version, protocol = 0) {
+  if (Number(protocol) >= FULL_PROTOCOL) return true;
   if (!version) return false;
   const [maj = 0, min = 0] = String(version).replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
   return maj > HISTORY_APP_VERSION.major
@@ -42,10 +56,11 @@ function minerSupportsHistory(version) {
 }
 
 // v3.20.0 added the `attachment` field on task messages (images/voice notes).
-// Older miner binaries destructure only {task_id, prompt, model} and would
-// silently drop the attachment, so media tasks must only be handed to miners
+// Older worker binaries destructure only {task_id, prompt, model} and would
+// silently drop the attachment, so media tasks must only be handed to workers
 // that advertised app_version >= 3.20.0 at auth. No version = old binary.
-function minerSupportsMedia(version) {
+function workerSupportsMedia(version, protocol = 0) {
+  if (Number(protocol) >= FULL_PROTOCOL) return true;
   if (!version) return false;
   const [maj = 0, min = 0] = String(version).replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
   return maj > 3 || (maj === 3 && min >= 20);
@@ -73,7 +88,7 @@ function resolveClientIp(headers, ws) {
 
 function isLocalClient(ws) {
   // Trust only the client-facing IP (_clientIp). Behind nginx, socket.remoteAddress
-  // is always 127.0.0.1 and would wrongly mark every proxied miner as local.
+  // is always 127.0.0.1 and would wrongly mark every proxied worker as local.
   const ip = String(ws._clientIp || '');
   return (
     ip === '127.0.0.1' ||
@@ -86,13 +101,13 @@ function isLocalClient(ws) {
 class WSServer {
   constructor(server) {
     this.wss = new WebSocketServer({ server, path: '/ws' });
-    this.miners = new Map();
+    this.workers = new Map();
     this.taskQueue = new Map();
     this.taskCallbacks = new Map();
     this.taskIdCounter = 1;
     // v3.41.0 routing state: session affinity + smooth-WRR cursors.
-    this.affinity = new Map(); // sessionKey -> minerId
-    this.wrr = new Map(); // routing key -> { minerId: currentWeight }
+    this.affinity = new Map(); // sessionKey -> workerId
+    this.wrr = new Map(); // routing key -> { workerId: currentWeight }
     // Per-IP failed WS auth attempts (rate limit)
     this.authFails = new Map();
 
@@ -101,8 +116,8 @@ class WSServer {
       logger.error({ err }, 'WebSocket server error');
     });
 
-    // Cleanup dead miners every 60s (unref so the process can exit on shutdown)
-    this.cleanupTimer = setInterval(() => this.cleanupMiners(), 60000);
+    // Cleanup dead workers every 60s (unref so the process can exit on shutdown)
+    this.cleanupTimer = setInterval(() => this.cleanupWorkers(), 60000);
     if (this.cleanupTimer.unref) this.cleanupTimer.unref();
 
     logger.info('WebSocket server started on /ws');
@@ -124,32 +139,32 @@ class WSServer {
     });
 
     ws.on('close', () => {
-      for (const [minerId, miner] of this.miners) {
-        if (miner.ws === ws) {
-          this.miners.delete(minerId);
-          // B6: a vanished miner leaves its in-flight tasks hanging — they
+      for (const [workerId, worker] of this.workers) {
+        if (worker.ws === ws) {
+          this.workers.delete(workerId);
+          // B6: a vanished worker leaves its in-flight tasks hanging — they
           // would sit the full 180s dispatch timeout (+overhead) and blow
           // through nginx's 300s ceiling → user gets a 504. Reject them NOW:
-          // the chat route answers MINER_OFFLINE (retryable) immediately.
+          // the chat route answers WORKER_OFFLINE (retryable) immediately.
           for (const [taskId, cb] of this.taskCallbacks) {
-            if (cb.minerId === minerId) {
+            if (cb.workerId === workerId) {
               clearTimeout(cb.timeout);
               this.taskCallbacks.delete(taskId);
-              cb.reject(new Error('Miner disconnected'));
+              cb.reject(new Error('Worker disconnected'));
             }
           }
-          // M4: every row this miner had claimed ('processing' via chat
+          // M4: every row this worker had claimed ('processing' via chat
           // dispatch or a task_request poll) goes back to pending — with no
           // result coming, those rows otherwise stayed 'processing' forever
           // and could never be re-dispatched.
-          pool.query("UPDATE tasks SET status = 'pending' WHERE miner_id = $1 AND status = 'processing'", [minerId])
-            .catch((err) => logger.error({ err, minerId }, 'Failed to reset stranded processing tasks'));
-          pool.query("UPDATE miners SET status = 'offline' WHERE id = $1", [minerId])
-            .catch((err) => logger.error({ err, minerId }, 'Failed to mark miner offline'));
-          invalidateCache('/api/miners');
+          pool.query("UPDATE tasks SET status = 'pending' WHERE worker_id = $1 AND status = 'processing'", [workerId])
+            .catch((err) => logger.error({ err, workerId }, 'Failed to reset stranded processing tasks'));
+          pool.query("UPDATE workers SET status = 'offline' WHERE id = $1", [workerId])
+            .catch((err) => logger.error({ err, workerId }, 'Failed to mark worker offline'));
+          invalidateCache('/api/workers');
           invalidateCache('/api/models');
           invalidateCache('/api/stats');
-          logger.info({ minerId }, 'Miner disconnected');
+          logger.info({ workerId }, 'Worker disconnected');
         }
       }
     });
@@ -180,7 +195,7 @@ class WSServer {
 
   // Returns true when this IP has burned through its failed-auth budget
   authRateLimited(ws) {
-    // Localhost (VPS-resident, incl. our own miner + proxied nginx path is NOT
+    // Localhost (VPS-resident, incl. our own worker + proxied nginx path is NOT
     // local — _clientIp is the real client IP there) is trusted: rate limiting
     // targets remote token brute-force.
     if (isLocalClient(ws)) return false;
@@ -211,13 +226,16 @@ class WSServer {
   }
 
   async handleAuth(ws, msg) {
-    const { wallet_address, miner_token, e2e } = msg;
-    // v3.20.0: miners advertise their version at auth so media dispatch can
-    // target only miners that understand the `attachment` field on tasks.
+    const { wallet_address, e2e } = msg;
+    // Pre-1.0 worker binaries still send the token under its old field name.
+    const worker_token = msg.worker_token || msg[LEGACY_TOKEN_FIELD];
+    // v3.20.0: workers advertise their version at auth so media dispatch can
+    // target only workers that understand the `attachment` field on tasks.
     const appVersion = typeof msg.app_version === 'string' && msg.app_version
       ? msg.app_version.slice(0, 32)
       : null;
-    // v3.41.0: miners report every installed model (verified against
+    const protocol = Number.isInteger(msg.protocol) ? msg.protocol : 0;
+    // v3.41.0: workers report every installed model (verified against
     // `ollama list` client-side). Old binaries send nothing → single-model
     // fallback to current_model below.
     const reportedModels = Array.isArray(msg.models)
@@ -226,98 +244,99 @@ class WSServer {
 
     if (this.authRateLimited(ws)) return;
 
-    // v3.31.0 (C1): miner_token is the ONLY miner identity. The old
-    // "wallet_address or miner_token" check let anyone who knew (or guessed)
-    // a wallet address authenticate as that miner — and auto-registered a row
+    // v3.31.0 (C1): worker_token is the ONLY worker identity. The old
+    // "wallet_address or worker_token" check let anyone who knew (or guessed)
+    // a wallet address authenticate as that worker — and auto-registered a row
     // when none existed — hijacking dispatches and earning share for a stranger.
-    if (!miner_token) {
+    if (!worker_token) {
       this.recordAuthFailure(ws);
-      ws.send(JSON.stringify({ type: 'auth_error', message: 'miner_token required (legacy wallet auth removed in v3.31.0 — get your token from the dashboard)' }));
+      ws.send(JSON.stringify({ type: 'auth_error', message: 'worker_token required (legacy wallet auth removed in v3.31.0 — get your token from the dashboard)' }));
       return;
     }
 
     // Token hygiene: reject malformed tokens before touching the DB
-    if (!TOKEN_RE.test(miner_token)) {
+    if (!TOKEN_RE.test(worker_token)) {
       this.recordAuthFailure(ws);
-      ws.send(JSON.stringify({ type: 'auth_error', message: 'Invalid miner token' }));
+      ws.send(JSON.stringify({ type: 'auth_error', message: 'Invalid worker token' }));
       return;
     }
 
     let result;
-    let minerId;
+    let workerId;
     let authGpuModel = null;
 
-    // If miner_token provided, find user's miner via token
-    // v3.13.0 token-first model: each server-miner has its own unique token,
-    // and the token IS the miner identity (unlimited miners per user).
-    if (miner_token) {
-      const minerRow = await pool.query(
-        'SELECT id, status, gpu_model, ram FROM miners WHERE miner_token = $1',
-        [miner_token]
+    // If worker_token provided, find user's worker via token
+    // v3.13.0 token-first model: each server-worker has its own unique token,
+    // and the token IS the worker identity (unlimited workers per user).
+    if (worker_token) {
+      const workerRow = await pool.query(
+        'SELECT id, status, gpu_model, ram FROM workers WHERE worker_token = $1',
+        [worker_token]
       );
-      if (minerRow.rows.length > 0) {
-        if (minerRow.rows[0].status === 'removed') {
-          ws.send(JSON.stringify({ type: 'auth_error', message: 'This miner was removed. Re-add it from your profile to use it again.' }));
+      if (workerRow.rows.length > 0) {
+        if (workerRow.rows[0].status === 'removed') {
+          ws.send(JSON.stringify({ type: 'auth_error', message: 'This worker was removed. Re-add it from your profile to use it again.' }));
           return;
         }
-        minerId = minerRow.rows[0].id;
-        authGpuModel = minerRow.rows[0].gpu_model || null;
+        workerId = workerRow.rows[0].id;
+        authGpuModel = workerRow.rows[0].gpu_model || null;
         // v3.14.0: first successful auth marks token as used (hide from profile)
         await pool.query(
-          "UPDATE miners SET status = 'online', token_used_at = COALESCE(token_used_at, CURRENT_TIMESTAMP), last_seen = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
-          [minerId]
+          "UPDATE workers SET status = 'online', token_used_at = COALESCE(token_used_at, CURRENT_TIMESTAMP), last_seen = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+          [workerId]
         );
-        invalidateCache('/api/miners');
+        invalidateCache('/api/workers');
       } else {
-        // Legacy account token (users.miner_token): unambiguous only when the
-        // user has exactly 1 active miner.
-        const userResult = await pool.query('SELECT id FROM users WHERE miner_token = $1', [miner_token]);
+        // Legacy account token (users.worker_token): unambiguous only when the
+        // user has exactly 1 active worker.
+        const userResult = await pool.query('SELECT id FROM users WHERE worker_token = $1', [worker_token]);
         if (userResult.rows.length === 0) {
           this.recordAuthFailure(ws);
-          ws.send(JSON.stringify({ type: 'auth_error', message: 'Invalid miner token' }));
+          ws.send(JSON.stringify({ type: 'auth_error', message: 'Invalid worker token' }));
           return;
         }
         const userId = userResult.rows[0].id;
         const owned = await pool.query(
-          `SELECT id FROM miners WHERE user_id = $1 AND (status IS NULL OR status != 'removed')
+          `SELECT id FROM workers WHERE user_id = $1 AND (status IS NULL OR status != 'removed')
            ORDER BY id ASC`,
           [userId]
         );
         if (owned.rows.length === 1) {
-          minerId = owned.rows[0].id;
-          await pool.query("UPDATE miners SET status = 'online', last_seen = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1", [minerId]);
+          workerId = owned.rows[0].id;
+          await pool.query("UPDATE workers SET status = 'online', last_seen = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1", [workerId]);
         } else if (owned.rows.length > 1) {
-          ws.send(JSON.stringify({ type: 'auth_error', message: 'Multiple miners found. Use the per-miner token from your profile for this machine.' }));
+          ws.send(JSON.stringify({ type: 'auth_error', message: 'Multiple workers found. Use the per-worker token from your profile for this machine.' }));
           return;
         } else {
-          const freshToken = 'kz_' + crypto.randomBytes(32).toString('hex');
+          const freshToken = 'pw_' + crypto.randomBytes(32).toString('hex');
           result = await pool.query(
-            "INSERT INTO miners (user_id, wallet_address, miner_token, status) VALUES ($1, $2, $3, 'online') RETURNING id",
+            "INSERT INTO workers (user_id, wallet_address, worker_token, status) VALUES ($1, $2, $3, 'online') RETURNING id",
             [userId, wallet_address || '', freshToken]
           );
-          minerId = result.rows[0].id;
+          workerId = result.rows[0].id;
         }
       }
     }
     // v3.31.0 (C1): the legacy wallet_address-only branch was removed here —
-    // it trusted a client-supplied wallet with no proof and INSERTed miner
-    // rows for it. miner_token (checked above) is now mandatory.
+    // it trusted a client-supplied wallet with no proof and INSERTed worker
+    // rows for it. worker_token (checked above) is now mandatory.
 
-    // If this miner already has a live entry (stale/zombie connection),
+    // If this worker already has a live entry (stale/zombie connection),
     // close the old socket first so the map always points at the newest
     // connection. Otherwise dispatches and heartbeats split across two
-    // sockets and the live miner gets "Not authenticated".
-    const existing = this.miners.get(minerId);
+    // sockets and the live worker gets "Not authenticated".
+    const existing = this.workers.get(workerId);
     // Idempotent re-auth on the same socket: skip replace + duplicate work
     if (existing && existing.ws === ws) {
       existing.lastHeartbeat = Date.now();
       existing.status = 'online';
       if (appVersion) existing.app_version = appVersion;
+      existing.protocol = protocol;
       if (reportedModels.length > 0) existing.models = reportedModels;
-      if (e2e && miner_token) {
-        existing.e2eKey = deriveKey(miner_token);
+      if (e2e && worker_token) {
+        existing.e2eKey = deriveKey(worker_token);
       }
-      ws.send(JSON.stringify({ type: 'auth_ok', miner_id: minerId, e2e: !!(existing.e2eKey) }));
+      ws.send(JSON.stringify({ type: 'auth_ok', worker_id: workerId, [LEGACY_ID_FIELD]: workerId, e2e: !!(existing.e2eKey) }));
       return;
     }
     if (existing && existing.ws && existing.ws !== ws) {
@@ -325,9 +344,9 @@ class WSServer {
       const oldHealthy = Date.now() - (existing.lastHeartbeat || 0) < 45000;
       const newIsLocal = isLocalClient(ws);
       if (oldHealthy && !newIsLocal) {
-        logger.warn({ minerId, ip: ws._clientIp, existingIp: existing.ws._clientIp }, 'Rejected duplicate miner session');
+        logger.warn({ workerId, ip: ws._clientIp, existingIp: existing.ws._clientIp }, 'Rejected duplicate worker session');
         this.recordAuthFailure(ws);
-        ws.send(JSON.stringify({ type: 'auth_error', message: 'Miner already connected. Stop the other session or wait for it to go offline.' }));
+        ws.send(JSON.stringify({ type: 'auth_error', message: 'Worker already connected. Stop the other session or wait for it to go offline.' }));
         try { ws.close(); } catch (e) {}
         return;
       }
@@ -337,19 +356,19 @@ class WSServer {
           existing.ws.close();
         }
       } catch (e) {}
-      logger.info({ minerId, oldIp: existing.ws && existing.ws._clientIp, newIp: ws._clientIp }, 'Miner session replaced');
+      logger.info({ workerId, oldIp: existing.ws && existing.ws._clientIp, newIp: ws._clientIp }, 'Worker session replaced');
     }
 
     if (appVersion) {
-      await pool.query('UPDATE miners SET app_version = $1 WHERE id = $2', [appVersion, minerId])
-        .catch((err) => logger.warn({ err, minerId }, 'Failed to persist miner app_version'));
+      await pool.query('UPDATE workers SET app_version = $1 WHERE id = $2', [appVersion, workerId])
+        .catch((err) => logger.warn({ err, workerId }, 'Failed to persist worker app_version'));
     }
 
     // v3.41.0: the live entry carries every installed model (dispatch
     // matches on the list, not just current_model) plus a power weight and
     // per-model failure counters for the down-marking below.
-    this.miners.set(minerId, {
-      id: minerId,
+    this.workers.set(workerId, {
+      id: workerId,
       ws,
       wallet_address: wallet_address || '',
       lastHeartbeat: Date.now(),
@@ -359,62 +378,71 @@ class WSServer {
       status: 'online',
       current_model: (existing && existing.current_model) || null,
       app_version: appVersion || (existing && existing.app_version) || null,
+      protocol,
       // E2E key only when THIS auth advertised e2e support (never inherit from
-      // a replaced session — an old miner binary replacing it must stay plaintext)
-      e2eKey: (e2e && miner_token) ? deriveKey(miner_token) : null
+      // a replaced session — an old worker binary replacing it must stay plaintext)
+      e2eKey: (e2e && worker_token) ? deriveKey(worker_token) : null
     });
 
     // Update DB (v3.14.0: also mark token_used on first auth)
     await pool.query(
-      "UPDATE miners SET status = 'online', token_used_at = COALESCE(token_used_at, CURRENT_TIMESTAMP), last_seen = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
-      [minerId]
+      "UPDATE workers SET status = 'online', token_used_at = COALESCE(token_used_at, CURRENT_TIMESTAMP), last_seen = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+      [workerId]
     );
     if (reportedModels.length > 0) {
-      await pool.query('UPDATE miners SET models = $1::jsonb WHERE id = $2', [JSON.stringify(reportedModels), minerId])
-        .catch((err) => logger.warn({ err, minerId }, 'Failed to persist miner models'));
+      await pool.query('UPDATE workers SET models = $1::jsonb WHERE id = $2', [JSON.stringify(reportedModels), workerId])
+        .catch((err) => logger.warn({ err, workerId }, 'Failed to persist worker models'));
     }
-    invalidateCache('/api/miners');
+    invalidateCache('/api/workers');
     invalidateCache('/api/models');
     invalidateCache('/api/stats');
 
     // Successful auth resets this IP's failed-attempt counter
     this.authFails.delete(ws._clientIp || 'unknown');
-    const session = this.miners.get(minerId);
-    ws.send(JSON.stringify({ type: 'auth_ok', miner_id: minerId, e2e: !!session.e2eKey }));
-    logger.info({ minerId, ip: ws._clientIp, e2e: !!session.e2eKey }, 'Miner authenticated');
+    const session = this.workers.get(workerId);
+    ws.send(JSON.stringify({ type: 'auth_ok', worker_id: workerId, [LEGACY_ID_FIELD]: workerId, e2e: !!session.e2eKey }));
+    logger.info({ workerId, ip: ws._clientIp, e2e: !!session.e2eKey }, 'Worker authenticated');
   }
 
   async handleHeartbeat(ws, msg) {
-    const miner = this.findMinerByWs(ws);
-    if (!miner) {
+    const worker = this.findWorkerByWs(ws);
+    if (!worker) {
       ws.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }));
       return;
     }
 
-const { status, gpu_usage, ram_usage, cpu_usage, disk_usage, current_model } = msg;
-// v3.41.0: miners re-report every installed model each heartbeat (verified
-// against `ollama list` client-side). Old binaries omit it → keep Map state.
-const hbModels = Array.isArray(msg.models)
-  ? msg.models.filter((m) => typeof m === 'string').map((m) => m.slice(0, 100)).slice(0, 32)
-  : null;
+    const { gpu_usage, ram_usage, cpu_usage, disk_usage } = msg;
+    // Every heartbeat field is worker-controlled: whitelist the status (a
+    // worker must never mark itself 'removed'), bound the model name to the
+    // column width and clamp usage to a percentage (NUMERIC(5,2) overflow
+    // used to roll the whole heartbeat back).
+    const status = HEARTBEAT_STATUSES.has(msg.status) ? msg.status : 'online';
+    const current_model = typeof msg.current_model === 'string' && msg.current_model
+      ? msg.current_model.slice(0, 50)
+      : null;
+    // v3.41.0: workers re-report every installed model each heartbeat (verified
+    // against `ollama list` client-side). Old binaries omit it → keep Map state.
+    const hbModels = Array.isArray(msg.models)
+      ? msg.models.filter((m) => typeof m === 'string').map((m) => m.slice(0, 100)).slice(0, 32)
+      : null;
 
-    miner.lastHeartbeat = Date.now();
-    miner.status = status || 'online';
-    miner.current_model = current_model;
+    worker.lastHeartbeat = Date.now();
+    worker.status = status;
+    if (current_model) worker.current_model = current_model;
     let modelsChanged = false;
     if (hbModels && hbModels.length > 0) {
-      const before = [...(miner.models || [])].sort().join(',');
+      const before = [...(worker.models || [])].sort().join(',');
       modelsChanged = hbModels.slice().sort().join(',') !== before;
-      if (modelsChanged) miner.models = hbModels;
+      if (modelsChanged) worker.models = hbModels;
     }
 
-    const statusValue = status || 'online';
+    const statusValue = status;
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       await client.query(
-        `UPDATE miners
+        `UPDATE workers
          SET status = $1,
              uptime = CASE WHEN $8 = 'online' THEN LEAST(uptime + 0.1, 100) ELSE uptime END,
              current_model = COALESCE($3, current_model),
@@ -425,21 +453,21 @@ const hbModels = Array.isArray(msg.models)
              last_seen = CURRENT_TIMESTAMP,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = $2`,
-        [statusValue, miner.id, current_model,
-         gpu_usage || 0, ram_usage || 0, cpu_usage || 0, disk_usage || 0, statusValue]
+        [statusValue, worker.id, current_model,
+         clampPct(gpu_usage), clampPct(ram_usage), clampPct(cpu_usage), clampPct(disk_usage), statusValue]
       );
       // Persist the installed-models list only when it actually changed —
       // not on every 30s heartbeat (write amplification).
       if (modelsChanged) {
-        await client.query('UPDATE miners SET models = $1::jsonb WHERE id = $2', [JSON.stringify(hbModels), miner.id]);
+        await client.query('UPDATE workers SET models = $1::jsonb WHERE id = $2', [JSON.stringify(hbModels), worker.id]);
       }
-      invalidateCache('/api/miners');
+      invalidateCache('/api/workers');
       invalidateCache('/api/models');
       invalidateCache('/api/stats');
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK');
-      logger.error({ err, minerId: miner.id }, 'Heartbeat DB error');
+      logger.error({ err, workerId: worker.id }, 'Heartbeat DB error');
     } finally {
       client.release();
     }
@@ -452,43 +480,43 @@ const hbModels = Array.isArray(msg.models)
 
     if (!task_id) return;
 
-    // v3.18.4: results only accepted from an authenticated miner session,
-    // and only for tasks assigned to that miner (stops result forgery).
-    const miner = this.findMinerByWs(ws);
-    if (!miner) {
+    // v3.18.4: results only accepted from an authenticated worker session,
+    // and only for tasks assigned to that worker (stops result forgery).
+    const worker = this.findWorkerByWs(ws);
+    if (!worker) {
       ws.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }));
       return;
     }
 
-    const taskRow = await pool.query('SELECT miner_id FROM tasks WHERE id = $1', [task_id]);
+    const taskRow = await pool.query('SELECT worker_id FROM tasks WHERE id = $1', [task_id]);
     if (taskRow.rows.length === 0) {
       ws.send(JSON.stringify({ type: 'error', message: 'Unknown task' }));
       return;
     }
-    if (taskRow.rows[0].miner_id !== miner.id) {
-      // NULL miner_id tasks are never dispatched over WS, so a strict match
+    if (taskRow.rows[0].worker_id !== worker.id) {
+      // NULL worker_id tasks are never dispatched over WS, so a strict match
       // here blocks forged/foreign results without breaking legitimate flows.
-      ws.send(JSON.stringify({ type: 'error', message: 'Task not assigned to this miner' }));
+      ws.send(JSON.stringify({ type: 'error', message: 'Task not assigned to this worker' }));
       return;
     }
 
     // Decrypt e2e payload when the session negotiated encryption
     let plainResponse = response;
-    if (miner.e2eKey && response !== undefined && !isEncrypted(response)) {
+    if (worker.e2eKey && response !== undefined && !isEncrypted(response)) {
       // Session negotiated e2e but plaintext arrived — refuse (downgrade/forge)
-      logger.error({ taskId: task_id, minerId: miner.id }, 'Plaintext result rejected (e2e negotiated)');
+      logger.error({ taskId: task_id, workerId: worker.id }, 'Plaintext result rejected (e2e negotiated)');
       ws.send(JSON.stringify({ type: 'error', message: 'Plaintext result rejected (e2e required)' }));
       return;
     }
     if (isEncrypted(response)) {
-      if (!miner.e2eKey) {
+      if (!worker.e2eKey) {
         ws.send(JSON.stringify({ type: 'error', message: 'E2E not negotiated' }));
         return;
       }
       try {
-        plainResponse = decrypt(miner.e2eKey, response);
+        plainResponse = decrypt(worker.e2eKey, response);
       } catch (err) {
-        logger.error({ err, taskId: task_id, minerId: miner.id }, 'E2E decrypt failed');
+        logger.error({ err, taskId: task_id, workerId: worker.id }, 'E2E decrypt failed');
         ws.send(JSON.stringify({ type: 'error', message: 'E2E decrypt failed' }));
         return;
       }
@@ -503,29 +531,29 @@ const hbModels = Array.isArray(msg.models)
         [error, task_id]
       );
       if (failed.rows.length === 0) {
-        logger.warn({ taskId: task_id, minerId: miner.id }, 'Ignored replayed task_result (error)');
+        logger.warn({ taskId: task_id, workerId: worker.id }, 'Ignored replayed task_result (error)');
         return;
       }
     } else {
-      // This handler only records the raw result. Billing (cost, miner earnings,
+      // This handler only records the raw result. Billing (cost, worker earnings,
       // daily tokens) is owned exclusively by routes/chat.js so a task is never
       // paid twice and the user is always charged the published model price.
-      // v3.45.0 (H1): tokens_used is miner-controlled and drives both the user
-      // charge and the miner share — an out-of-bounds report is rejected here
-      // (never persisted, never clamped) and resolved as a miner error so the
+      // v3.45.0 (H1): tokens_used is worker-controlled and drives both the user
+      // charge and the worker share — an out-of-bounds report is rejected here
+      // (never persisted, never clamped) and resolved as a worker error so the
       // dispatcher fails over to the next candidate.
       const reported = Number(tokens_used);
       if (!Number.isFinite(reported) || reported < 0 || reported > MAX_TASK_TOKENS) {
         logger.warn(
-          { taskId: task_id, minerId: miner.id, tokens_used },
-          'Rejected miner result: tokens_used out of bounds'
+          { taskId: task_id, workerId: worker.id, tokens_used },
+          'Rejected worker result: tokens_used out of bounds'
         );
         const failed = await pool.query(
           "UPDATE tasks SET response = $1, status = 'failed', completed_at = CURRENT_TIMESTAMP WHERE id = $2 AND status IN ('pending', 'processing') RETURNING id",
           ['tokens_used out of bounds', task_id]
         );
         if (failed.rows.length === 0) {
-          logger.warn({ taskId: task_id, minerId: miner.id }, 'Ignored replayed task_result (error)');
+          logger.warn({ taskId: task_id, workerId: worker.id }, 'Ignored replayed task_result (error)');
           return;
         }
         error = 'tokens_used out of bounds';
@@ -540,7 +568,7 @@ const hbModels = Array.isArray(msg.models)
 
         if (updated.rows.length === 0) {
           // Replay of an already-resolved task: do not touch counters or state.
-          logger.warn({ taskId: task_id, minerId: miner.id }, 'Ignored replayed task_result');
+          logger.warn({ taskId: task_id, workerId: worker.id }, 'Ignored replayed task_result');
           return;
         }
         tokens_used = reported;
@@ -557,19 +585,19 @@ const hbModels = Array.isArray(msg.models)
   }
 
   async handleTaskRequest(ws, msg) {
-    // Miner is requesting a task (polling mode)
-    const miner = this.findMinerByWs(ws);
-    if (!miner) return;
+    // Worker is requesting a task (polling mode)
+    const worker = this.findWorkerByWs(ws);
+    if (!worker) return;
 
-    // Find pending task for this miner. Older miners must not pick up media
+    // Find pending task for this worker. Older workers must not pick up media
     // tasks (they would silently drop the attachment) — those stay pending
-    // until a v3.20.0+ miner asks or the request path fails explicitly.
-    const mediaCapable = minerSupportsMedia(miner.app_version);
+    // until a v3.20.0+ worker asks or the request path fails explicitly.
+    const mediaCapable = workerSupportsMedia(worker.app_version, worker.protocol);
     const result = await pool.query(
       `SELECT id, prompt, prepared_prompt, media, model FROM tasks
-        WHERE miner_id = $1 AND status = 'pending'
+        WHERE worker_id = $1 AND status = 'pending'
         ORDER BY created_at ASC LIMIT 50`,
-      [miner.id]
+      [worker.id]
     );
 
     for (const task of result.rows) {
@@ -584,33 +612,33 @@ const hbModels = Array.isArray(msg.models)
       const payload = {
         type: 'task',
         task_id: task.id,
-        prompt: miner.e2eKey ? encrypt(miner.e2eKey, task.prepared_prompt || task.prompt) : (task.prepared_prompt || task.prompt),
+        prompt: worker.e2eKey ? encrypt(worker.e2eKey, task.prepared_prompt || task.prompt) : (task.prepared_prompt || task.prompt),
         model: task.model
       };
       if (needsMedia) {
-        payload.attachment = miner.e2eKey ? encrypt(miner.e2eKey, JSON.stringify(task.media)) : task.media;
+        payload.attachment = worker.e2eKey ? encrypt(worker.e2eKey, JSON.stringify(task.media)) : task.media;
       }
       ws.send(JSON.stringify(payload));
       return;
     }
   }
 
-  findMinerByWs(ws) {
-    for (const [, miner] of this.miners) {
-      if (miner.ws === ws) return miner;
+  findWorkerByWs(ws) {
+    for (const [, worker] of this.workers) {
+      if (worker.ws === ws) return worker;
     }
     return null;
   }
 
-  // Dispatch task to a specific miner
-  // NOTE: CPU-only miners need ~2-3 min for an 8B model (model load + inference),
+  // Dispatch task to a specific worker
+  // NOTE: CPU-only workers need ~2-3 min for an 8B model (model load + inference),
   // so the timeout must stay well above the 60s it used to be.
   // media (image/audio {type,name,mime,data} base64) rides as `attachment`,
   // encrypted the same way the prompt is when E2E is negotiated.
   // history (v3.41.0: [{role, content}...], sliding window built by the chat
-  // route) rides the same way — old miners simply never receive it because
-  // the router only picks history-capable miners when history is non-empty.
-  async dispatchTask(minerId, taskId, prompt, model, media = null, history = [], timeoutMs = 180000) {
+  // route) rides the same way — old workers simply never receive it because
+  // the router only picks history-capable workers when history is non-empty.
+  async dispatchTask(workerId, taskId, prompt, model, media = null, history = [], timeoutMs = 180000) {
     // Back-compat: dispatchTask(id, task, prompt, model, media, timeoutMs) —
     // history was inserted before timeoutMs in v3.41.0.
     if (typeof history === 'number') {
@@ -618,9 +646,9 @@ const hbModels = Array.isArray(msg.models)
       history = [];
     }
     return new Promise((resolve, reject) => {
-      const miner = this.miners.get(minerId);
-      if (!miner) {
-        reject(new Error('Miner not connected'));
+      const worker = this.workers.get(workerId);
+      if (!worker) {
+        reject(new Error('Worker not connected'));
         return;
       }
 
@@ -628,137 +656,137 @@ const hbModels = Array.isArray(msg.models)
         this.taskCallbacks.delete(taskId);
         // M4: nobody will answer this dispatch — hand the row back to
         // 'pending' instead of leaving it stranded in 'processing' (the chat
-        // request answers MINER_OFFLINE; the miner can re-claim via its
+        // request answers WORKER_OFFLINE; the worker can re-claim via its
         // task_request poll if it comes back).
         pool.query("UPDATE tasks SET status = 'pending' WHERE id = $1 AND status = 'processing'", [taskId])
           .catch((err) => logger.error({ err, taskId }, 'Failed to reset timed-out task'));
         reject(new Error('Task timeout'));
       }, timeoutMs);
 
-      // minerId lets the close handler reject this miner's in-flight tasks
+      // workerId lets the close handler reject this worker's in-flight tasks
       // immediately (B6) instead of letting them ride out the full timeout.
-      this.taskCallbacks.set(taskId, { resolve, reject, timeout, minerId });
+      this.taskCallbacks.set(taskId, { resolve, reject, timeout, workerId });
 
       const payload = {
         type: 'task',
         task_id: taskId,
-        prompt: miner.e2eKey ? encrypt(miner.e2eKey, prompt) : prompt,
+        prompt: worker.e2eKey ? encrypt(worker.e2eKey, prompt) : prompt,
         model
       };
       if (media) {
-        payload.attachment = miner.e2eKey
-          ? encrypt(miner.e2eKey, JSON.stringify(media))
+        payload.attachment = worker.e2eKey
+          ? encrypt(worker.e2eKey, JSON.stringify(media))
           : media;
       }
       if (Array.isArray(history) && history.length > 0) {
-        payload.history = miner.e2eKey
-          ? encrypt(miner.e2eKey, JSON.stringify(history.slice(0, 32)))
+        payload.history = worker.e2eKey
+          ? encrypt(worker.e2eKey, JSON.stringify(history.slice(0, 32)))
           : history.slice(0, 32);
       }
-      miner.ws.send(JSON.stringify(payload));
+      worker.ws.send(JSON.stringify(payload));
     });
   }
 
   // Effective installed list: reported models, or the single legacy
   // current_model for old binaries that never send `models`.
-  effectiveModels(miner) {
-    if (Array.isArray(miner.models) && miner.models.length > 0) return miner.models;
-    return miner.current_model ? [miner.current_model] : [];
+  effectiveModels(worker) {
+    if (Array.isArray(worker.models) && worker.models.length > 0) return worker.models;
+    return worker.current_model ? [worker.current_model] : [];
   }
 
   // Failure-driven health (v3.41.0): N consecutive task errors take a model
-  // out of rotation for that miner — no active probing, no GPU burned.
+  // out of rotation for that worker — no active probing, no GPU burned.
   // A success resets the counter; the panel reads this via liveModels().
-  modelDown(miner, model) {
-    return ((miner.modelHealth || {})[model] || 0) >= MODEL_DOWN_AFTER_FAILS;
+  modelDown(worker, model) {
+    return ((worker.modelHealth || {})[model] || 0) >= MODEL_DOWN_AFTER_FAILS;
   }
 
-  recordModelResult(minerId, model, ok) {
-    const miner = this.miners.get(minerId);
-    if (!miner) return;
-    miner.modelHealth = miner.modelHealth || {};
+  recordModelResult(workerId, model, ok) {
+    const worker = this.workers.get(workerId);
+    if (!worker) return;
+    worker.modelHealth = worker.modelHealth || {};
     if (ok) {
-      if (miner.modelHealth[model]) delete miner.modelHealth[model];
+      if (worker.modelHealth[model]) delete worker.modelHealth[model];
     } else {
-      miner.modelHealth[model] = (miner.modelHealth[model] || 0) + 1;
-      if (miner.modelHealth[model] === MODEL_DOWN_AFTER_FAILS) {
-        logger.warn({ minerId, model }, 'Model marked down for miner after consecutive failures');
+      worker.modelHealth[model] = (worker.modelHealth[model] || 0) + 1;
+      if (worker.modelHealth[model] === MODEL_DOWN_AFTER_FAILS) {
+        logger.warn({ workerId, model }, 'Model marked down for worker after consecutive failures');
       }
     }
   }
 
-  // Single predicate for "can this miner serve this task right now".
-  minerServes(miner, model, needsMedia = false, needHistory = false) {
-    if (!miner || miner.status !== 'online') return false;
-    if (needsMedia && !minerSupportsMedia(miner.app_version)) return false;
-    if (needHistory && !minerSupportsHistory(miner.app_version)) return false;
-    if (!this.effectiveModels(miner).includes(model)) return false;
-    if (this.modelDown(miner, model)) return false;
+  // Single predicate for "can this worker serve this task right now".
+  workerServes(worker, model, needsMedia = false, needHistory = false) {
+    if (!worker || worker.status !== 'online') return false;
+    if (needsMedia && !workerSupportsMedia(worker.app_version, worker.protocol)) return false;
+    if (needHistory && !workerSupportsHistory(worker.app_version, worker.protocol)) return false;
+    if (!this.effectiveModels(worker).includes(model)) return false;
+    if (this.modelDown(worker, model)) return false;
     return true;
   }
 
-  // Find best available miner for a model (v3.40.0: EXACT match only).
+  // Find best available worker for a model (v3.40.0: EXACT match only).
   // The chat route never substitutes another model's output anymore — a
   // non-exact request gets MODEL_UNAVAILABLE with alternatives instead.
-  // needsMedia: only miners running >= 3.20.0 (which understand `attachment`).
-  findMinerForModel(model, needsMedia = false) {
-    const all = this.findMinersForModel(model, needsMedia);
+  // needsMedia: only workers running >= 3.20.0 (which understand `attachment`).
+  findWorkerForModel(model, needsMedia = false) {
+    const all = this.findWorkersForModel(model, needsMedia);
     return all.length > 0 ? all[0] : null;
   }
 
-  // All online miners holding the exact model, in registration order.
-  // v3.41.0: matches on the installed-models list (multi-model miners serve
+  // All online workers holding the exact model, in registration order.
+  // v3.41.0: matches on the installed-models list (multi-model workers serve
   // every pulled model at once), honours per-model down-marking, and can
   // require history support when the task carries conversation context.
-  findMinersForModel(model, needsMedia = false, needHistory = false) {
+  findWorkersForModel(model, needsMedia = false, needHistory = false) {
     const out = [];
-    for (const [minerId, miner] of this.miners) {
-      if (this.minerServes(miner, model, needsMedia, needHistory)) {
-        out.push({ minerId, model });
+    for (const [workerId, worker] of this.workers) {
+      if (this.workerServes(worker, model, needsMedia, needHistory)) {
+        out.push({ workerId, model });
       }
     }
     return out;
   }
 
-  // Usable miners regardless of model — lets the chat route tell
-  // MINER_OFFLINE (nothing online) apart from MODEL_UNAVAILABLE.
-  countUsableMiners(needsMedia = false) {
+  // Usable workers regardless of model — lets the chat route tell
+  // WORKER_OFFLINE (nothing online) apart from MODEL_UNAVAILABLE.
+  countUsableWorkers(needsMedia = false) {
     let n = 0;
-    for (const [, miner] of this.miners) {
-      if (miner.status === 'online' && (!needsMedia || minerSupportsMedia(miner.app_version))) n++;
+    for (const [, worker] of this.workers) {
+      if (worker.status === 'online' && (!needsMedia || workerSupportsMedia(worker.app_version, worker.protocol))) n++;
     }
     return n;
   }
 
-  // Online miner counts per model — feeds MODEL_UNAVAILABLE alternatives.
-  // v3.41.0: a multi-model miner counts once in every bucket it serves.
-  // historyCapable narrows to miners that understand the `history` field.
+  // Online worker counts per model — feeds MODEL_UNAVAILABLE alternatives.
+  // v3.41.0: a multi-model worker counts once in every bucket it serves.
+  // historyCapable narrows to workers that understand the `history` field.
   onlineModelCounts(needsMedia = false, historyCapable = false) {
     const counts = {};
-    for (const [, miner] of this.miners) {
-      if (miner.status !== 'online') continue;
-      if (needsMedia && !minerSupportsMedia(miner.app_version)) continue;
-      if (historyCapable && !minerSupportsHistory(miner.app_version)) continue;
-      const models = this.effectiveModels(miner);
+    for (const [, worker] of this.workers) {
+      if (worker.status !== 'online') continue;
+      if (needsMedia && !workerSupportsMedia(worker.app_version, worker.protocol)) continue;
+      if (historyCapable && !workerSupportsHistory(worker.app_version, worker.protocol)) continue;
+      const models = this.effectiveModels(worker);
       const list = models.length > 0 ? models : ['llama3.1:8b'];
       for (const m of new Set(list)) {
-        if (this.modelDown(miner, m)) continue;
+        if (this.modelDown(worker, m)) continue;
         counts[m] = (counts[m] || 0) + 1;
       }
     }
     return counts;
   }
 
-  // In-flight dispatches per miner (spillover guard below).
-  inflightCount(minerId) {
+  // In-flight dispatches per worker (spillover guard below).
+  inflightCount(workerId) {
     let n = 0;
     for (const [, cb] of this.taskCallbacks) {
-      if (cb.minerId === minerId) n++;
+      if (cb.workerId === workerId) n++;
     }
     return n;
   }
 
-  // Smooth weighted round-robin (nginx-style): stronger miners win new
+  // Smooth weighted round-robin (nginx-style): stronger workers win new
   // sessions proportionally more often. State is per routing key.
   pickWeighted(candidates, key) {
     if (candidates.length === 1) return candidates[0];
@@ -770,36 +798,36 @@ const hbModels = Array.isArray(msg.models)
     let total = 0;
     let best = null;
     for (const cand of candidates) {
-      const miner = this.miners.get(cand.minerId);
-      const w = Math.max(1, Number((miner && miner.weight) || 1));
+      const worker = this.workers.get(cand.workerId);
+      const w = Math.max(1, Number((worker && worker.weight) || 1));
       total += w;
-      const cur = (state[cand.minerId] || 0) + w;
-      state[cand.minerId] = cur;
-      if (!best || cur > state[best.minerId]) best = cand;
+      const cur = (state[cand.workerId] || 0) + w;
+      state[cand.workerId] = cur;
+      if (!best || cur > state[best.workerId]) best = cand;
     }
-    state[best.minerId] -= total;
+    state[best.workerId] -= total;
     return best;
   }
 
   // v3.41.0 routing: sticky session + weighted RR + spillover.
-  // - A known session sticks to its miner while that miner stays capable
+  // - A known session sticks to its worker while that worker stays capable
   //   (online + holds the model + media/history ok + not down-marked).
-  // - If the sticky miner has SPILL_CAP in-flight tasks, overflow goes to
+  // - If the sticky worker has SPILL_CAP in-flight tasks, overflow goes to
   //   the WRR pick instead of queueing behind it.
   // - Unknown sessions (guests without session, first message) go straight
-  //   to WRR. `exclude` skips already-tried miners during failover.
+  //   to WRR. `exclude` skips already-tried workers during failover.
   pickCandidate({ model, needsMedia = false, needHistory = false, sessionKey = null, exclude = null }) {
-    const cands = this.findMinersForModel(model, needsMedia, needHistory)
-      .filter((c) => !(exclude && exclude.has(c.minerId)));
+    const cands = this.findWorkersForModel(model, needsMedia, needHistory)
+      .filter((c) => !(exclude && exclude.has(c.workerId)));
     if (cands.length === 0) return null;
     if (sessionKey) {
       const mapped = this.affinity.get(sessionKey);
-      const sticky = mapped && cands.find((c) => c.minerId === mapped);
-      if (sticky && this.inflightCount(sticky.minerId) < SPILL_CAP) return sticky;
+      const sticky = mapped && cands.find((c) => c.workerId === mapped);
+      if (sticky && this.inflightCount(sticky.workerId) < SPILL_CAP) return sticky;
     }
     const pick = this.pickWeighted(cands, `${model}#${needsMedia ? 'm' : ''}${needHistory ? 'h' : ''}`);
     if (sessionKey) {
-      this.affinity.set(sessionKey, pick.minerId);
+      this.affinity.set(sessionKey, pick.workerId);
       if (this.affinity.size > 50000) {
         const first = this.affinity.keys().next();
         if (!first.done) this.affinity.delete(first.value);
@@ -808,30 +836,30 @@ const hbModels = Array.isArray(msg.models)
     return pick;
   }
 
-  // Live per-miner model roster for the panel (installed + down-marked).
+  // Live per-worker model roster for the panel (installed + down-marked).
   liveModels() {
     const out = {};
-    for (const [minerId, miner] of this.miners) {
-      if (miner.status !== 'online') continue;
-      out[minerId] = this.effectiveModels(miner).map((m) => ({
+    for (const [workerId, worker] of this.workers) {
+      if (worker.status !== 'online') continue;
+      out[workerId] = this.effectiveModels(worker).map((m) => ({
         id: m,
-        down: this.modelDown(miner, m),
+        down: this.modelDown(worker, m),
       }));
     }
     return out;
   }
 
-  cleanupMiners() {
+  cleanupWorkers() {
     const now = Date.now();
-    for (const [minerId, miner] of this.miners) {
-      if (now - miner.lastHeartbeat > 120000) {
-        this.miners.delete(minerId);
-        pool.query("UPDATE miners SET status = 'offline' WHERE id = $1", [minerId])
-          .catch((err) => logger.error({ err, minerId }, 'Failed to mark miner offline'));
-        invalidateCache('/api/miners');
+    for (const [workerId, worker] of this.workers) {
+      if (now - worker.lastHeartbeat > 120000) {
+        this.workers.delete(workerId);
+        pool.query("UPDATE workers SET status = 'offline' WHERE id = $1", [workerId])
+          .catch((err) => logger.error({ err, workerId }, 'Failed to mark worker offline'));
+        invalidateCache('/api/workers');
         invalidateCache('/api/models');
         invalidateCache('/api/stats');
-        logger.info({ minerId }, 'Miner marked offline (no heartbeat)');
+        logger.info({ workerId }, 'Worker marked offline (no heartbeat)');
       }
     }
   }
@@ -844,18 +872,18 @@ const hbModels = Array.isArray(msg.models)
       try { cb.reject(new Error('Server shutting down')); } catch (e) { /* already settled */ }
     }
     this.taskCallbacks.clear();
-    for (const [, miner] of this.miners) {
-      try { miner.ws.close(); } catch (e) { /* noop */ }
+    for (const [, worker] of this.workers) {
+      try { worker.ws.close(); } catch (e) { /* noop */ }
     }
-    this.miners.clear();
+    this.workers.clear();
     await new Promise((resolve) => this.wss.close(() => resolve()));
   }
 
-  getOnlineMiners() {
+  getOnlineWorkers() {
     const online = [];
-    for (const [minerId, miner] of this.miners) {
-      if (miner.status === 'online') {
-        online.push({ id: minerId, wallet_address: miner.wallet_address, model: miner.current_model });
+    for (const [workerId, worker] of this.workers) {
+      if (worker.status === 'online') {
+        online.push({ id: workerId, wallet_address: worker.wallet_address, model: worker.current_model });
       }
     }
     return online;
@@ -864,4 +892,4 @@ const hbModels = Array.isArray(msg.models)
 
 module.exports = WSServer;
 module.exports.computeWeight = computeWeight;
-module.exports.minerSupportsHistory = minerSupportsHistory;
+module.exports.workerSupportsHistory = workerSupportsHistory;

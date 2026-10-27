@@ -63,14 +63,14 @@ describe('reconcilePendingPayments (B4)', () => {
   });
 
   it('applies finished deposits with their stored invoice id', async () => {
-    script({ deposits: [{ order_id: 'krelz-3-3', user_id: 3, processor_id: 'inv3' }] });
+    script({ deposits: [{ order_id: 'plankton-3-3', user_id: 3, processor_id: 'inv3' }] });
     nowpayments.getPaymentStatus.mockResolvedValue({ success: true, status: { payment_status: 'finished' } });
 
     await reconcilePendingPayments();
 
     expect(applyDeposit).toHaveBeenCalledWith({
       userId: 3,
-      orderId: 'krelz-3-3',
+      orderId: 'plankton-3-3',
       invoiceId: 'inv3',
     });
     expect(applyPlanPurchase).not.toHaveBeenCalled();
@@ -79,7 +79,7 @@ describe('reconcilePendingPayments (B4)', () => {
   it('leaves still-waiting invoices alone', async () => {
     script({
       purchases: [{ order_id: 'tok-1-1', user_id: 1, invoice_id: 'inv1' }],
-      deposits: [{ order_id: 'krelz-3-3', user_id: 3, processor_id: 'inv3' }],
+      deposits: [{ order_id: 'plankton-3-3', user_id: 3, processor_id: 'inv3' }],
     });
     nowpayments.getPaymentStatus.mockResolvedValue({ success: true, status: { payment_status: 'waiting' } });
 

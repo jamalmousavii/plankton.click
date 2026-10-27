@@ -1,11 +1,16 @@
 const crypto = require('crypto');
 
-const SALT = Buffer.from('krelz-e2e-v1');
+const SALT = Buffer.from('plankton-e2e-v1');
+// Wire-protocol constant: tokens issued before the 1.0.0 relaunch (kz_) were
+// paired with this salt by binaries already installed in the field, so they
+// must keep deriving the same key or every task would fail to decrypt.
+const LEGACY_SALT = Buffer.from('krelz-e2e-v1');
 const INFO = Buffer.from('task-payload');
 
-// Both sides derive the same key from the shared miner_token.
+// Both sides derive the same key from the shared worker_token.
 function deriveKey(token) {
-  return Buffer.from(crypto.hkdfSync('sha256', String(token), SALT, INFO, 32));
+  const salt = String(token).startsWith('kz_') ? LEGACY_SALT : SALT;
+  return Buffer.from(crypto.hkdfSync('sha256', String(token), salt, INFO, 32));
 }
 
 function encrypt(key, plaintext) {

@@ -53,7 +53,7 @@ describe('authenticate', () => {
   });
 
   it('accepts a token signed with HS256 and our secret', async () => {
-    const token = jwt.sign({ id: 7, role: 'miner' }, SECRET, { algorithm: 'HS256', expiresIn: '1h' });
+    const token = jwt.sign({ id: 7, role: 'worker' }, SECRET, { algorithm: 'HS256', expiresIn: '1h' });
     const res = await request(app).get('/protected').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body.user.id).toBe(7);
@@ -108,7 +108,7 @@ describe('optionalAuth', () => {
   });
 
   it('populates req.user for a valid token', async () => {
-    const token = jwt.sign({ id: 7, role: 'miner' }, SECRET, { algorithm: 'HS256', expiresIn: '1h' });
+    const token = jwt.sign({ id: 7, role: 'worker' }, SECRET, { algorithm: 'HS256', expiresIn: '1h' });
     const res = await request(app).get('/public').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body.user.id).toBe(7);

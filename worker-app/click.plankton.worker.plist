@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Plankton Network Worker — launchd agent template (macOS counterpart of
+     plankton-worker.service). Placeholders filled by install-macos.sh:
+     @NODE@ = node binary, @WORKDIR@ = $HOME/plankton-worker/worker-app -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>click.plankton.worker</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>@NODE@</string>
+    <string>@WORKDIR@/src/cli.js</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>@WORKDIR@</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>@WORKDIR@/worker.log</string>
+  <key>StandardErrorPath</key>
+  <string>@WORKDIR@/worker.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>NODE_ENV</key>
+    <string>production</string>
+  </dict>
+</dict>
+</plist>

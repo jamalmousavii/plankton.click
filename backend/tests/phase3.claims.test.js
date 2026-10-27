@@ -102,7 +102,7 @@ describe('applyPlanPurchase — exactly-once plan/token claim (B4)', () => {
   });
 
   it('ignores non-plan order ids without touching the DB', async () => {
-    const out = await applyPlanPurchase({ userId: 7, orderId: 'krelz-7-1' });
+    const out = await applyPlanPurchase({ userId: 7, orderId: 'plankton-7-1' });
     expect(out.deduped).toBe(true);
     // connectImpl would have thrown if a transaction had been opened
   });
@@ -129,7 +129,7 @@ describe('applyDeposit — exactly-once deposit claim (B4)', () => {
 
     const out = await applyDeposit({
       userId: 9,
-      orderId: 'krelz-9-1',
+      orderId: 'plankton-9-1',
       invoiceId: '999',
       cryptoCoin: 'BTC',
     });
@@ -147,7 +147,7 @@ describe('applyDeposit — exactly-once deposit claim (B4)', () => {
     const client = makeClient([]);
     pool.__state.connectImpl = async () => client;
 
-    const out = await applyDeposit({ userId: 9, orderId: 'krelz-9-1', invoiceId: '999' });
+    const out = await applyDeposit({ userId: 9, orderId: 'plankton-9-1', invoiceId: '999' });
 
     expect(out.deduped).toBe(true);
     expect(client.statements.join('\n')).not.toContain('user_coin_balances');
@@ -172,7 +172,7 @@ describe('applyDeposit — exactly-once deposit claim (B4)', () => {
     pool.__state.connectImpl = async () => client;
 
     await expect(
-      applyDeposit({ userId: 9, orderId: 'krelz-9-2', invoiceId: '1000' })
+      applyDeposit({ userId: 9, orderId: 'plankton-9-2', invoiceId: '1000' })
     ).rejects.toThrow('unique violation');
 
     expect(client.statements).toContain('ROLLBACK');

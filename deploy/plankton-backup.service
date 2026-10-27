@@ -1,0 +1,11 @@
+[Unit]
+Description=Plankton nightly encrypted database backup
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/plankton/scripts/backup-db.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6

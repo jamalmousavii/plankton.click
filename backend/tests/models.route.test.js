@@ -1,4 +1,4 @@
-// GET /api/models miner counts (v3.41.0): live multi-model roster first,
+// GET /api/models worker counts (v3.41.0): live multi-model roster first,
 // DB GROUP BY current_model only as fallback.
 
 const express = require('express');
@@ -39,18 +39,18 @@ describe('GET /api/models counts (v3.41.0)', () => {
     const res = await request(buildApp(ws)).get('/api/models');
     expect(res.status).toBe(200);
     expect(ws.onlineModelCounts).toHaveBeenCalledWith(false);
-    const byId = Object.fromEntries(res.body.models.map((m) => [m.id, m.miners_online]));
-    // One multi-model miner counts once in EVERY bucket it serves.
+    const byId = Object.fromEntries(res.body.models.map((m) => [m.id, m.workers_online]));
+    // One multi-model worker counts once in EVERY bucket it serves.
     expect(byId['llama3.1:8b']).toBe(1);
     expect(byId['qwen3:32b']).toBe(1);
     expect(byId['deepseek-r1:70b']).toBe(0);
-    expect(res.body.miners_online_total).toBe(1);
+    expect(res.body.workers_online_total).toBe(1);
   });
 
   it('falls back to DB current_model grouping without WS', async () => {
     const res = await request(buildApp(undefined)).get('/api/models');
     expect(res.status).toBe(200);
-    const byId = Object.fromEntries(res.body.models.map((m) => [m.id, m.miners_online]));
+    const byId = Object.fromEntries(res.body.models.map((m) => [m.id, m.workers_online]));
     expect(byId['llama3.1:8b']).toBe(1);
     expect(byId['qwen3:32b']).toBe(0);
   });

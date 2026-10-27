@@ -4,10 +4,10 @@ const pool = require('../database/pool');
 const { authenticate, strictIfHeader } = require('../middleware/auth');
 const { validate, chatRules } = require('../middleware/validate');
 
-// Miners control task_result.error, and that text is reflected into the 503
-// below — strip control characters/markup and cap it so a hostile miner can't
+// Workers control task_result.error, and that text is reflected into the 503
+// below — strip control characters/markup and cap it so a hostile worker can't
 // forge response content or log lines.
-function sanitizeMinerDetail(raw) {
+function sanitizeWorkerDetail(raw) {
   return String(raw)
     .replace(/[\u0000-\u001f\u007f]/g, ' ')
     .replace(/[<>]/g, '')
@@ -17,24 +17,25 @@ function sanitizeMinerDetail(raw) {
 const MODELS = require('../models');
 const { logger } = require('../logger');
 const { prepareAttachment, AttachmentError } = require('../services/attachments');
-const { getMinerCreditStatus } = require('../services/minerCredit');
+const { getWorkerCreditStatus } = require('../services/workerCredit');
 const { getFreeStatus } = require('../services/freeAllowance');
 const { FREE_DAILY_TOKENS, TOKEN_BUNDLE, listPlans, modelOutputPrice, MAX_TASK_TOKENS } = require('../services/plans');
 const { getTokenBalance } = require('../services/tokenBundles');
-const { settleMessage, MINER_REVENUE_SHARE } = require('../services/billing');
+const { settleMessage, WORKER_REVENUE_SHARE } = require('../services/billing');
 const { resolveCap } = require('../services/org');
+const { withTransaction } = require('../database/tx');
 
 // Single source of truth for the default model (was split between
 // 'llama3:8b' — which exists in no catalog — and 'llama3.1:8b').
 const DEFAULT_MODEL = 'llama3.1:8b';
 // H1: the hard per-task output-token bound (MAX_TASK_TOKENS) lives in
 // services/plans.js (v3.45.0) so chat, v1 and the WS result handler share
-// one number. tokens_used comes from the miner (it both drives the user
-// charge and the 90% miner share), so an inflated or NaN count must fail the
+// one number. tokens_used comes from the worker (it both drives the user
+// charge and the 90% worker share), so an inflated or NaN count must fail the
 // task instead of minting money.
 
 // Conversation window (v3.41.0): the last turns sent with every dispatch so
-// miners can actually use context. Sliding window — newest first until the
+// workers can actually use context. Sliding window — newest first until the
 // soft token budget, hard cap above that. Estimate ~4 chars/token.
 const HISTORY_TURNS = 10;
 const HISTORY_TOKENS = 6000;
@@ -65,7 +66,7 @@ async function buildHistory(sessionId) {
 }
 
 // MODEL_UNAVAILABLE alternatives (v3.40.0): catalog models that have online
-// miners right now, same category as the request first, then by miner count
+// workers right now, same category as the request first, then by worker count
 // desc. Shape mirrors GET /api/models so the client can render directly.
 function buildAlternatives(requestedModel, counts) {
   const requested = MODELS.find(m => m.id === requestedModel);
@@ -75,11 +76,11 @@ function buildAlternatives(requestedModel, counts) {
     .map(m => ({
       id: m.id, name: m.name, size: m.size, ram: m.ram,
       category: m.category, vision: m.vision, audio: m.audio,
-      miners_online: counts[m.id],
+      workers_online: counts[m.id],
     }))
     .sort((a, b) =>
       (((b.category === reqCat) ? 1 : 0) - ((a.category === reqCat) ? 1 : 0))
-      || (b.miners_online - a.miners_online));
+      || (b.workers_online - a.workers_online));
 }
 
 // ======== SESSION CRUD ========
@@ -127,7 +128,7 @@ router.get('/sessions/:id', authenticate, async (req, res) => {
        FROM tasks WHERE session_id = $1 AND user_id = $2
        UNION ALL
        SELECT response AS content, 'assistant' AS role, completed_at AS created_at, NULL::jsonb AS media
-       FROM tasks WHERE session_id = $1 AND user_id = $2 AND response IS NOT NULL
+       FROM tasks WHERE session_id = $1 AND user_id = $2 AND response IS NOT NULL AND status = 'completed'
        ORDER BY created_at ASC`,
       [sessionId, userId]
     );
@@ -170,7 +171,7 @@ router.put('/sessions/:id', authenticate, async (req, res) => {
     const sessionId = parseInt(req.params.id);
     const { subject } = req.body;
 
-    if (!subject || !subject.trim()) {
+    if (typeof subject !== 'string' || !subject.trim()) {
       return res.status(400).json({ error: 'Subject is required' });
     }
     if (subject.trim().length > 255) {
@@ -211,8 +212,20 @@ router.delete('/sessions/:id', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    await pool.query('DELETE FROM tasks WHERE session_id = $1', [sessionId]);
-    await pool.query('DELETE FROM chat_sessions WHERE id = $1', [sessionId]);
+    // Paid tasks are referenced by worker_coin_earnings (FK), so a hard
+    // DELETE failed with 500 for any session that ever cost money. Wipe the
+    // conversation content instead and detach the rows: the user's text is
+    // gone, the money trail (tokens, cost, earnings) stays intact.
+    await withTransaction(async (client) => {
+      await client.query(
+        `UPDATE tasks
+            SET session_id = NULL, prompt = '', response = NULL, media = NULL,
+                prepared_prompt = NULL, history = NULL
+          WHERE session_id = $1`,
+        [sessionId]
+      );
+      await client.query('DELETE FROM chat_sessions WHERE id = $1', [sessionId]);
+    });
 
     res.json({ success: true, message: 'Session deleted' });
   } catch (err) {
@@ -276,7 +289,7 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
 
     // Coverage pre-flight (v3.27.0). v3.26 removed payment blocking entirely;
     // v3.27 brings back a *narrow* gate: a subject with NO coverage at all —
-    // daily free allowance exhausted, no miner credit, empty token pot and
+    // daily free allowance exhausted, no worker credit, empty token pot and
     // empty wallet — gets the upgrade wall (402 upgrade_required) instead of
     // a wasted dispatch. Anyone with a single unit of coverage is served
     // exactly as before. Failures here never block chat (availability first).
@@ -299,7 +312,7 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
       let covered = false;
       if (userId) {
         try {
-          const credit = await getMinerCreditStatus(userId);
+          const credit = await getWorkerCreditStatus(userId);
           covered = credit.eligible && credit.remaining > 0;
           if (!covered) {
             const pot = await getTokenBalance(userId);
@@ -367,20 +380,20 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
     }
 
     const wsServer = req.app.get('wsServer');
-    // v3.40.0 miner-only inference (exact-model rule): the user asked for THIS
-    // model. Media (image/audio) may only go to a miner new enough to
+    // v3.40.0 worker-only inference (exact-model rule): the user asked for THIS
+    // model. Media (image/audio) may only go to a worker new enough to
     // understand the `attachment` field on task messages (v3.20.0+).
     // There is no local fallback anymore — an unservable request gets an
-    // explicit, actionable error (MINER_OFFLINE / MODEL_UNAVAILABLE) instead
+    // explicit, actionable error (WORKER_OFFLINE / MODEL_UNAVAILABLE) instead
     // of a silently substituted reply. All three early returns below happen
     // BEFORE billing, so an unserved message never consumes allowance or
     // wallet.
     const needsMedia = !!media;
 
     // v3.41.0 conversation window: recent turns ride every dispatch so the
-    // miner answers with context. Guests and fresh sessions send none.
+    // worker answers with context. Guests and fresh sessions send none.
     // Billing is OUTPUT-only (locked): history tokens never enter `cost` —
-    // neither the user charge nor the miner earning below.
+    // neither the user charge nor the worker earning below.
     let history = [];
     let historyTruncated = false;
     let historyTokens = 0;
@@ -393,17 +406,17 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
       logger.error({ err }, 'History window failed (proceeding without context)');
     }
     const needHistory = history.length > 0;
-    // Sticky sessions: one session sticks to one miner (style + context
+    // Sticky sessions: one session sticks to one worker (style + context
     // continuity). Guests have no session → pure weighted round-robin.
     const sessionKey = sessionId ? `s:${sessionId}` : null;
 
     const hasCandidates = wsServer
-      && wsServer.findMinersForModel(requestedModel, needsMedia, needHistory).length > 0;
+      && wsServer.findWorkersForModel(requestedModel, needsMedia, needHistory).length > 0;
 
-    // Create task (miner_id is claimed below once a candidate takes it).
+    // Create task (worker_id is claimed below once a candidate takes it).
     // The history snapshot is stored for audit/repro of what was dispatched.
     const taskResult = await pool.query(
-      `INSERT INTO tasks (user_id, miner_id, prompt, model, status, session_id, media, prepared_prompt, history)
+      `INSERT INTO tasks (user_id, worker_id, prompt, model, status, session_id, media, prepared_prompt, history)
        VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8)
        RETURNING id`,
       [userId, null, message, requestedModel, sessionId, dbAttachment,
@@ -413,13 +426,13 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
 
     const taskId = taskResult.rows[0].id;
     let response, tokensUsed, cost;
-    let lastMinerError = null;
-    let servedByMiner = false;
-    let minerId = null;
+    let lastWorkerError = null;
+    let servedByWorker = false;
+    let workerId = null;
 
     const failTask = async (note) => {
       // Status-guarded (v3.45.0): never flip a task that already completed
-      // (e.g. a late dispatch failure after a successful miner result).
+      // (e.g. a late dispatch failure after a successful worker result).
       await pool.query(
         "UPDATE tasks SET response = $1, status = 'failed', completed_at = CURRENT_TIMESTAMP WHERE id = $2 AND status IN ('pending', 'processing')",
         [note, taskId]
@@ -427,25 +440,25 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
     };
 
     if (!hasCandidates) {
-      const usableCount = wsServer ? wsServer.countUsableMiners(needsMedia) : 0;
+      const usableCount = wsServer ? wsServer.countUsableWorkers(needsMedia) : 0;
       if (usableCount === 0) {
-        // No miners online at all — the client shows a waiting state and
+        // No workers online at all — the client shows a waiting state and
         // auto-retries (retryable: true).
-        await failTask('No miners online');
+        await failTask('No workers online');
         return res.status(503).json({
-          error: 'No GPU miners are online right now. Your message is kept — please wait for a miner to connect and retry.',
-          code: 'MINER_OFFLINE',
+          error: 'No GPU workers are online right now. Your message is kept — please wait for a worker to connect and retry.',
+          code: 'WORKER_OFFLINE',
           task_id: taskId,
           retryable: true,
         });
       }
-      // Miners are online, but none holds the requested model — suggest a
+      // Workers are online, but none holds the requested model — suggest a
       // switch instead of silently serving another model's output.
       const counts = wsServer.onlineModelCounts(needsMedia, needHistory);
       const alternatives = buildAlternatives(requestedModel, counts).slice(0, 6);
-      await failTask('No miner holds the requested model');
+      await failTask('No worker holds the requested model');
       return res.status(409).json({
-        error: `No online miner serves ${requestedModel} right now. Switch to one of these models or wait.`,
+        error: `No online worker serves ${requestedModel} right now. Switch to one of these models or wait.`,
         code: 'MODEL_UNAVAILABLE',
         requested_model: requestedModel,
         alternatives,
@@ -463,56 +476,56 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
         model: requestedModel, needsMedia, needHistory, sessionKey, exclude: tried,
       });
       if (!cand) break;
-      tried.add(cand.minerId);
+      tried.add(cand.workerId);
       try {
-        await pool.query("UPDATE tasks SET status = 'processing', miner_id = $1 WHERE id = $2", [cand.minerId, taskId]);
+        await pool.query("UPDATE tasks SET status = 'processing', worker_id = $1 WHERE id = $2", [cand.workerId, taskId]);
 
         logger.debug({
-          taskId, minerId: cand.minerId, model: cand.model,
+          taskId, workerId: cand.workerId, model: cand.model,
           media: needsMedia, historyTurns: history.length / 2, historyTokens, historyTruncated,
-        }, 'Dispatching task to miner');
-        const result = await wsServer.dispatchTask(cand.minerId, taskId, effectiveMessage, cand.model, media, history);
+        }, 'Dispatching task to worker');
+        const result = await wsServer.dispatchTask(cand.workerId, taskId, effectiveMessage, cand.model, media, history);
 
         if (result.error) {
-          logger.warn({ taskId, minerId: cand.minerId, err: result.error }, 'Miner task failed, trying next miner');
-          wsServer.recordModelResult(cand.minerId, requestedModel, false);
-          lastMinerError = result.error;
+          logger.warn({ taskId, workerId: cand.workerId, err: result.error }, 'Worker task failed, trying next worker');
+          wsServer.recordModelResult(cand.workerId, requestedModel, false);
+          lastWorkerError = result.error;
           continue;
         }
         const reported = Number(result.tokens_used);
         if (!Number.isFinite(reported) || reported < 0 || reported > MAX_TASK_TOKENS) {
-          // Out-of-bounds report: reject the miner result and try the next
-          // candidate — never charge the user or pay the miner for it.
-          logger.warn({ taskId, minerId: cand.minerId, tokens_used: result.tokens_used }, 'Rejecting miner result: tokens_used out of bounds');
-          wsServer.recordModelResult(cand.minerId, requestedModel, false);
-          lastMinerError = 'tokens_used out of bounds';
+          // Out-of-bounds report: reject the worker result and try the next
+          // candidate — never charge the user or pay the worker for it.
+          logger.warn({ taskId, workerId: cand.workerId, tokens_used: result.tokens_used }, 'Rejecting worker result: tokens_used out of bounds');
+          wsServer.recordModelResult(cand.workerId, requestedModel, false);
+          lastWorkerError = 'tokens_used out of bounds';
           continue;
         }
         response = result.response;
         tokensUsed = reported;
-        servedByMiner = true;
-        minerId = cand.minerId;
-        wsServer.recordModelResult(cand.minerId, requestedModel, true);
+        servedByWorker = true;
+        workerId = cand.workerId;
+        wsServer.recordModelResult(cand.workerId, requestedModel, true);
         // Output-only charge at the single shared catalog price (v3.45.0).
         cost = (tokensUsed * modelOutputPrice(requestedModel)) / 1000000;
         break;
 
       } catch (wsError) {
-        logger.warn({ taskId, err: wsError.message }, 'WebSocket dispatch failed, trying next miner');
-        wsServer.recordModelResult(cand.minerId, requestedModel, false);
-        lastMinerError = wsError.message;
+        logger.warn({ taskId, err: wsError.message }, 'WebSocket dispatch failed, trying next worker');
+        wsServer.recordModelResult(cand.workerId, requestedModel, false);
+        lastWorkerError = wsError.message;
       }
     }
 
     if (!response) {
       // Every exact-model candidate failed — retryable, like offline.
-      await failTask('All miners failed for this task');
-      const detail = lastMinerError
-        ? ` (miner: ${sanitizeMinerDetail(lastMinerError)})`
+      await failTask('All workers failed for this task');
+      const detail = lastWorkerError
+        ? ` (worker: ${sanitizeWorkerDetail(lastWorkerError)})`
         : '';
       return res.status(503).json({
-        error: `Miners failed to answer right now. Your message is kept — please retry shortly.${detail}`,
-        code: 'MINER_OFFLINE',
+        error: `Workers failed to answer right now. Your message is kept — please retry shortly.${detail}`,
+        code: 'WORKER_OFFLINE',
         task_id: taskId,
         retryable: true,
       });
@@ -526,11 +539,11 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
       [response, tokensUsed, cost, taskId]
     );
 
-    // Miner throughput counter. Revenue is accounted for separately below, so
-    // a guest (free) task still counts as completed work for the miner.
-    if (servedByMiner && minerId) {
-      await pool.query('UPDATE miners SET total_tasks = total_tasks + 1 WHERE id = $1', [minerId])
-        .catch((err) => logger.error({ err, minerId }, 'Failed to increment miner total_tasks'));
+    // Worker throughput counter. Revenue is accounted for separately below, so
+    // a guest (free) task still counts as completed work for the worker.
+    if (servedByWorker && workerId) {
+      await pool.query('UPDATE workers SET total_tasks = total_tasks + 1 WHERE id = $1', [workerId])
+        .catch((err) => logger.error({ err, workerId }, 'Failed to increment worker total_tasks'));
     }
 
     // Payment: single shared settlement (services/billing.js) — the same
@@ -539,7 +552,7 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
     // A subject with no coverage never reaches here: the pre-flight wall
     // (402 upgrade_required) rejected it before dispatch.
     // v3.45.0: a settlement failure must not 500 after the answer was served.
-    // The task is marked billing_pending and the maintenance worker retries
+    // The task is marked billing_pending and the maintenance job retries
     // it — nothing was charged (settleMessage is one rolled-back transaction).
     let settled = null;
     let billingPending = false;
@@ -549,8 +562,8 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
         guestKey,
         tokensUsed,
         cost,
-        minerId,
-        servedByMiner,
+        workerId,
+        servedByWorker,
         freeCap,
         freeRemainingInit: preFlightFree ? preFlightFree.remaining : null,
         bucketUserId,
@@ -567,7 +580,7 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
     }
     const {
       paymentStatus,
-      minerCreditRemaining,
+      workerCreditRemaining,
       freeRemaining,
       tokenBalanceRemaining,
       upgradeNotice,
@@ -584,9 +597,9 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
       cost,
       coin: paymentCoin,
       payment_status: billingPending ? 'pending' : paymentStatus,
-      miner_id: servedByMiner ? minerId : null,
-      source: 'miner',
-      miner_credit_remaining: minerCreditRemaining,
+      worker_id: servedByWorker ? workerId : null,
+      source: 'worker',
+      worker_credit_remaining: workerCreditRemaining,
       free_tokens_remaining: freeRemaining,
       ...(billingPending ? { billing_pending: true } : {}),
       ...(freeLow ? { free_low: true } : {}),
@@ -630,11 +643,11 @@ router.get('/history', authenticate, async (req, res) => {
 
 // Exposed for the test suite (pricing rules are money-adjacent).
 router.DEFAULT_MODEL = DEFAULT_MODEL;
-router.MINER_REVENUE_SHARE = MINER_REVENUE_SHARE;
+router.WORKER_REVENUE_SHARE = WORKER_REVENUE_SHARE;
 
 // Test hook: the 503 detail sanitiser is module-private; expose it the same
 // way stats.js exposes its aggregate reset.
-router.__sanitizeMinerDetail = sanitizeMinerDetail;
+router.__sanitizeWorkerDetail = sanitizeWorkerDetail;
 router.__buildAlternatives = buildAlternatives;
 
 module.exports = router;

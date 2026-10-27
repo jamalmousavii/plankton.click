@@ -20,7 +20,7 @@ const registerRules = [
   body('password').matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter'),
   body('password').matches(/[0-9]/).withMessage('Password must contain at least one number'),
   // Role is never client-controlled: self-registration can only ever be 'user'.
-  body('role').optional({ values: 'falsy' }).isIn(['user', 'miner']).withMessage('Invalid role'),
+  body('role').optional({ values: 'falsy' }).isIn(['user', 'worker']).withMessage('Invalid role'),
 ];
 
 const loginRules = [
@@ -66,8 +66,8 @@ const chatRules = [
   }),
 ];
 
-// Miner validators
-const minerRegisterRules = [
+// Worker validators
+const workerRegisterRules = [
   body('wallet_address').isLength({ min: 42, max: 42 }).withMessage('Valid wallet address required'),
   body('gpu_model').optional().isLength({ max: 100 }),
   body('ram').optional().isLength({ max: 50 }),
@@ -101,7 +101,7 @@ module.exports = {
   loginRules,
   googleAuthRules,
   chatRules,
-  minerRegisterRules,
+  workerRegisterRules,
   heartbeatRules,
   depositRules,
   transferRules,

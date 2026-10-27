@@ -4,7 +4,7 @@ const pool = require('../database/pool');
 const { authenticate } = require('../middleware/auth');
 const { logger } = require('../logger');
 
-// GET /api/leaderboard/mine — own rank among miners (authenticated)
+// GET /api/leaderboard/mine — own rank among workers (authenticated)
 router.get('/mine', authenticate, async (req, res) => {
   try {
     const result = await pool.query(
@@ -13,7 +13,7 @@ router.get('/mine', authenticate, async (req, res) => {
                 m.total_tasks, m.earnings,
                 RANK() OVER (ORDER BY m.earnings DESC) AS rank,
                 COUNT(*) OVER () AS total
-         FROM miners m
+         FROM workers m
          WHERE m.total_tasks > 0
        )
        SELECT rank, total, id, gpu_model, wallet_address, current_model, total_tasks, earnings
@@ -32,8 +32,8 @@ router.get('/mine', authenticate, async (req, res) => {
     if (row) {
       const bd = await pool.query(
         `SELECT source, plan_type, COALESCE(SUM(amount), 0) AS amount
-           FROM miner_coin_earnings
-          WHERE miner_id = $1 AND coin = 'USD'
+           FROM worker_coin_earnings
+          WHERE worker_id = $1 AND coin = 'USD'
           GROUP BY source, plan_type`,
         [row.id]
       );
@@ -50,29 +50,29 @@ router.get('/mine', authenticate, async (req, res) => {
 
     if (!row) {
       const any = await pool.query(
-        `SELECT COUNT(*)::int AS n FROM miners
+        `SELECT COUNT(*)::int AS n FROM workers
          WHERE user_id = $1 AND (status IS NULL OR status != 'removed')`,
         [req.user.id]
       );
       if (Number(any.rows[0].n) === 0) {
-        return res.json({ success: true, isMiner: false, rank: null });
+        return res.json({ success: true, isWorker: false, rank: null });
       }
       const total = await pool.query(
-        `SELECT COUNT(*)::int AS n FROM miners WHERE total_tasks > 0`
+        `SELECT COUNT(*)::int AS n FROM workers WHERE total_tasks > 0`
       );
       return res.json({
-        success: true, isMiner: true, rank: null,
-        total: Number(total.rows[0].n), miner: null
+        success: true, isWorker: true, rank: null,
+        total: Number(total.rows[0].n), worker: null
       });
     }
 
     res.json({
       success: true,
-      isMiner: true,
+      isWorker: true,
       rank: Number(row.rank),
       total: Number(row.total),
       breakdown,
-      miner: {
+      worker: {
         id: row.id,
         gpu_model: row.gpu_model,
         wallet_address: row.wallet_address,
@@ -87,17 +87,17 @@ router.get('/mine', authenticate, async (req, res) => {
   }
 });
 
-// GET /api/leaderboard/miners
-router.get('/miners', async (req, res) => {
+// GET /api/leaderboard/workers
+router.get('/workers', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT id, wallet_address, gpu_model, total_tasks, earnings, status, current_model
-       FROM miners
+       FROM workers
        WHERE total_tasks > 0
        ORDER BY earnings DESC
        LIMIT 50`
     );
-    res.json({ success: true, miners: result.rows });
+    res.json({ success: true, workers: result.rows });
   } catch (err) {
     logger.error({ err }, 'Leaderboard route failed');
     res.status(500).json({ error: 'Server error' });

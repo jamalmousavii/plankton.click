@@ -3,4 +3,4 @@ Allow: /
 Disallow: /api/
 Disallow: /_next/
 
-Sitemap: https://krelz.xyz/sitemap.xml
+Sitemap: https://plankton.click/sitemap.xml

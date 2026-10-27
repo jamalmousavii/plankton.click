@@ -78,7 +78,7 @@ function MessageList({ messagesRef, chat, loading, lang, t, hasSubjectBar, purch
                       className="flex items-center justify-between gap-2 bg-white border border-sky-200 hover:bg-sky-50 rounded-lg px-2.5 py-2 text-xs transition text-left"
                     >
                       <span className="font-bold text-gray-800 truncate">{alt.name}</span>
-                      <span className="text-emerald-600 flex-shrink-0">✅ {alt.miners_online}</span>
+                      <span className="text-emerald-600 flex-shrink-0">✅ {alt.workers_online}</span>
                     </button>
                   ))}
                 </div>
@@ -93,14 +93,14 @@ function MessageList({ messagesRef, chat, loading, lang, t, hasSubjectBar, purch
           </div>
           {msg.role === 'assistant' && (
             <div className={`text-xs text-gray-400 mt-1 ${rtl ? 'text-right' : 'text-left'}`}>
-              {msg.source === 'miner' && (
-                <span className="text-emerald-600">⛏️ {t('chat.viaMiner')}{msg.miner_id ? ` #${msg.miner_id}` : ''}</span>
+              {msg.source === 'worker' && (
+                <span className="text-emerald-600">🖥️ {t('chat.viaWorker')}{msg.worker_id ? ` #${msg.worker_id}` : ''}</span>
               )}
               {msg.source === 'local' && (
                 <span>💻 {t('chat.viaLocal')}</span>
               )}
-              {msg.payment_status === 'free_miner' && (
-                <span className="text-amber-600"> 🎁 {t('chat.freeMinerCredit')}</span>
+              {msg.payment_status === 'free_worker' && (
+                <span className="text-amber-600"> 🎁 {t('chat.freeWorkerCredit')}</span>
               )}
               {msg.payment_status === 'tokens' && (
                 <span className="text-sky-600"> 🎟️ {t('chat.paidTokens')}</span>

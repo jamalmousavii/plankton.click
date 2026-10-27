@@ -51,14 +51,14 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// C1 — wallet-only WS auth removed: miner_token is the only identity.
+// C1 — wallet-only WS auth removed: worker_token is the only identity.
 // ---------------------------------------------------------------------------
 const WSServer = require('../src/ws');
 
 function bareServer() {
   const ws = Object.create(WSServer.prototype);
   ws.authFails = new Map();
-  ws.miners = new Map();
+  ws.workers = new Map();
   ws.taskCallbacks = new Map();
   return ws;
 }
@@ -72,13 +72,13 @@ function bareSocket() {
   };
 }
 
-describe('C1: WS auth requires a miner_token (v3.31.0)', () => {
+describe('C1: WS auth requires a worker_token (v3.31.0)', () => {
   it('rejects a connection with no credentials', async () => {
     const server = bareServer();
     const ws = bareSocket();
     await server.handleAuth(ws, {});
     expect(ws.sent[0]).toMatchObject({ type: 'auth_error' });
-    expect(ws.sent[0].message).toMatch(/miner_token required/);
+    expect(ws.sent[0].message).toMatch(/worker_token required/);
   });
 
   it('rejects the legacy wallet_address-only auth (spoofing bypass removed)', async () => {
@@ -86,7 +86,7 @@ describe('C1: WS auth requires a miner_token (v3.31.0)', () => {
     const ws = bareSocket();
     await server.handleAuth(ws, { wallet_address: '0xDEADBEEFdeadbeef' });
     expect(ws.sent[0].type).toBe('auth_error');
-    expect(ws.sent[0].message).toMatch(/miner_token required/);
+    expect(ws.sent[0].message).toMatch(/worker_token required/);
     // The bypass is gone before any query: no DB statement may have run.
     expect(pool.__state.statements).toHaveLength(0);
   });
@@ -94,8 +94,8 @@ describe('C1: WS auth requires a miner_token (v3.31.0)', () => {
   it('rejects a malformed token before touching the DB', async () => {
     const server = bareServer();
     const ws = bareSocket();
-    await server.handleAuth(ws, { miner_token: 'kz_not-a-real-token' });
-    expect(ws.sent[0]).toMatchObject({ type: 'auth_error', message: 'Invalid miner token' });
+    await server.handleAuth(ws, { worker_token: 'pw_not-a-real-token' });
+    expect(ws.sent[0]).toMatchObject({ type: 'auth_error', message: 'Invalid worker token' });
     expect(pool.__state.statements).toHaveLength(0);
   });
 });

@@ -6,9 +6,9 @@ import { useLanguage } from '../i18n/LanguageContext';
 export default function ServerError() {
   const { t } = useLanguage();
   return (
-    <div className="flex-1 bg-gradient-to-br from-sky-50 via-blue-50 to-cyan-50">
+    <div className="flex-1 page-surface">
       <Head>
-        <title>500 - Krelz Network</title>
+        <title>500 - Plankton Network</title>
         <meta name="robots" content="noindex" />
       </Head>
       <Navbar />

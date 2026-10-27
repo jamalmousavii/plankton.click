@@ -15,7 +15,7 @@ if (!connectionString) {
 }
 
 const pool = new Pool({
-  connectionString: connectionString || 'postgresql://krelz:local_dev_only@localhost:5432/krelz',
+  connectionString: connectionString || 'postgresql://plankton:local_dev_only@localhost:5432/plankton',
   // B7: without bounds a hung statement parked every waiter — including
   // GET /health, so the LB never saw the box was stuck. These cap queueing,
   // connect attempts and single-statement runtime.

@@ -11,12 +11,12 @@ const logger = pino({
       'new_password',
       'current_password',
       'reset_token',
-      'miner_token',
+      'worker_token',
       'credential',
       'req.headers.authorization',
       'req.headers.cookie',
       '*.password',
-      '*.miner_token',
+      '*.worker_token',
       '*.reset_token',
     ],
     censor: '[Redacted]',
@@ -38,7 +38,7 @@ const logger = pino({
   },
   timestamp: pino.stdTimeFunctions.isoTime,
   base: {
-    service: 'krelz-backend',
+    service: 'plankton-backend',
     version: process.env.npm_package_version || pkg.version,
   },
 });

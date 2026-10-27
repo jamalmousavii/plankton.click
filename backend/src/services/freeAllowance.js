@@ -2,13 +2,13 @@
 //
 // Every subject — a signed-in user (daily_tokens, keyed by user_id) or a
 // guest (daily_tokens_guest, keyed by client IP) — gets a per-UTC-day token
-// allowance. Spending it is platform-funded: no wallet debit and no miner
-// revenue share, exactly like the miner credit.
+// allowance. Spending it is platform-funded: no wallet debit and no worker
+// revenue share, exactly like the worker credit.
 const pool = require('../database/pool');
 const { FREE_DAILY_TOKENS } = require('./plans');
 
 // All dates are compared on the UTC calendar so the daily reset does not
-// depend on the DB or Node timezone (same contract as minerCredit.js).
+// depend on the DB or Node timezone (same contract as workerCredit.js).
 const UTC_TODAY = `(now() AT TIME ZONE 'utc')::date`;
 
 // Token counts are integers in practice, but DECIMAL storage + float JS

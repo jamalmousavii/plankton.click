@@ -1,5 +1,5 @@
 // v3.39.0 — admin management actions: role/ban, USD balance, token pot,
-// plan grant, miner status, money views. Every mutation must also write
+// plan grant, worker status, money views. Every mutation must also write
 // admin_audit_log (same transaction) — asserted via recorded statements.
 
 const express = require('express');
@@ -36,7 +36,7 @@ function sign(payload) {
 
 // id 1 = admin (role cache), id 2 = plain user, id 3 = second admin (unused
 // cases), distinct ids keep the module-level caches deterministic.
-const ADMIN = sign({ id: 1, email: 'admin@krelz.xyz', role: 'admin', token_version: 0 });
+const ADMIN = sign({ id: 1, email: 'admin@plankton.click', role: 'admin', token_version: 0 });
 const PLAIN = sign({ id: 2, email: 'plain@t.t', role: 'user', token_version: 0 });
 
 function app() {
@@ -70,7 +70,7 @@ it('PUT /users/:id/role — validation, self-guard, success + audit', async () =
     if (/SELECT token_version, banned/.test(sql)) return { rows: [{ token_version: 0, banned: false }] };
     if (/SELECT role FROM users WHERE id = \$1$/.test(sql)) return { rows: [{ role: 'admin' }] };
     if (/SELECT role FROM users WHERE id = \$1 FOR UPDATE/.test(sql)) return { rows: [{ role: 'user' }] };
-    if (/UPDATE users SET role/.test(sql)) return { rows: [{ id: 5, role: 'miner' }] };
+    if (/UPDATE users SET role/.test(sql)) return { rows: [{ id: 5, role: 'worker' }] };
     if (/INSERT INTO admin_audit_log/.test(sql)) return { rows: [] };
     return { rows: [] };
   };
@@ -84,9 +84,9 @@ it('PUT /users/:id/role — validation, self-guard, success + audit', async () =
   expect(self.status).toBe(409);
 
   const ok = await request(app()).put('/api/admin/users/5/role')
-    .set('Authorization', `Bearer ${ADMIN}`).send({ role: 'miner' });
+    .set('Authorization', `Bearer ${ADMIN}`).send({ role: 'worker' });
   expect(ok.status).toBe(200);
-  expect(ok.body.user).toMatchObject({ id: 5, role: 'miner' });
+  expect(ok.body.user).toMatchObject({ id: 5, role: 'worker' });
   const sql = pool.__state.statements.join('\n');
   expect(sql).toMatch(/INSERT INTO admin_audit_log/);
   expect(sql).toMatch(/BEGIN[\s\S]*COMMIT/);
@@ -215,33 +215,33 @@ it('PUT /users/:id/plan — invalid tier 400, grant runs activatePlan + audit', 
 });
 
 // ---------------------------------------------------------------------------
-// Miner status
+// Worker status
 // ---------------------------------------------------------------------------
-it('PUT /miners/:id/status — remove/restore + audit, invalid 400', async () => {
+it('PUT /workers/:id/status — remove/restore + audit, invalid 400', async () => {
   pool.__state.queryImpl = async (sql) => {
     if (/SELECT token_version, banned/.test(sql)) return { rows: [{ token_version: 0, banned: false }] };
     if (/SELECT role FROM users/.test(sql)) return { rows: [{ role: 'admin' }] };
-    if (/SELECT status FROM miners/.test(sql)) return { rows: [{ status: 'online' }] };
-    if (/UPDATE miners SET status = 'removed'/.test(sql)) return { rows: [{ id: 3, status: 'removed' }] };
-    if (/UPDATE miners SET status = 'offline'/.test(sql)) return { rows: [{ id: 3, status: 'offline' }] };
+    if (/SELECT status FROM workers/.test(sql)) return { rows: [{ status: 'online' }] };
+    if (/UPDATE workers SET status = 'removed'/.test(sql)) return { rows: [{ id: 3, status: 'removed' }] };
+    if (/UPDATE workers SET status = 'offline'/.test(sql)) return { rows: [{ id: 3, status: 'offline' }] };
     if (/INSERT INTO admin_audit_log/.test(sql)) return { rows: [] };
     return { rows: [] };
   };
 
-  const bad = await request(app()).put('/api/admin/miners/3/status')
+  const bad = await request(app()).put('/api/admin/workers/3/status')
     .set('Authorization', `Bearer ${ADMIN}`).send({ status: 'exploded' });
   expect(bad.status).toBe(400);
 
-  const remove = await request(app()).put('/api/admin/miners/3/status')
+  const remove = await request(app()).put('/api/admin/workers/3/status')
     .set('Authorization', `Bearer ${ADMIN}`).send({ status: 'removed' });
   expect(remove.status).toBe(200);
-  expect(remove.body.miner.status).toBe('removed');
+  expect(remove.body.worker.status).toBe('removed');
   expect(pool.__state.statements.join(' ')).toMatch(/uninstalled_at = CURRENT_TIMESTAMP/);
 
-  const restore = await request(app()).put('/api/admin/miners/3/status')
+  const restore = await request(app()).put('/api/admin/workers/3/status')
     .set('Authorization', `Bearer ${ADMIN}`).send({ status: 'offline' });
   expect(restore.status).toBe(200);
-  expect(restore.body.miner.status).toBe('offline');
+  expect(restore.body.worker.status).toBe('offline');
   expect(pool.__state.statements.join(' ')).toMatch(/uninstalled_at = NULL/);
   expect((pool.__state.statements.join('').match(/INSERT INTO admin_audit_log/g) || []).length).toBe(2);
 });

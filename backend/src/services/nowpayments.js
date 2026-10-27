@@ -37,13 +37,13 @@ class NowPaymentsService {
 
   // Create payment invoice (coin optional — customer picks on NowPayments page)
   async createInvoice({ userId, coin, amount, orderId, description }) {
-    const finalOrderId = orderId || `krelz-${userId}-${Date.now()}`;
+    const finalOrderId = orderId || `plankton-${userId}-${Date.now()}`;
     const body = {
       price_amount: amount,
       price_currency: 'usd',
       order_id: finalOrderId,
-      order_description: description || `Krelz Network deposit - $${amount} USD`,
-      ipn_callback_url: `${process.env.BACKEND_URL || 'https://krelz.xyz'}/api/payments/deposit/webhook`,
+      order_description: description || `Plankton Network deposit - $${amount} USD`,
+      ipn_callback_url: `${process.env.BACKEND_URL || 'https://plankton.click'}/api/payments/deposit/webhook`,
     };
     // Optional: pre-select coin; omit so customer chooses on hosted checkout
     if (coin && SUPPORTED_COINS[coin]) {
@@ -109,7 +109,7 @@ class NowPaymentsService {
   async processIPN(payload) {
     const { order_id, invoice_id, payment_status, price_amount, pay_amount, pay_currency, invoice_price_amount, tx_hash } = payload;
 
-    // Extract userId from order_id (format: krelz-{userId}-{timestamp})
+    // Extract userId from order_id (format: plankton-{userId}-{timestamp})
     const parts = (order_id || '').split('-');
     const userId = parseInt(parts[1]);
 

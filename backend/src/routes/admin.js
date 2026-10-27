@@ -10,9 +10,9 @@ const { logger } = require('../logger');
 const { activatePlan, PLANS } = require('../services/plans');
 const { withTransaction } = require('../database/tx');
 
-const ROLES = ['user', 'miner', 'admin'];
+const ROLES = ['user', 'worker', 'admin'];
 const TICKET_STATUSES = ['open', 'answered', 'closed'];
-const MINER_STATUSES = ['offline', 'removed'];
+const WORKER_STATUSES = ['offline', 'removed'];
 const MAX_REASON = 500;
 const MAX_LIST = 100;
 
@@ -41,11 +41,11 @@ function fail(res, err, msg) {
 // GET /api/admin/dashboard
 router.get('/dashboard', authenticate, requireAdmin, async (req, res) => {
   try {
-    const [miners, users, tasks, revenue, tickets] = await Promise.all([
-      pool.query(`SELECT COUNT(*) as total, COUNT(CASE WHEN status = 'online' THEN 1 END) as online FROM miners`),
+    const [workers, users, tasks, revenue, tickets] = await Promise.all([
+      pool.query(`SELECT COUNT(*) as total, COUNT(CASE WHEN status = 'online' THEN 1 END) as online FROM workers`),
       pool.query('SELECT COUNT(*) as total FROM users'),
       pool.query(`SELECT COUNT(*) as total, COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed FROM tasks`),
-      // Platform keeps 10% (miners get 90%)
+      // Platform keeps 10% (workers get 90%)
       pool.query("SELECT COALESCE(SUM(cost * 0.1), 0) as platform_fees FROM tasks WHERE status = 'completed'"),
       pool.query(`SELECT COUNT(*) as total, COUNT(CASE WHEN status = 'open' THEN 1 END) as open FROM tickets`),
     ]);
@@ -53,7 +53,7 @@ router.get('/dashboard', authenticate, requireAdmin, async (req, res) => {
     res.json({
       success: true,
       dashboard: {
-        miners: { total: parseInt(miners.rows[0].total), online: parseInt(miners.rows[0].online) },
+        workers: { total: parseInt(workers.rows[0].total), online: parseInt(workers.rows[0].online) },
         users: parseInt(users.rows[0].total),
         tasks: { total: parseInt(tasks.rows[0].total), completed: parseInt(tasks.rows[0].completed) },
         revenue: parseFloat(revenue.rows[0].platform_fees),
@@ -95,7 +95,7 @@ router.get('/users', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
-// PUT /api/admin/users/:id/role — { role: user|miner|admin }
+// PUT /api/admin/users/:id/role — { role: user|worker|admin }
 router.put('/users/:id/role', authenticate, requireAdmin, async (req, res) => {
   try {
     const id = parseId(req.params.id);
@@ -380,55 +380,55 @@ router.post('/tickets/:id/status', authenticate, requireAdmin, async (req, res) 
 });
 
 // ===========================================================================
-// Miners
+// Workers
 // ===========================================================================
 
-// GET /api/admin/miners
-router.get('/miners', authenticate, requireAdmin, async (req, res) => {
+// GET /api/admin/workers
+router.get('/workers', authenticate, requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT m.*, u.email FROM miners m
+      `SELECT m.*, u.email FROM workers m
          LEFT JOIN users u ON u.id = m.user_id
         ORDER BY m.earnings DESC LIMIT $1`,
       [MAX_LIST]
     );
-    res.json({ success: true, miners: result.rows });
+    res.json({ success: true, workers: result.rows });
   } catch (err) {
     fail(res, err, 'Admin route failed');
   }
 });
 
-// PUT /api/admin/miners/:id/status — { status: removed|offline }
+// PUT /api/admin/workers/:id/status — { status: removed|offline }
 // remove marks it gone (same as uninstall); restore puts it back offline.
-router.put('/miners/:id/status', authenticate, requireAdmin, async (req, res) => {
+router.put('/workers/:id/status', authenticate, requireAdmin, async (req, res) => {
   try {
     const id = parseId(req.params.id);
     if (!id) return res.status(404).json({ error: 'Not found' });
     const status = String(req.body.status || '');
-    if (!MINER_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+    if (!WORKER_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status' });
 
     const updated = await withTransaction(async (client) => {
-      const cur = await client.query('SELECT status FROM miners WHERE id = $1 FOR UPDATE', [id]);
+      const cur = await client.query('SELECT status FROM workers WHERE id = $1 FOR UPDATE', [id]);
       if (cur.rows.length === 0) return null;
       const next = status === 'removed'
         ? await client.query(
-            `UPDATE miners SET status = 'removed', uninstalled_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+            `UPDATE workers SET status = 'removed', uninstalled_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
               WHERE id = $1 RETURNING id, status`,
             [id]
           )
         : await client.query(
-            `UPDATE miners SET status = 'offline', uninstalled_at = NULL, updated_at = CURRENT_TIMESTAMP
+            `UPDATE workers SET status = 'offline', uninstalled_at = NULL, updated_at = CURRENT_TIMESTAMP
               WHERE id = $1 RETURNING id, status`,
             [id]
           );
       await logAdminAction(client, {
-        adminId: req.user.id, action: 'miner.status', targetType: 'miner', targetId: id,
+        adminId: req.user.id, action: 'worker.status', targetType: 'worker', targetId: id,
         payload: { from: cur.rows[0].status, to: status },
       });
       return next.rows[0];
     });
     if (!updated) return res.status(404).json({ error: 'Not found' });
-    res.json({ success: true, miner: updated });
+    res.json({ success: true, worker: updated });
   } catch (err) {
     fail(res, err, 'Admin route failed');
   }

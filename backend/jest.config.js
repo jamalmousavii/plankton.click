@@ -5,8 +5,8 @@ module.exports = {
   clearMocks: true,
   verbose: true,
   moduleNameMapper: {
-    // The Phase-4 suites load miner-app sources; resolve their bare requires
-    // (ws, axios) against backend's node_modules, where miner-app/node_modules
+    // The Phase-4 suites load worker-app sources; resolve their bare requires
+    // (ws, axios) against backend's node_modules, where worker-app/node_modules
     // may not be installed.
     '^ws$': '<rootDir>/node_modules/ws',
     '^axios$': '<rootDir>/node_modules/axios',

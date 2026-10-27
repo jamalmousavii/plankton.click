@@ -123,8 +123,8 @@ export default function Profile() {
 
   const fetchRank = async () => {
     try {
-      const mineData = await apiFetch('/api/miners/mine');
-      if (!mineData.success || !mineData.miners?.length) return;
+      const mineData = await apiFetch('/api/workers/mine');
+      if (!mineData.success || !mineData.workers?.length) return;
       const data = await apiFetch('/api/leaderboard/mine');
       if (data.success) setMyRank(data);
     } catch (err) {
@@ -140,7 +140,7 @@ export default function Profile() {
 
   if (loading || !user) {
     return (
-      <div className="flex-1 bg-gradient-to-br from-sky-50 via-blue-50 to-cyan-50 flex items-center justify-center">
+      <div className="flex-1 page-surface flex items-center justify-center">
         <div className="text-gray-600 text-lg">Loading...</div>
       </div>
     );
@@ -159,8 +159,8 @@ export default function Profile() {
   );
 
   return (
-    <div className={`flex-1 bg-gradient-to-br from-sky-50 via-blue-50 to-cyan-50`}>
-      <Head><title>{t('profile.dashboard')} - Krelz Network</title></Head>
+    <div className={`flex-1 page-surface`}>
+      <Head><title>{t('profile.dashboard')} - Plankton Network</title></Head>
 
       <Navbar />
         {errorBanner}
@@ -169,7 +169,7 @@ export default function Profile() {
         {/* Quick nav */}
         <div className="flex gap-2 mb-6 flex-wrap">
           <Link href="/profile" className="px-4 py-2 min-h-[40px] inline-flex items-center rounded-lg text-sm font-bold bg-sky-500 text-white">📊 {t('nav.dashboard')}</Link>
-          <Link href="/miners" className="px-4 py-2 min-h-[40px] inline-flex items-center rounded-lg text-sm font-bold bg-white text-gray-600 border border-sky-200 hover:bg-sky-50">⛏️ {t('nav.miners')}</Link>
+          <Link href="/workers" className="px-4 py-2 min-h-[40px] inline-flex items-center rounded-lg text-sm font-bold bg-white text-gray-600 border border-sky-200 hover:bg-sky-50">🖥️ {t('nav.workers')}</Link>
           <Link href="/support" className="px-4 py-2 min-h-[40px] inline-flex items-center rounded-lg text-sm font-bold bg-white text-gray-600 border border-sky-200 hover:bg-sky-50">🎫 {t('nav.support')}</Link>
           <Link href="/settings" className="px-4 py-2 min-h-[40px] inline-flex items-center rounded-lg text-sm font-bold bg-white text-gray-600 border border-sky-200 hover:bg-sky-50">⚙️ {t('nav.settings')}</Link>
         </div>
@@ -219,13 +219,13 @@ export default function Profile() {
                   <div className="text-gray-400 text-[10px]">{t('profile.potTokensHint')}</div>
                 </div>
               )}
-              {usdBalance.miner_credit?.eligible && (
+              {usdBalance.worker_credit?.eligible && (
                 <div className="bg-amber-50 rounded-xl p-4 text-center border border-amber-100">
                   <div className="text-xl font-bold text-amber-600">
-                    ${parseFloat(usdBalance.miner_credit.remaining || 0).toFixed(2)}
+                    ${parseFloat(usdBalance.worker_credit.remaining || 0).toFixed(2)}
                   </div>
-                  <div className="text-gray-600 text-xs">{t('profile.minerCredit')}</div>
-                  <div className="text-gray-400 text-[10px]">{t('profile.minerCreditHint')}</div>
+                  <div className="text-gray-600 text-xs">{t('profile.workerCredit')}</div>
+                  <div className="text-gray-400 text-[10px]">{t('profile.workerCreditHint')}</div>
                 </div>
               )}
             </div>
@@ -358,8 +358,8 @@ export default function Profile() {
           )}
         </div>
 
-        {/* Leaderboard rank (miners only) */}
-        {myRank?.isMiner && (
+        {/* Leaderboard rank (workers only) */}
+        {myRank?.isWorker && (
           <div className="bg-white rounded-xl border border-sky-100 shadow-sm p-5 md:p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-800">🏆 {t('profile.myRank')}</h2>
@@ -375,17 +375,17 @@ export default function Profile() {
                   </div>
                   <div>
                     <div className="text-sm text-gray-500">{t('profile.rankOf').replace('{rank}', myRank.rank).replace('{total}', myRank.total)}</div>
-                    <div className="text-xs text-gray-400">⛏️ {myRank.miner?.gpu_model || 'GPU'} • {myRank.miner?.total_tasks || 0} {t('profile.rankTasks')}</div>
+                    <div className="text-xs text-gray-400">🖥️ {myRank.worker?.gpu_model || 'GPU'} • {myRank.worker?.total_tasks || 0} {t('profile.rankTasks')}</div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-sky-50 rounded-xl p-4 text-center border border-sky-100">
-                    <div className="text-xl font-bold text-emerald-600">{Number(myRank.miner?.earnings || 0).toFixed(2)}</div>
+                    <div className="text-xl font-bold text-emerald-600">{Number(myRank.worker?.earnings || 0).toFixed(2)}</div>
                     <div className="text-gray-500 text-xs">{t('profile.rankEarnings')}</div>
                   </div>
                   <div className="bg-sky-50 rounded-xl p-4 text-center border border-sky-100">
                     <div className="text-xl font-bold text-sky-600">{myRank.total || 0}</div>
-                    <div className="text-gray-500 text-xs">{t('profile.rankMiners')}</div>
+                    <div className="text-gray-500 text-xs">{t('profile.rankWorkers')}</div>
                   </div>
                 </div>
                 {myRank.breakdown && (

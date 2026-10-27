@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-export const AUTH_EXPIRED_EVENT = 'krelz:auth-expired';
+export const AUTH_EXPIRED_EVENT = 'plankton:auth-expired';
 
 export function getToken() {
   if (typeof window === 'undefined') return null;
@@ -20,13 +20,13 @@ export function getUser() {
 export function setSession(token, user) {
   localStorage.setItem('token', token);
   localStorage.setItem('user', JSON.stringify(user));
-  window.dispatchEvent(new Event('krelz:auth-changed'));
+  window.dispatchEvent(new Event('plankton:auth-changed'));
 }
 
 export function clearSession() {
   localStorage.removeItem('token');
   localStorage.removeItem('user');
-  window.dispatchEvent(new Event('krelz:auth-changed'));
+  window.dispatchEvent(new Event('plankton:auth-changed'));
 }
 
 export class ApiError extends Error {
@@ -86,10 +86,10 @@ export function useAuth(required = true) {
     const onChanged = read;
 
     window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
-    window.addEventListener('krelz:auth-changed', onChanged);
+    window.addEventListener('plankton:auth-changed', onChanged);
     return () => {
       window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
-      window.removeEventListener('krelz:auth-changed', onChanged);
+      window.removeEventListener('plankton:auth-changed', onChanged);
     };
   }, []);
 

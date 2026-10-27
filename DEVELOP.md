@@ -1,4 +1,7 @@
-# Krelz Network - Development Guide
+# Plankton — Development Guide
+
+Version **1.0.0**. A *worker* is any machine (and its owner) that joins the
+Plankton network and takes part in answering user chats.
 
 ## Prerequisites
 
@@ -56,23 +59,23 @@ cd backend
 npm test   # = node --experimental-vm-modules ./node_modules/jest/bin/jest.js (plain `npx jest` breaks attachments.test.js)
 
 # Money integration suite against a throwaway PostgreSQL (adds integration.money):
-docker run -d --name krelz-it-pg -e POSTGRES_USER=krelz -e POSTGRES_PASSWORD=krelz \
-  -e POSTGRES_DB=krelz_it -p 5433:5432 postgres:16-alpine
-DATABASE_URL='postgresql://krelz:krelz@localhost:5433/krelz_it' npm test
-docker rm -f krelz-it-pg
+docker run -d --name plankton-it-pg -e POSTGRES_USER=plankton -e POSTGRES_PASSWORD=plankton \
+  -e POSTGRES_DB=plankton_it -p 5433:5432 postgres:16-alpine
+DATABASE_URL='postgresql://plankton:plankton@localhost:5433/plankton_it' npm test
+docker rm -f plankton-it-pg
 
 # Frontend — jest (27 tests), lint (warning-only), i18n parity (33 × 483), production build
 cd frontend
 npm run lint && npm run i18n:check && npm test && npm run build
 
 # Install scripts — must be clean (CI enforces)
-shellcheck miner-app/*.sh && bash -n miner-app/*.sh
+shellcheck worker-app/*.sh && bash -n worker-app/*.sh
 ```
 
 CI (`.github/workflows/ci.yml`) runs all of it on every push: backend jest with a
 `postgres:16-alpine` service (so `integration.money` executes), frontend
-`i18n:check` + jest (`npm test`) + `next build` + lint, `shellcheck miner-app/*.sh`,
-and `node --check` over `miner-app/src/**/*.js`.
+`i18n:check` + jest (`npm test`) + `next build` + lint, `shellcheck worker-app/*.sh`,
+and `node --check` over `worker-app/src/**/*.js`.
 
 ## Project Structure
 
@@ -82,26 +85,26 @@ Next.js 14 frontend with Tailwind CSS and i18n support.
 ```
 frontend/
 ├── pages/
-│   ├── index.js           # Chat homepage (state hub; UI split into components/chat/ v3.36.0)
-│   ├── profile.js         # Dashboard (balance, plans + token bundle, transactions card v3.39.0, earnings breakdown, rank card)
-│   ├── miners.js          # Miner mgmt + Quick Install copy + history (v3.22.0)
+│   ├── index.js           # Chat homepage (state hub; UI split into components/chat/)
+│   ├── profile.js         # Dashboard (balance, plans + token bundle, transactions card, earnings breakdown, rank card)
+│   ├── workers.js          # Worker mgmt + Quick Install copy + history
 │   ├── settings.js         # Settings (USD wallet, 33-lang dropdown, password)
-│   ├── miner.js           # Miner docs: install/connect/delete + GitHub (v3.16.0)
-│   ├── leaderboard.js     # Top miners/users
-│   ├── support.js         # Support tickets: list/new/thread (v3.39.0)
-│   └── admin.js           # Admin panel: 8 tabs + management actions (v3.39.0; orgs v3.44.0)
+│   ├── worker.js           # Worker docs: install/connect/delete + GitHub
+│   ├── leaderboard.js     # Top workers/users
+│   ├── support.js         # Support tickets: list/new/thread
+│   └── admin.js           # Admin panel: 8 tabs + management actions
 ├── components/
-│   ├── Navbar.js          # Nav + auth dropdown + LanguageSwitcher (🎫 Support: avatar dropdown + mobile menu + dashboard chips; top bar removed v3.39.1)
-│   ├── EarningsBreakdown.js # 5-way earnings breakdown (profile, /miners, /miner; v3.29.0)
-│   ├── PlansContent.js    # Pricing cards: shared by homepage section + modal (v3.30.0)
-│   ├── PlansModal.js      # Pricing overlay for /#plans + Navbar event (v3.30.0)
-│   ├── Footer.js          # Global version footer (every page, v3.16.0)
+│   ├── Navbar.js          # Nav + auth dropdown + LanguageSwitcher (🎫 Support: avatar dropdown + mobile menu + dashboard chips; top bar
+│   ├── EarningsBreakdown.js # 5-way earnings breakdown (profile, /workers, /worker)
+│   ├── PlansContent.js    # Pricing cards: shared by homepage section + modal
+│   ├── PlansModal.js      # Pricing overlay for /#plans + Navbar event
+│   ├── Footer.js          # Global version footer (every page)
 │   ├── GoogleLogin.js     # Google OAuth
 │   ├── ErrorBoundary.js   # Error boundary
 │   ├── LanguageSwitcher.js # Dropdown: flag + language name (33 langs)
-│   └── chat/              # Chat UI split (Sidebar, MessageList, Composer, UpgradeWall; v3.36.0)
+│   └── chat/              # Chat UI split (Sidebar, MessageList, Composer, UpgradeWall)
 ├── hooks/
-│   └── useApi.js          # Abort-aware fetch hook (leaderboard; v3.36.0)
+│   └── useApi.js          # Abort-aware fetch hook (leaderboard)
 ├── i18n/
 │   ├── translations.js    # Code-split registry: en static + 32 lazy loaders, LANGUAGES, RTL_LANGS, isRtl, hasLocale, loadLocale, detectLanguage
 │   ├── translations/      # One file per language (33 files: en, fa, ar, ...)
@@ -115,53 +118,53 @@ Node.js/Express API with PostgreSQL + Redis.
 ```
 backend/
 ├── src/
-│   ├── server.js          # Entry point (v3.19.0)
+│   ├── server.js          # Entry point
 │   ├── models.js          # AI models + per-model pricing
 │   ├── cache.js           # Redis caching
 │   ├── database/
 │   │   ├── pool.js        # PostgreSQL connection
 │   │   └── migrate.js     # DB migration (25 tables + resource columns)
 │   ├── middleware/
-│   │   ├── auth.js        # JWT + Google OAuth (+ banned check via cached auth state, v3.39.0)
+│   │   ├── auth.js        # JWT + Google OAuth (+ banned check via cached auth state)
 │   │   └── validate.js    # Body validators (chat/register/deposit/withdraw)
 │   ├── services/
 │   │   └── plans.js       # PLANS catalog, getActivePlan, activatePlan, charge chain helpers
 │   └── routes/
 │       ├── auth.js        # Register/Login/Google
 │       ├── chat.js        # LLM chat + payment chain + coverage wall
-│       ├── miners.js      # Miner CRUD + model switch
+│       ├── workers.js      # Worker CRUD + model switch
 │       ├── models.js      # Model list API
 │       ├── payments.js    # NowPayments USD wallet (deposit/withdraw/IPN + plan/token IPN)
 │       ├── plans.js       # Plan catalog (Plus/Pro/Max) + tier/token-bundle purchase
 │       ├── token.js       # Balance snapshot
-│       ├── tickets.js     # User support tickets (v3.39.0)
-│       ├── admin.js       # Admin panel API: views + audited actions (v3.39.0)
-│       └── leaderboard.js # Top miners
+│       ├── tickets.js     # User support tickets
+│       ├── admin.js       # Admin panel API: views + audited actions
+│       └── leaderboard.js # Top workers
 └── package.json
 ```
 
-### miner-app/
-Miner install/uninstall scripts and source code.
+### worker-app/
+Worker install/uninstall scripts and source code.
 
 ```
-miner-app/
+worker-app/
 ├── install-ubuntu.sh      # Ubuntu/Debian installer
 ├── install-redhat.sh      # RedHat/Fedora installer
-├── install-macos.sh       # macOS installer (Homebrew + launchd, v3.42.0; needs macOS 13+, fails fast below)
-├── install-windows.ps1    # Windows installer (winget + Task Scheduler, v3.42.0)
+├── install-macos.sh       # macOS installer (Homebrew + launchd; needs macOS 13+, fails fast below)
+├── install-windows.ps1    # Windows installer (winget + Task Scheduler)
 ├── uninstall-ubuntu.sh    # Ubuntu/Debian uninstaller
 ├── uninstall-redhat.sh    # RedHat/Fedora uninstaller
-├── uninstall-macos.sh     # macOS uninstaller (v3.42.0)
-├── uninstall-windows.ps1  # Windows uninstaller (v3.42.0)
-├── com.krelz.miner.plist  # launchd template (v3.42.0; @NODE@/@WORKDIR@ like the systemd unit)
-├── assets/                # Electron icon.png + tray-icon.png (v3.36.0)
-└── src/                   # Miner source
+├── uninstall-macos.sh     # macOS uninstaller
+├── uninstall-windows.ps1  # Windows uninstaller
+├── click.plankton.worker.plist  # launchd template
+├── assets/                # Electron icon.png + tray-icon.png
+└── src/                   # Worker source
     ├── main.js            # Electron desktop app
     ├── cli.js             # Headless CLI entry (no Electron)
     ├── renderer/index.html
     └── services/
         ├── ollama.js      # Ollama integration
-        ├── miner.js       # CPU/RAM/GPU/Disk monitoring
+        ├── worker.js       # CPU/RAM/GPU/Disk monitoring
         ├── websocket.js   # WebSocket to backend (resource metrics)
         └── api.js         # REST API (register, heartbeat)
 ```
@@ -170,31 +173,31 @@ miner-app/
 
 | Table | Purpose |
 |-------|---------|
-| users | User accounts (email, Google OAuth; + `role`, `banned` since v3.39.0) |
-| miners | GPU miner registrations |
+| users | User accounts (email, Google OAuth; + `role`, `banned` |
+| workers | GPU worker registrations |
 | tasks | Chat task history |
 | transactions | Token transactions |
 | staking | Staking records |
-| user_balances | KRELZ token balance |
+| user_balances | PLANKTON token balance |
 | deposits | Deposit history |
 | api_keys | API key management |
 | user_coin_balances | Multi-coin balances (7 coins) |
 | coin_deposits | Crypto deposit history |
 | coin_withdrawals | Crypto withdrawal history |
-| miner_coin_earnings | Miner earnings per coin (`source`: wallet/tokens + `plan_type`: free/plus/pro/max breakdown, v3.28.0) |
+| worker_coin_earnings | Worker earnings per coin (`source`: wallet/tokens + `plan_type`: free/plus/pro/max breakdown) |
 | chat_sessions | Chat session groups |
-| **daily_tokens** | Daily free allowance — signed-in users (reactivated in v3.27.0; removed v3.24.0) |
-| **miner_daily_credit** | Free daily chat credit for miner hosts ($1/UTC-day, v3.25.0) |
-| **daily_tokens_guest** | Daily free allowance — guests, keyed by client IP (v3.27.0) |
-| **user_plans** | Active subscription tiers (`plus`/`pro`/`max`: 10M/30M/80M tokens/day, v3.28.0; plus since v3.27.0) |
+| **daily_tokens** | Daily free allowance — signed-in users; |
+| **worker_daily_credit** | Free daily chat credit for worker hosts ($1/UTC-day) |
+| **daily_tokens_guest** | Daily free allowance — guests, keyed by client IP |
+| **user_plans** | Active subscription tiers (`plus`/`pro`/`max`: 10M/30M/80M tokens/day; plus |
 | **plan_purchases** | Plan/token invoice claims — IPN exactly-once idempotency (`plan_type`: plus/pro/max/tokens) |
-| **user_token_balances** | Prepaid token pot — $1 = 1M tokens, never expires (v3.28.0) |
-| **tickets** | Support tickets — subject, category (`support`/`billing`/`miner`), status (`open`/`answered`/`closed`), v3.39.0 |
-| **ticket_messages** | Ticket thread messages (`is_admin` flags the staff reply, `ON DELETE CASCADE`), v3.39.0 |
-| **admin_audit_log** | Admin mutation trail — `admin_id`, `action`, `target_type/id`, `reason`, `payload JSONB`, v3.39.0 |
+| **user_token_balances** | Prepaid token pot — $1 = 1M tokens, never expires |
+| **tickets** | Support tickets — subject, category (`support`/`billing`/`worker`), status (`open`/`answered`/`closed`), |
+| **ticket_messages** | Ticket thread messages (`is_admin` flags the staff reply, `ON DELETE CASCADE`), |
+| **admin_audit_log** | Admin mutation trail — `admin_id`, `action`, `target_type/id`, `reason`, `payload JSONB`, |
 | **schema_migrations** | Migration bookkeeping (applied version rows) |
 
-### Miners Table — Resource Monitoring Columns (v3.8.0)
+### Workers Table — Resource Monitoring Columns
 
 | Column | Type | Purpose |
 |--------|------|---------|
@@ -243,7 +246,7 @@ Models defined in `backend/src/models.js` with per-model pricing:
 | llama3.3:70b | 70B | $0.097 | $0.194 | -32% |
 | deepseek-r1:70b | 70B | $0.098 | $0.196 | -30% |
 
-## Daily Free Allowance & Plans (v3.27.0, tiers v3.28.0)
+## Daily Free Allowance & Plans
 
 Every subject gets a **2,000,000-token free allowance per UTC day** —
 signed-in users in `daily_tokens` (keyed by `user_id`), guests in
@@ -255,21 +258,21 @@ expires) tops up a prepaid pot (`user_token_balances`).
 
 ### Payment chain (one row-locked transaction in `chat.js`)
 
-1. **Coverage pre-flight (before dispatch)**: free remaining > 0 OR miner
+1. **Coverage pre-flight (before dispatch)**: free remaining > 0 OR worker
    credit remaining > 0 OR token pot > 0 OR wallet > 0? If *nothing*
    covers the next message → `402 { code: 'upgrade_required', free,
    plans, token_bundle, signed_in }` — the wall. Pre-flight query failures
    **never block** (availability first).
 2. `chargeFreeTokens()` — the daily allowance upsert (row-locked, UTC-day
    rollover in the same statement). Covered → `payment_status: "free"`,
-   no wallet debit, **no miner revenue share**.
-3. `chargeMinerCredit()` (v3.25, signed-in only) → `"free_miner"`.
+   no wallet debit, **no worker revenue share**.
+3. `chargeWorkerCredit()` (v3.25, signed-in only) → `"free_worker"`.
 4. **Token pot** (v3.28, signed-in only) — `chargeTokenPot()` deducts the
    message's full token count all-or-nothing (`UPDATE … WHERE tokens >=
    $n RETURNING tokens`, race-safe). Covered → `"tokens"` +
-   `token_balance_remaining`; the miner earns `cost × MINER_REVENUE_SHARE`
+   `token_balance_remaining`; the worker earns `cost × WORKER_REVENUE_SHARE`
    (flat 90%) with `source = 'tokens'`, paid from bundle revenue.
-5. USD wallet (signed-in only) — miner gets a **flat 90%** regardless of
+5. USD wallet (signed-in only) — worker gets a **flat 90%** regardless of
    the payer's plan, with `source = 'wallet'` and the payer's
    `plan_type` recorded. A balance **below** the cost is drained in full
    (`debit = min(cost, balance)`) so the wallet reaches exactly $0 and the
@@ -279,7 +282,7 @@ expires) tops up a prepaid pot (`user_token_balances`).
 6. Nothing covers (a race after pre-flight) → the reply, which already
    exists, is served as `"free"` — generation is never wasted or blocked.
 
-### Plans (v3.28.0)
+### Plans
 
 - `GET /api/plans` (auth optional) — `{ plans: [...with value metrics],
   plan, daily_limit, token_bundle, free_tokens?, token_balance? }`.
@@ -297,21 +300,21 @@ expires) tops up a prepaid pot (`user_token_balances`).
   `plus-`/`pro-`/`max-`/`tok-` claim their `plan_purchases` row
   (`status = 'pending'` → `'completed'`, exactly-once under replay) and
   then `activatePlan(userId, tier)` or `creditTokens()`. Wallet credit
-  only happens for legacy `krelz-…` deposit orders.
+  only happens for legacy `plankton-…` deposit orders.
 - `activatePlan()`: `expires_at = GREATEST(expires_at, now()) + 30 days`
   per tier row — renewing mid-cycle never loses days. Multiple active
   rows are allowed; `getActivePlan()` returns the best cap (no proration,
   no downgrade).
 - Expiry is passive: `getActivePlan()` requires `expires_at > now()`, so
   an expired row silently falls back to the Free cap.
-- Attribution: `miner_coin_earnings.source` + `.plan_type` are written on
+- Attribution: `worker_coin_earnings.source` + `.plan_type` are written on
   paid legs only; `GET /api/leaderboard/mine` aggregates them into
   `breakdown: {tokens, wallet, plus, pro, max}` for the profile.
 
 ### Rules
 
 - Reset at UTC midnight: `last_reset_date = (now() AT TIME ZONE 'utc')::date`
-  (identical contract to `minerCredit`); a stale row counts as unused.
+  (identical contract to `workerCredit`); a stale row counts as unused.
 - Allowance is counted in `tokensUsed` (the same output-token count that
   drives `cost`), so Free and pricing always agree.
 - Balance endpoints expose `free_tokens: { limit, used, remaining }`,
@@ -320,39 +323,39 @@ expires) tops up a prepaid pot (`user_token_balances`).
   `free_tokens_remaining` and (on the pot leg) `token_balance_remaining`.
 - Known limitations (documented in AUDIT): the 2M cap is a promise, not
   throughput — the CPU box sustains ~0.58M tokens/day, so one maxing user
-  can saturate it until miners arrive; guests behind one NAT IP share an
+  can saturate it until workers arrive; guests behind one NAT IP share an
   allowance.
 - Tests: `backend/tests/free.allowance.test.js`, `backend/tests/plans.test.js`.
 
-### Pricing surfaces (v3.29.0, modal v3.30.0)
+### Pricing surfaces
 
 - Inline section: the empty homepage renders `PlansContent` below `#plans`
-  (hidden once a chat starts); `GET /api/plans` is `optionalAuth` (v3.29.1) so
+  (hidden once a chat starts); `GET /api/plans` is `optionalAuth` so
   signed-in users see tier notes without a token being required.
-- Modal (v3.30.0): `PlansModal` hosts the same `PlansContent` in an overlay and
+- Modal: `PlansModal` hosts the same `PlansContent` in an overlay and
   opens from (a) the `/#plans` URL hash on mount or `hashchange`, (b) the Navbar
-  `⭐ Plans` links, which dispatch a `krelz:show-plans` CustomEvent. `closePlans()`
+  `⭐ Plans` links, which dispatch a `plankton:show-plans` CustomEvent. `closePlans()`
   clears `location.hash`. Both surfaces sit **above** the chat frame, so `/#plans`
   works in any state (logged-out, sidebar, mid-conversation).
 
-## Miner Free Chat Credit (v3.25.0)
+## Worker Free Chat Credit
 
-Signed-in users with at least one miner in `online`/`busy` state get a
+Signed-in users with at least one worker in `online`/`busy` state get a
 **$1.00 chat allowance per UTC day**. The credit is platform-funded: spending
-it never debits the wallet and never credits a miner — the miner pool is only
+it never debits the wallet and never credits a worker — the worker pool is only
 touched by paid chats.
 
-### Flow (within the v3.28.0 chain)
+### Flow (within the chain)
 
 1. Runs **second** in the payment txn, after the daily free allowance
    (`chargeFreeTokens`) and before the token pot/wallet — an `INSERT … ON
    CONFLICT` upsert row-locks the credit row and rolls a stale
    (pre-UTC-today) usage to zero in the same statement, so parallel
    requests cannot overspend.
-2. Covered → `payment_status: "free_miner"` — no wallet debit, **no
-   `MINER_REVENUE_SHARE`**, no `miner_coin_earnings` row.
+2. Covered → `payment_status: "free_worker"` — no wallet debit, **no
+   `WORKER_REVENUE_SHARE`**, no `worker_coin_earnings` row.
 3. Not covered → the token pot, then the wallet path exactly as before
-   (flat 90% miner share on paid legs).
+   (flat 90% worker share on paid legs).
 4. Neither covers (race) → the reply is still served with
    `payment_status: "free"`; a subject that had *no* coverage at all was
    already walled by the pre-flight.
@@ -361,13 +364,13 @@ touched by paid chats.
 ### Rules
 
 - Reset at UTC midnight: `last_reset_date = (now() AT TIME ZONE 'utc')::date`.
-- Eligibility is checked **at charge time** — registering a miner row is not
+- Eligibility is checked **at charge time** — registering a worker row is not
   enough; it must actually be `online`/`busy`.
-- Balance endpoints expose `miner_credit: { eligible, limit, used, remaining }`;
-  the chat response carries `miner_credit_remaining`.
-- Tests: `backend/tests/miner.credit.test.js`.
+- Balance endpoints expose `worker_credit: { eligible, limit, used, remaining }`;
+  the chat response carries `worker_credit_remaining`.
+- Tests: `backend/tests/worker.credit.test.js`.
 
-## Wallet Integration (v3.6.0)
+## Wallet Integration
 
 ### Supported Wallets
 
@@ -391,63 +394,11 @@ Both wallets use the same EIP-1193 standard. The only difference is the detectio
 6. After connection → shows wallet address + which wallet
 ```
 
-## Web3 Wallet Connect (removed in v3.18.0)
-
-MetaMask / Trust Wallet connect was removed from Settings in favor of a **USD-only wallet**
-(NowPayments Top Up + USDT TRC-20 withdraw). The notes below are historical.
-
-### Detection Logic (legacy)
-
-```javascript
-// MetaMask
-if (window.ethereum?.isMetaMask) { /* MetaMask installed */ }
-
-// Trust Wallet
-if (window.ethereum?.isTrust || window.ethereum?.isTrustWallet) { /* Trust installed */ }
-
-// Check if any wallet is connected
-const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-```
-
-### Adding a New Wallet
-
-1. Add detection check in `connectWallet(type)` function
-2. Add button in wallet UI section
-3. Add translation keys (`connectXxx`)
-4. Both use same `eth_requestAccounts` method
-
-## Network Explorer (removed in v3.38.0)
-
-The public Network Explorer was removed end-to-end: `pages/explorer.js` (the
-transactions / miners / network-stats tabs), `GET /api/stats/network`
-(`routes/stats.js` + its mount and 30s aggregate memo), the
-`phase5.stats.test.js` suite, the 29 translation keys (`nav.explorer` + the
-`explorer` namespace), the dead miner-app `ApiService.getStats()` caller and
-every doc/tree entry. The route and the endpoint now 404. The notes below are
-historical; see `CHANGELOG.md` `[3.38.0]` for the full removal record.
-
-### What it showed (legacy)
-
-- **Transactions** — last 50 tasks (id, user, miner, tokens, status, time),
-  client-filtered by the search box (F13 made the box functional in v3.35.0).
-- **Miners** — top 10 non-removed miners: GPU model, online/offline badge,
-  task count, earnings, truncated wallet address.
-- **Network stats** — active miners / completed tasks / platform revenue
-  (the shared 10% `PLATFORM_REVENUE_SHARE`).
-
-### If it ever comes back
-
-- The endpoint walked the whole `tasks` table — it was memoized
-  (`AGG_TTL_MS = 30000` in-process) and cached 30s at the edge
-  (`cacheMiddleware(30)`); any revival must keep both.
-- The page consumed it through `useApi('/api/stats/network')`; the hook itself
-  survives (`hooks/useApi.js` — the leaderboard still uses it).
-
-## Support Tickets & Admin Panel (v3.39.0)
+## Support Tickets & Admin Panel
 
 ### Schema
 
-- `tickets(id, user_id, subject ≤200, category, status, created_at, updated_at)` — `category ∈ support|billing|miner`, `status ∈ open|answered|closed`; indexes on `(user_id, id DESC)` and `(status, updated_at DESC)`.
+- `tickets(id, user_id, subject ≤200, category, status, created_at, updated_at)` — `category ∈ support|billing|worker`, `status ∈ open|answered|closed`; indexes on `(user_id, id DESC)` and `(status, updated_at DESC)`.
 - `ticket_messages(id, ticket_id CASCADE, user_id, is_admin, body ≤4000, created_at)` — a ticket is always created with its first user message in one transaction, so an empty thread cannot exist.
 - `admin_audit_log(id, admin_id, action, target_type, target_id, reason, payload JSONB, created_at)` — every admin mutation inserts its row **inside the same transaction** as the change: an action either lands with its trail or not at all.
 - `users.banned BOOLEAN` — orthogonal to `role`; enforced at `POST /api/auth/login` (403) and on every authenticated request via the cached auth state in `middleware/auth.js` (`SELECT token_version, banned` cached 10s, fail-open on lookup errors like the rest of that layer). Ban/role changes call `invalidateTokenVersion()` so live sessions die within one cache window.
@@ -459,27 +410,27 @@ historical; see `CHANGELOG.md` `[3.38.0]` for the full removal record.
 ### Routes
 
 - **User (`routes/tickets.js`, limiter `tickets` 10/5min):** `POST /api/tickets`, `GET /api/tickets`, `GET /api/tickets/:id`, `POST /api/tickets/:id/messages`, `POST /api/tickets/:id/close` — owner-only (another user's ticket → 403, missing → 404).
-- **Admin (`routes/admin.js`, `authenticate + requireAdmin`):** tickets `GET /tickets?status=&q=`, `GET /tickets/:id`, `POST /tickets/:id/messages` (→ `answered`), `POST /tickets/:id/status` (`open`/`closed`); users `PUT /users/:id/role` (self-change → 409), `PUT /users/:id/ban` (self-ban → 409), `POST /users/:id/balance` (±USD, row-lock + floor at 0 + reason), `POST /users/:id/tokens` (±token pot), `PUT /users/:id/plan` (grants via `plans.activatePlan` → +30 days); miners `PUT /miners/:id/status` (`removed` ↔ `offline`); views `GET /payments`, `GET /purchases` (with owner email). `GET /users` returns `banned`, USD/token balances and the active plan for the action dialogs; the dashboard also counts total/open tickets.
+- **Admin (`routes/admin.js`, `authenticate + requireAdmin`):** tickets `GET /tickets?status=&q=`, `GET /tickets/:id`, `POST /tickets/:id/messages` (→ `answered`), `POST /tickets/:id/status` (`open`/`closed`); users `PUT /users/:id/role` (self-change → 409), `PUT /users/:id/ban` (self-ban → 409), `POST /users/:id/balance` (±USD, row-lock + floor at 0 + reason), `POST /users/:id/tokens` (±token pot), `PUT /users/:id/plan` (grants via `plans.activatePlan` → +30 days); workers `PUT /workers/:id/status` (`removed` ↔ `offline`); views `GET /payments`, `GET /purchases` (with owner email). `GET /users` returns `banned`, USD/token balances and the active plan for the action dialogs; the dashboard also counts total/open tickets.
 
 ### UI
 
-- `/support` (v3.39.0): list + new-ticket form + thread with replies/close; `🎫 Support` entry in the Navbar avatar dropdown + mobile menu for everyone (desktop top-bar link removed in v3.39.1; quick-nav chip on dashboard pages), `🛡️ Admin` only when `role === 'admin'`.
-- `/admin` (v3.39.0): 8 tabs — dashboard (6 cards), users (manage drawer: role, ban/unban, ±USD, ±tokens with mandatory reason, grant plan), miners (remove/restore), tasks, tickets (search/filter + thread reply/close/reopen), payments (deposits + withdrawals), purchases, orgs (v3.44.0). Strings i18n'd (`admin.*`, `support.*` — 33 × 483 keys).
+- `/support`: list + new-ticket form + thread with replies/close; `🎫 Support` entry in the Navbar avatar dropdown + mobile menu for everyone (desktop top-bar link removed; quick-nav chip on dashboard pages), `🛡️ Admin` only when `role === 'admin'`.
+- `/admin`: 8 tabs — dashboard (6 cards), users (manage drawer: role, ban/unban, ±USD, ±tokens with mandatory reason, grant plan), workers (remove/restore), tasks, tickets (search/filter + thread reply/close/reopen), payments (deposits + withdrawals), purchases, orgs. Strings i18n'd (`admin.*`, `support.*` — 33 × 483 keys).
 - `/profile`: read-only **Transactions** card merging `/api/payments/history` deposits + withdrawals (newest first, status badges, link to `/settings`).
 
 ### Tests
 
 `backend/tests/tickets.test.js` (8), `admin.tickets.test.js` (6), `admin.actions.test.js` (8) — mocked-pool pattern, asserting status codes, the SQL that ran (`BEGIN`/`COMMIT`, audit inserts) and the ban 403 path.
 
-## Internationalization (i18n) — 33 languages (v3.16.0+)
+## Internationalization (i18n) — 33 languages
 
 ### How it works
 
 - Language files: `frontend/i18n/translations/<code>.js` (one per language, full key set)
 - Registry: `frontend/i18n/translations.js` exports `translations` (sync registry, starts with `en`), `LANGUAGES` (code/name/flag/rtl), `RTL_LANGS`, `isRtl()`, `hasLocale()`, `loadLocale()`, `detectLanguage()`
-- **Code-split (v3.36.0):** only `en` is statically imported; the other 32 locales load as webpack chunks via literal `() => import('./translations/<code>')` loaders (`_app` shrank from ~500 kB to ~27 kB raw). `changeLang()` waits for the chunk before committing so the switch never flashes English
-- **Detection (first visit):** `sessionStorage['krelz-lang']` → else `navigator.languages` match → else `en`
-- **User choice:** stored in `sessionStorage['krelz-lang']` (persists while user is on the site / same tab)
+- **Code-split:** only `en` is statically imported; the other 32 locales load as webpack chunks via literal `() => import('./translations/<code>')` loaders (`_app` shrank from ~500 kB to ~27 kB raw). `changeLang()` waits for the chunk before committing so the switch never flashes English
+- **Detection (first visit):** `sessionStorage['plankton-lang']` → else `navigator.languages` match → else `en`
+- **User choice:** stored in `sessionStorage['plankton-lang']` (persists while user is on the site / same tab)
 - **RTL:** `fa`, `ar`, `he`, `ur` — `document.documentElement.dir` set by LanguageContext
 - Fallback: missing keys (and a still-loading locale chunk) fall back to English (`t()` walks `translations[lang]` then `translations.en`)
 
@@ -497,34 +448,34 @@ t('profile.earned')      → "Earned" / "کسب شده"
 t('profile.spent')       → "Spent" / "مصرف شده"
 ```
 
-## Miner CLI Mode (v3.8.0)
+## Worker CLI Mode
 
 For headless servers (no desktop/Electron), the service runs `cli.js` directly
-(there are **no CLI flags** — `cli.js` reads `miner-app/config.json` only):
+(there are **no CLI flags** — `cli.js` reads `worker-app/config.json` only):
 
 ```bash
 # token/email live in config.json, written by the install script
-cat "$HOME/krelz-miner/miner-app/config.json"
-systemctl start krelz-miner
+cat "$HOME/plankton-worker/worker-app/config.json"
+systemctl start plankton-worker
 ```
 
 To change the token or account, re-run the install script (it rewrites
-`config.json` and re-registers the miner).
+`config.json` and re-registers the worker).
 
 ### Systemd Service
 
-The install script creates `/etc/systemd/system/krelz-miner.service`:
+The install script creates `/etc/systemd/system/plankton-worker.service`:
 
 ```bash
-systemctl start krelz-miner
-systemctl stop krelz-miner
-systemctl status krelz-miner
-journalctl -u krelz-miner -f  # live logs
+systemctl start plankton-worker
+systemctl stop plankton-worker
+systemctl status plankton-worker
+journalctl -u plankton-worker -f  # live logs
 ```
 
 Service auto-starts on boot via `systemctl enable`.
 
-## Auth System (v3.7.0)
+## Auth System
 
 ### Endpoints
 
@@ -538,118 +489,136 @@ Service auto-starts on boot via `systemctl enable`.
 | POST | /api/auth/forgot-password | Request password reset |
 | POST | /api/auth/reset-password | Reset with token |
 
-### Miner Token
+### Worker Token
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | /api/miners/token | Generate/get miner token |
-| POST | /api/miners/setup | Register miner (with token) |
+| POST | /api/workers/token | Generate/get worker token |
+| POST | /api/workers/setup | Register worker (with token) |
 
-Miner token format: `kz_` + 32 hex bytes (67 chars)
+Worker token format: `pw_` + 32 hex bytes (67 chars)
 
-### Session expiry (v3.29.0 + v3.29.1)
+### Session expiry
 
 Frontend calls go through `lib/apiFetch.js`: on a 401 it clears the stored token
-and fires `krelz:auth-changed` **before** rejecting (the Navbar, profile, miners
+and fires `plankton:auth-changed` **before** rejecting (the Navbar, profile, workers
 and settings pages listen and bounce to login instead of rendering stale auth
-state). `GET /api/plans` is public — `optionalAuth` since v3.29.1 — so the pricing
+state). `GET /api/plans` is public — `optionalAuth` — so the pricing
 catalog never 401s; every other protected route returns 401 as documented in
 `docs/api.md`.
 
-## Multi-Miner Accounts (v3.12.0, token model v3.13.0, single-use display v3.14.0)
+## Multi-Worker Accounts
 
-One user can run **unlimited miners**, add/remove/rename from profile. No cap.
+One user can run **unlimited workers**, add/remove/rename from profile. No cap.
 
-### Identity (v3.13.0+): one unique token per miner
-- `POST /api/miners` (auth) creates a miner row + unique `miner_token`.
-  The token IS the miner identity — no two servers can collide.
-  Empty name defaults to **`miner1`** (v3.14.0).
+### Identity: one unique token per worker
+- `POST /api/workers` (auth) creates a worker row + unique `worker_token`.
+  The token IS the worker identity — no two servers can collide.
+  Empty name defaults to **`worker1`**.
 - Install that server with **its own token** (`--token`); `/setup` and WS
   `auth` bind directly by token.
-- **Single-use display (v3.14.0):** `miners.token_used_at` is set on first
-  successful `/setup` or WS auth. `GET /api/miners/mine` then returns
-  `miner_token: null` (token stays in DB for re-auth).
-  `PUT /api/miners/mine/:id/token` rotates the token and clears the flag
+- **Single-use display:** `workers.token_used_at` is set on first
+  successful `/setup` or WS auth. `GET /api/workers/mine` then returns
+  `worker_token: null` (token stays in DB for re-auth).
+  `PUT /api/workers/mine/:id/token` rotates the token and clears the flag
   (for reinstalling the same machine).
-- Profile shows a **guide modal** on first visit and every time before Add Miner.
-- Legacy account token (`users.miner_token`) still works only when the user
-  has exactly 1 active miner; otherwise the API asks for the per-miner token.
-- `machine_id`/`name` columns from v3.12.0 are kept for display/compat but no
+- Profile shows a **guide modal** on first visit and every time before Add Worker.
+- Legacy account token (`users.worker_token`) still works only when the user
+  has exactly 1 active worker; otherwise the API asks for the per-worker token.
+- `machine_id`/`name` columns from are kept for display/compat but no
   longer used for lookup.
 
 ### Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | /api/miners | Create miner for current user → row + unique token (v3.13.0+; default name `miner1`) |
-| PUT | /api/miners/mine/:id/token | Rotate token for reinstall, clear `token_used_at` (v3.14.0+) |
-| POST | /api/miners/setup | Bind by per-miner token; legacy account token only if exactly 1 active miner |
-| GET | /api/miners/mine | Array `miners` (+ legacy `miner` = first, backward compat) |
-| PUT | /api/miners/mine/model | Switch model; body `{ model, miner_id? }` |
-| PUT | /api/miners/mine/:id | Rename (own miners only) |
-| DELETE | /api/miners/mine/:id | Soft delete → `status='removed'` (history preserved) |
+| POST | /api/workers | Create worker for current user → row + unique token |
+| PUT | /api/workers/mine/:id/token | Rotate token for reinstall, clear `token_used_at` |
+| POST | /api/workers/setup | Bind by per-worker token; legacy account token only if exactly 1 active worker |
+| GET | /api/workers/mine | Array `workers` (+ legacy `worker` = first, backward compat) |
+| PUT | /api/workers/mine/model | Switch model; body `{ model, worker_id? }` |
+| PUT | /api/workers/mine/:id | Rename (own workers only) |
+| DELETE | /api/workers/mine/:id | Soft delete → `status='removed'` (history preserved) |
 
 ### Lifecycle rules
-- Removed miners are excluded from dispatch (only `status='online'` gets tasks).
+- Removed workers are excluded from dispatch (only `status='online'` gets tasks).
 - WS auth rejects `removed`/unknown tokens (`auth_error`); reinstalling with
-  the same per-miner token revives its row (sets back to `online`).
+  the same per-worker token revives its row (sets back to `online`).
 - Concurrent connections with the same token: newest wins, old socket is
-  closed; miner re-authenticates automatically on `Not authenticated`.
-- In-memory WS registry and heartbeat/cleanup are already keyed by `miner.id`,
+  closed; worker re-authenticates automatically on `Not authenticated`.
+- In-memory WS registry and heartbeat/cleanup are already keyed by `worker.id`,
   so no changes were needed there.
 
-### Miner app changes
+### Worker app changes
 - `websocket.js`: token-only `auth`; re-auth on `Not authenticated` (guarded);
   `servername` SNI for direct-IP TLS.
-- `cli.js` / `main.js`: read `miner_token` from `config.json`.
+- `cli.js` / `main.js`: read `worker_token` from `config.json`.
 - Install scripts: prompt for name (`--name` flag supported), saved to
   `config.json` and sent in `/setup` POST (display only).
 
-## Uninstall (v3.9.0)
+## Uninstall
 
 Interactive menu:
 
 ```
-1) Miner only (service + app files)
-2) Everything (miner + Ollama + all downloaded models)
+1) Worker only (service + app files)
+2) Everything (worker + Ollama + all downloaded models)
 0) Cancel
 ```
 
 **Option 1:** stops service, disables, removes files
 **Option 2:** Option 1 + removes Ollama binary + ~/.ollama/ models + ollama user
 
-## Smart Model Fallback (v3.10.0, retired in v3.40.0)
+## Smart Model Fallback
 
-Retired: miner-only inference serves the exact requested model or fails
-explicitly — no miners → `503 MINER_OFFLINE` (retryable wait), model missing →
+Retired: worker-only inference serves the exact requested model or fails
+explicitly — no workers → `503 WORKER_OFFLINE` (retryable wait), model missing →
 `409 MODEL_UNAVAILABLE` with `alternatives`. The old local-Ollama substitution
 (`GET /api/tags` → family match → first available) and the server Ollama
-itself were removed in v3.40.0.
+itself were removed.
 
-## Organization Plans (v3.44.0)
+## Organization Plans
 
 - Tables `orgs` + `org_members` (one active membership per user, no cap).
   The org shares the leader's plan cap as one `daily_tokens` bucket
-  (`services/org.js` resolveCap = max(own, org)); miner credit/pot/wallet
+  (`services/org.js` resolveCap = max(own, org)); worker credit/pot/wallet
   stay per-user; attribution aggregates `tasks` per member (30d).
 - Routes: `/api/orgs` (mine/usage/members/transfer/leave) + `/api/admin/orgs`
   (create/add/remove/disband, audited). Leader leaves → oldest promoted.
 - UI: `/org` page + 8th admin tab + Navbar link.
 
-## Miner Routing (v3.41.0)
+## Worker Routing
 
-- Multi-model: miners report `models[]` at auth + heartbeat; dispatch matches
+- Multi-model: workers report `models[]` at auth + heartbeat; dispatch matches
   the list (legacy: `current_model` only). 3 consecutive task errors down-mark
-  a model for that miner (success resets).
+  a model for that worker (success resets).
 - Selection: sticky session → weighted round-robin (GPU-tier score) for new
   sessions → spill past 2 in-flight tasks. Guests: pure WRR per message.
 - Context: last 10 turns / ~6k tokens (16k hard cap) sent as `history` to
-  `app_version >= 3.41` miners only; billing stays output-only.
+  `app_version >= 3.41` workers only; billing stays output-only.
 - Installer: re-running on an installed box opens the manager menu
   (add/remove/repair models, token/name, update, restart). Smoke-test with a
-  fake HOME: `HOME=/tmp/fakehome bash miner-app/install-ubuntu.sh`.
+  fake HOME: `HOME=/tmp/fakehome bash worker-app/install-ubuntu.sh`.
 
-## Coder API (v3.43.0)
+
+### Capability protocol (1.0.0)
+
+Workers send `protocol: 2` in their `auth` message. `ws.js` treats any
+`protocol >= 2` worker as able to receive `attachment` (images/voice) and
+`history` (conversation window) on task messages. Binaries that predate 1.0.0
+send no protocol and fall back to the old app-version gates (media ≥ 3.20,
+history ≥ 3.41). Bump `FULL_PROTOCOL` (server) and `PROTOCOL`
+(`worker-app/src/services/websocket.js`) together when the task message format
+changes. Never gate on the app version again: it was reset at 1.0.0.
+
+### Schema rename on upgrade (1.0.0)
+
+`migrate.js` starts by renaming a pre-1.0 database in place (old table,
+column, index and sequence names to their `worker` equivalents, plus stored
+role/category/audit values). Every step is guarded, so running it on a fresh
+or already-migrated database is a no-op. Take a backup first
+(`scripts/backup-db.sh`).
+## Coder API
 
 - OpenAI-compatible `/v1` (2 coders): `GET /v1/models`, `POST /v1/chat/completions`.
   Keys: `sk_...` via `/api/keys` (JWT dashboard), sha256-only storage.
@@ -659,7 +628,7 @@ itself were removed in v3.40.0.
 - Manual e2e: mint key in Settings → `curl /v1/models` → `curl
   /v1/chat/completions` → opencode with `qwen3-coder:30b` → check spend.
 
-## Installer / Uninstaller Self-Cleanup (v3.10.0 install, v3.19.0 uninstall)
+## Installer / Uninstaller Self-Cleanup
 
 Install scripts auto-delete themselves after successful installation:
 
@@ -676,12 +645,12 @@ anything that is not this script:
 
 ```bash
 SELF="$0"
-if [ "$SUCCESS" = "1" ] && [ -f "$SELF" ] && head -n 6 "$SELF" | grep -q "Krelz Network Miner - .* Uninstall"; then
+if [ "$SUCCESS" = "1" ] && [ -f "$SELF" ] && head -n 6 "$SELF" | grep -q "Plankton Network Worker - .* Uninstall"; then
   rm -f -- "$SELF"
 fi
 ```
 
-## Mobile UI (v3.23.0)
+## Mobile UI
 
 The site is designed phone-first. Invariants to keep when touching the frontend:
 
@@ -703,8 +672,8 @@ Host/IP, SSH user and key live in the private ops vault — never commit them to
 | IP / host | *(private vault)* |
 | OS | Ubuntu 24.04 |
 | User | *(non-root deploy user)* |
-| Backend | /opt/krelz/backend |
-| Frontend | /opt/krelz/frontend |
+| Backend | /opt/plankton/backend |
+| Frontend | /opt/plankton/frontend |
 
 ### Deploy Commands
 
@@ -713,105 +682,90 @@ Host/IP, SSH user and key live in the private ops vault — never commit them to
 ssh <deploy-host>
 
 # Run migration (after DB schema changes)
-cd /opt/krelz/backend
+cd /opt/plankton/backend
 node src/database/migrate.js
 
 # Rebuild frontend
-cd /opt/krelz/frontend
+cd /opt/plankton/frontend
 npm run build
 
 # Restart services
-systemctl restart krelz-backend
-systemctl restart krelz-frontend
+systemctl restart plankton-backend
+systemctl restart plankton-frontend
 ```
 
 ### Services
 
 ```bash
-systemctl status krelz-backend
-systemctl status krelz-frontend
+systemctl status plankton-backend
+systemctl status plankton-frontend
 systemctl status nginx
-docker ps  # krelz-postgres, krelz-redis
+docker ps  # plankton-postgres, plankton-redis
 ```
 
 ### Quick Deploy from Local
 
 ```bash
 rsync -az --exclude .git --exclude .next --exclude node_modules --exclude '.env*' \
-  krelz-public/ <deploy-host>:/opt/krelz/
-ssh <deploy-host> 'cd /opt/krelz/frontend && npm run build && \
-  systemctl restart krelz-frontend krelz-backend'
-curl -s https://krelz.xyz/health   # must report the new version
+  plankton-public/ <deploy-host>:/opt/plankton/
+ssh <deploy-host> 'cd /opt/plankton/frontend && npm run build && \
+  systemctl restart plankton-frontend plankton-backend'
+curl -s https://plankton.click/health   # must report the new version
 ```
 
-### Version Bump (v3.45.0)
+### Version Bump
 
 One command updates every canonical marker — the three `package.json`s, both
-lockfiles, the 6 shell + 2 PowerShell miner scripts, all 33 locale footers and
+lockfiles, the 6 shell + 2 PowerShell worker scripts, all 33 locale footers and
 the `docs/api.md` header:
 
 ```bash
-node scripts/bump-version.js 3.45.0   # add the CHANGELOG section yourself
+node scripts/bump-version.js 1.0.1   # add the CHANGELOG section yourself
 ```
 
 `backend/tests/version.parity.test.js` fails the build if any surface is out
 of sync, so CI catches a missed file. Historical version mentions in comments
 and CHANGELOG sections are intentionally left alone.
 
-### Database Backups (v3.45.0)
+### Database Backups
 
 Encrypted nightly backups run from a systemd timer (03:30 UTC):
 
 ```bash
-# One-off setup (already done on the current VPS by the 3.45.0 deploy):
-mkdir -p /etc/krelz
-cp /opt/krelz/deploy/backup.env.example /etc/krelz/backup.env && chmod 600 /etc/krelz/backup.env
-openssl rand -base64 32 > /etc/krelz/backup.pass && chmod 600 /etc/krelz/backup.pass
-cp /opt/krelz/deploy/krelz-backup.{service,timer} /etc/systemd/system/
-systemctl daemon-reload && systemctl enable --now krelz-backup.timer
+# One-off setup on the server:
+mkdir -p /etc/plankton
+cp /opt/plankton/deploy/backup.env.example /etc/plankton/backup.env && chmod 600 /etc/plankton/backup.env
+openssl rand -base64 32 > /etc/plankton/backup.pass && chmod 600 /etc/plankton/backup.pass
+cp /opt/plankton/deploy/plankton-backup.{service,timer} /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now plankton-backup.timer
 
 # Run one backup now + inspect:
-/opt/krelz/scripts/backup-db.sh
-ls -l /var/backups/krelz/
+/opt/plankton/scripts/backup-db.sh
+ls -l /var/backups/plankton/
 
 # Restore drill (safe: restores into a throwaway DB, then drop it):
-/opt/krelz/scripts/restore-db.sh "$(ls -t /var/backups/krelz/*.enc | head -1)"
-docker exec krelz-postgres psql -U krelz -d postgres -c 'DROP DATABASE krelz_restore_test'
+/opt/plankton/scripts/restore-db.sh "$(ls -t /var/backups/plankton/*.enc | head -1)"
+docker exec plankton-postgres psql -U plankton -d postgres -c 'DROP DATABASE plankton_restore_test'
 
 # Real restore over the live DB (last resort — requires --force):
-systemctl stop krelz-backend
-/opt/krelz/scripts/restore-db.sh /var/backups/krelz/<file>.enc krelz --force
-systemctl start krelz-backend
+systemctl stop plankton-backend
+/opt/plankton/scripts/restore-db.sh /var/backups/plankton/<file>.enc plankton --force
+systemctl start plankton-backend
 ```
 
-- **Passphrase**: `/etc/krelz/backup.pass` (600, root). Keep a copy in the
+- **Passphrase**: `/etc/plankton/backup.pass` (600, root). Keep a copy in the
   password manager — without it offsite dumps are undecryptable. Restore
   refuses to touch the live DB unless `--force`.
-- **Offsite**: set `BACKUP_REMOTE` (rclone syntax, e.g. `b2:krelz-backups`)
-  in `/etc/krelz/backup.env`; install + configure rclone (`rclone config`).
+- **Offsite**: set `BACKUP_REMOTE` (rclone syntax, e.g. `b2:plankton-backups`)
+  in `/etc/plankton/backup.env`; install + configure rclone (`rclone config`).
   Until then, backups are local-only — a lost VPS loses them.
 - **Retention**: `BACKUP_RETENTION_DAYS` (default 14). Dumps smaller than
   10KB are treated as failed runs and never replace anything.
 
-### Iran Tunnel (v3.45.0 hardening)
+### Filtered-network access
 
-`deploy/krelz-tunnel.service` runs localhost.run's reverse SSH tunnel on
-`krelz.lhr.life` for filtered networks. Since v3.45.0 it runs as the
-unprivileged `krelz-tunnel` system user with a pinned `known_hosts`
-(`StrictHostKeyChecking=yes`), `NoNewPrivileges`, `ProtectSystem=strict` and
-restricted address families. Server setup:
-
-```bash
-useradd --system --create-home --home-dir /var/lib/krelz-tunnel --shell /usr/sbin/nologin krelz-tunnel
-mkdir -p /var/lib/krelz-tunnel/.ssh && chmod 700 /var/lib/krelz-tunnel/.ssh
-ssh-keyscan -t rsa,ecdsa,ed25519 localhost.run > /var/lib/krelz-tunnel/.ssh/known_hosts
-chown -R krelz-tunnel:krelz-tunnel /var/lib/krelz-tunnel
-cp /opt/krelz/deploy/krelz-tunnel.service /etc/systemd/system/ && systemctl daemon-reload
-systemctl restart krelz-tunnel && systemctl status krelz-tunnel
-```
-
-The relay IP in `deploy/krelz-relay/Caddyfile` is public **by design** (it is
-the address clients dial); never add it to prose docs.
+The tunnel / edge-proxy / relay setup for visitors on filtered networks is
+kept in the private ops repo, not here.
 
 ## Troubleshooting
 
@@ -839,12 +793,12 @@ cd frontend && npm run build
 ### Frontend not updating
 
 ```bash
-systemctl restart krelz-frontend
+systemctl restart plankton-frontend
 ```
 
 ### Database connection issues
 
 ```bash
-docker exec krelz-postgres psql -U krelz -d krelz -c "SELECT 1"
+docker exec plankton-postgres psql -U plankton -d plankton -c "SELECT 1"
 ```
 

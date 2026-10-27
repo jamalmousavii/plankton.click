@@ -87,9 +87,9 @@ it('POST / creates the ticket and first message in one transaction', async () =>
   const token = allowUser();
   const res = await request(app()).post('/api/tickets')
     .set('Authorization', `Bearer ${token}`)
-    .send({ subject: 'Miner offline', body: 'My rig stopped', category: 'miner' });
+    .send({ subject: 'Worker offline', body: 'My rig stopped', category: 'worker' });
   expect(res.status).toBe(201);
-  expect(res.body.ticket).toMatchObject({ id: 11, subject: 'Miner offline', status: 'open' });
+  expect(res.body.ticket).toMatchObject({ id: 11, subject: 'Worker offline', status: 'open' });
   const sql = pool.__state.statements.join('\n');
   expect(sql).toMatch(/BEGIN/);
   expect(sql).toMatch(/INSERT INTO tickets/);

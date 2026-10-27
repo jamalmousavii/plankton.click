@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plankton Worker</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0f0f23; color: #fff; }
+    .container { max-width: 700px; margin: 0 auto; padding: 20px; }
+    header { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid #333; }
+    header h1 { font-size: 20px; }
+    header h1 span { color: #a855f7; }
+    .status-badge { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+    .status-online { background: #166534; color: #4ade80; }
+    .status-offline { background: #7f1d1d; color: #f87171; }
+    .card { background: #1a1a2e; border-radius: 12px; padding: 20px; margin: 15px 0; }
+    .card h2 { font-size: 16px; color: #a855f7; margin-bottom: 12px; }
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .stat { background: #16213e; border-radius: 8px; padding: 12px; }
+    .stat .label { font-size: 11px; color: #888; text-transform: uppercase; }
+    .stat .value { font-size: 22px; font-weight: bold; margin-top: 4px; }
+    .stat .value.green { color: #4ade80; }
+    .stat .value.purple { color: #a855f7; }
+    .wallet-section { display: flex; gap: 10px; align-items: center; }
+    .wallet-section input { flex: 1; background: #16213e; border: 1px solid #333; border-radius: 8px; padding: 10px 14px; color: #fff; font-size: 13px; }
+    .btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+    .btn-primary { background: #a855f7; color: #fff; }
+    .btn-primary:hover { background: #9333ea; }
+    .btn-success { background: #16a34a; color: #fff; }
+    .btn-success:hover { background: #15803d; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-block { width: 100%; }
+    .working-controls { display: flex; gap: 10px; margin-top: 15px; }
+    .working-controls .btn { flex: 1; }
+    .log-box { background: #0a0a1a; border-radius: 8px; padding: 12px; max-height: 150px; overflow-y: auto; font-family: monospace; font-size: 12px; color: #4ade80; margin-top: 10px; }
+    .log-entry { padding: 2px 0; }
+    .log-entry.error { color: #f87171; }
+    .log-entry.info { color: #60a5fa; }
+    .progress-bar { width: 100%; height: 6px; background: #333; border-radius: 3px; margin-top: 8px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #a855f7, #6366f1); border-radius: 3px; transition: width 0.5s; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🚀 <span>Plankton</span> Worker</h1>
+      <div id="statusBadge" class="status-badge status-offline">Offline</div>
+    </header>
+
+    <div class="card">
+      <h2>Wallet</h2>
+      <div class="wallet-section">
+        <input type="text" id="walletAddress" placeholder="0x... (connect MetaMask)" readonly>
+        <button class="btn btn-primary" id="connectBtn" onclick="connectWallet()">Connect</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>System Info</h2>
+      <div class="stat-grid">
+        <div class="stat">
+          <div class="label">GPU</div>
+          <div class="value" id="gpuInfo">--</div>
+        </div>
+        <div class="stat">
+          <div class="label">RAM</div>
+          <div class="value" id="ramInfo">--</div>
+        </div>
+        <div class="stat">
+          <div class="label">GPU Usage</div>
+          <div class="value green" id="gpuUsage">0%</div>
+          <div class="progress-bar"><div class="progress-fill" id="gpuBar" style="width:0%"></div></div>
+        </div>
+        <div class="stat">
+          <div class="label">RAM Usage</div>
+          <div class="value purple" id="ramUsage">0%</div>
+          <div class="progress-bar"><div class="progress-fill" id="ramBar" style="width:0%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Working</h2>
+      <div class="stat-grid">
+        <div class="stat">
+          <div class="label">Tasks Completed</div>
+          <div class="value green" id="tasksCompleted">0</div>
+        </div>
+        <div class="stat">
+          <div class="label">Earnings (PLANKTON)</div>
+          <div class="value purple" id="earnings">0.00</div>
+        </div>
+      </div>
+      <div class="working-controls">
+        <button class="btn btn-success" id="startBtn" onclick="startWorking()">▶ Start Working</button>
+        <button class="btn btn-danger" id="stopBtn" onclick="stopWorking()" disabled>⏹ Stop</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Logs</h2>
+      <div class="log-box" id="logBox">
+        <div class="log-entry info">Plankton Worker initialized. Click Start to begin.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+    let working = false;
+
+    function addLog(msg, type = '') {
+      const logBox = document.getElementById('logBox');
+      const entry = document.createElement('div');
+      entry.className = 'log-entry ' + type;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      logBox.appendChild(entry);
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    async function connectWallet() {
+      try {
+        const wallet = await ipcRenderer.invoke('connect-wallet');
+        document.getElementById('walletAddress').value = wallet;
+        document.getElementById('connectBtn').textContent = 'Connected';
+        document.getElementById('connectBtn').disabled = true;
+        addLog('Wallet connected: ' + wallet, 'info');
+      } catch (e) {
+        addLog('Failed to connect wallet: ' + e.message, 'error');
+      }
+    }
+
+    async function startWorking() {
+      try {
+        await ipcRenderer.invoke('start-working');
+        working = true;
+        document.getElementById('statusBadge').className = 'status-badge status-online';
+        document.getElementById('statusBadge').textContent = 'Working';
+        document.getElementById('startBtn').disabled = true;
+        document.getElementById('stopBtn').disabled = false;
+        addLog('Working started!', 'info');
+        updateStats();
+      } catch (e) {
+        addLog('Failed to start: ' + e.message, 'error');
+      }
+    }
+
+    async function stopWorking() {
+      try {
+        await ipcRenderer.invoke('stop-working');
+        working = false;
+        document.getElementById('statusBadge').className = 'status-badge status-offline';
+        document.getElementById('statusBadge').textContent = 'Offline';
+        document.getElementById('startBtn').disabled = false;
+        document.getElementById('stopBtn').disabled = true;
+        addLog('Working stopped.', 'info');
+      } catch (e) {
+        addLog('Failed to stop: ' + e.message, 'error');
+      }
+    }
+
+    async function updateStats() {
+      if (!working) return;
+      try {
+        const stats = await ipcRenderer.invoke('get-stats');
+        if (stats.cpu) {
+          document.getElementById('gpuInfo').textContent = stats.cpu.model || 'Unknown';
+          const usage = stats.cpu.usage?.currentLoad || 0;
+          document.getElementById('gpuUsage').textContent = usage.toFixed(1) + '%';
+          document.getElementById('gpuBar').style.width = usage + '%';
+        }
+        if (stats.ram) {
+          const usedGB = (stats.ram.used / 1073741824).toFixed(1);
+          const totalGB = (stats.ram.total / 1073741824).toFixed(1);
+          document.getElementById('ramInfo').textContent = usedGB + '/' + totalGB + ' GB';
+          const ramPct = (stats.ram.used / stats.ram.total) * 100;
+          document.getElementById('ramUsage').textContent = ramPct.toFixed(1) + '%';
+          document.getElementById('ramBar').style.width = ramPct + '%';
+        }
+        document.getElementById('tasksCompleted').textContent = stats.tasksCompleted || 0;
+        document.getElementById('earnings').textContent = (stats.earnings || 0).toFixed(2);
+      } catch (e) { /* ignore */ }
+      setTimeout(updateStats, 5000);
+    }
+
+    ipcRenderer.on('working-started', () => addLog('Task processed successfully.', 'info'));
+    ipcRenderer.on('working-stopped', () => addLog('Working process halted.', 'info'));
+  </script>
+</body>
+</html>

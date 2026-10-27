@@ -1,9 +1,9 @@
 import { sortModels, groupModels, topOnlineModel, CATEGORY_ORDER } from '../utils/models';
 
-const m = (id, category, miners_online) => ({ id, name: id, category, miners_online });
+const m = (id, category, workers_online) => ({ id, name: id, category, workers_online });
 
 describe('sortModels (v3.40.0: busiest first)', () => {
-  it('sorts by miner count desc, ties keep catalog order', () => {
+  it('sorts by worker count desc, ties keep catalog order', () => {
     const input = [m('a', 'chat', 1), m('b', 'chat', 9), m('c', 'chat', 1), m('d', 'chat', 0)];
     expect(sortModels(input).map((x) => x.id)).toEqual(['b', 'a', 'c', 'd']);
   });

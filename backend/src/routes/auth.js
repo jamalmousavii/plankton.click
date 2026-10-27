@@ -33,7 +33,7 @@ router.post('/register', registerRules, validate, async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Never trust a client-supplied role: admin/miner roles are granted server-side only.
+    // Never trust a client-supplied role: admin/worker roles are granted server-side only.
     // ON CONFLICT turns the previous SELECT-then-INSERT race into a clean 400.
     const result = await pool.query(
       `INSERT INTO users (email, password, role) VALUES ($1, $2, 'user')

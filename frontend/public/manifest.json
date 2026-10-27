@@ -1,11 +1,11 @@
 {
-  "name": "Krelz Network",
-  "short_name": "Krelz",
-  "description": "Decentralized LLM Inference Network - Earn KRELZ tokens",
+  "name": "Plankton",
+  "short_name": "Plankton",
+  "description": "Decentralized LLM network — chat with open models served by community GPU workers.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1e1b4b",
-  "theme_color": "#1e1b4b",
+  "background_color": "#082b33",
+  "theme_color": "#082b33",
   "icons": [
     {
       "src": "/icon-192.png",

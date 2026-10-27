@@ -1,4 +1,4 @@
-# مشارکت در Krelz Network
+# مشارکت در Plankton Network
 
 از مشارکت شما استقبال می‌کنیم! 🎉
 

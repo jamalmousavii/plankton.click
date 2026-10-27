@@ -1,5 +1,5 @@
-// Shared model-list helpers (v3.40.0): miner-count sorting + category
-// grouping, used by the chat composer, the /miner page and the
+// Shared model-list helpers (v3.40.0): worker-count sorting + category
+// grouping, used by the chat composer, the /worker page and the
 // MODEL_UNAVAILABLE alternatives. Array.prototype.sort is stable (ES2019+),
 // so ties keep catalog order.
 
@@ -15,13 +15,13 @@ export const CATEGORY_I18N_KEY = {
   embedding: 'chat.catEmbedding',
 };
 
-export function minerCount(m) {
-  return Number(m && m.miners_online) || 0;
+export function workerCount(m) {
+  return Number(m && m.workers_online) || 0;
 }
 
 // Busiest model first; ties keep their relative (catalog) order.
 export function sortModels(models) {
-  return [...(models || [])].sort((a, b) => minerCount(b) - minerCount(a));
+  return [...(models || [])].sort((a, b) => workerCount(b) - workerCount(a));
 }
 
 // [{ category, items }] in CATEGORY_ORDER (unknown categories last).
@@ -40,15 +40,15 @@ export function groupModels(models) {
   return ordered.map((category) => ({
     category,
     items: byCat.get(category).sort((a, b) => {
-      const onA = minerCount(a) > 0 ? 0 : 1;
-      const onB = minerCount(b) > 0 ? 0 : 1;
-      return onA - onB || minerCount(b) - minerCount(a);
+      const onA = workerCount(a) > 0 ? 0 : 1;
+      const onB = workerCount(b) > 0 ? 0 : 1;
+      return onA - onB || workerCount(b) - workerCount(a);
     }),
   }));
 }
 
-// First model with miners online (for auto-switch + default picks).
+// First model with workers online (for auto-switch + default picks).
 export function topOnlineModel(models) {
   const sorted = sortModels(models);
-  return sorted.find((m) => minerCount(m) > 0) || null;
+  return sorted.find((m) => workerCount(m) > 0) || null;
 }

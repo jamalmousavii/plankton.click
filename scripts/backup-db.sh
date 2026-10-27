@@ -1,29 +1,29 @@
 #!/usr/bin/env bash
-# Krelz encrypted nightly database backup (v3.45.0).
+# Plankton encrypted nightly database backup (v3.45.0).
 #
 # Pipeline: docker exec pg_dump → gzip → openssl AES-256-CBC (pbkdf2, salted).
 # Retention: BACKUP_RETENTION_DAYS (default 14). Optional offsite copy via
-# rclone when BACKUP_REMOTE is set (e.g. "b2:krelz-backups" or "s3:my-bucket/krelz").
+# rclone when BACKUP_REMOTE is set (e.g. "b2:plankton-backups" or "s3:my-bucket/plankton").
 #
-# Config precedence: environment > /etc/krelz/backup.env (BACKUP_ENV_FILE).
+# Config precedence: environment > /etc/plankton/backup.env (BACKUP_ENV_FILE).
 # The passphrase file must exist (create with: openssl rand -base64 32 > file).
 #
 # Run manually:   scripts/backup-db.sh
-# Verify latest:  scripts/restore-db.sh "$(ls -t /var/backups/krelz/*.enc | head -1)"
+# Verify latest:  scripts/restore-db.sh "$(ls -t /var/backups/plankton/*.enc | head -1)"
 set -euo pipefail
 
-ENV_FILE="${BACKUP_ENV_FILE:-/etc/krelz/backup.env}"
+ENV_FILE="${BACKUP_ENV_FILE:-/etc/plankton/backup.env}"
 if [ -f "$ENV_FILE" ]; then
   # shellcheck disable=SC1090
   . "$ENV_FILE"
 fi
 
-CONTAINER="${BACKUP_CONTAINER:-krelz-postgres}"
-DB_USER="${BACKUP_DB_USER:-krelz}"
-DB_NAME="${BACKUP_DB_NAME:-krelz}"
-BACKUP_DIR="${BACKUP_DIR:-/var/backups/krelz}"
+CONTAINER="${BACKUP_CONTAINER:-plankton-postgres}"
+DB_USER="${BACKUP_DB_USER:-plankton}"
+DB_NAME="${BACKUP_DB_NAME:-plankton}"
+BACKUP_DIR="${BACKUP_DIR:-/var/backups/plankton}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
-PASSPHRASE_FILE="${BACKUP_PASSPHRASE_FILE:-/etc/krelz/backup.pass}"
+PASSPHRASE_FILE="${BACKUP_PASSPHRASE_FILE:-/etc/plankton/backup.pass}"
 REMOTE="${BACKUP_REMOTE:-}"
 
 log() { echo "[backup] $*"; }
@@ -35,7 +35,7 @@ mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
 
 STAMP="$(date -u +%Y%m%d-%H%M%S)"
-OUT="$BACKUP_DIR/krelz-$STAMP.sql.gz.enc"
+OUT="$BACKUP_DIR/plankton-$STAMP.sql.gz.enc"
 TMP="$OUT.tmp"
 
 log "dumping $DB_NAME from container $CONTAINER ..."
@@ -54,7 +54,7 @@ chmod 600 "$OUT"
 log "wrote $OUT ($SIZE bytes)"
 
 # Retention: prune encrypted dumps older than the window.
-PRUNED=$(find "$BACKUP_DIR" -maxdepth 1 -type f -name 'krelz-*.sql.gz.enc' -mtime +"$RETENTION_DAYS" -print -delete | wc -l)
+PRUNED=$(find "$BACKUP_DIR" -maxdepth 1 -type f -name 'plankton-*.sql.gz.enc' -mtime +"$RETENTION_DAYS" -print -delete | wc -l)
 [ "$PRUNED" -gt 0 ] && log "pruned $PRUNED backup(s) older than ${RETENTION_DAYS}d"
 
 # Offsite (optional): rclone remote copy when configured.

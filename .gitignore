@@ -29,17 +29,24 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-# Secrets
+# Secrets — real env files never leave the box (only *.example is tracked)
 *.pem
 *.key
 secrets/
+.env.secrets
+deploy/backup.env
+*.env
+!*.env.example
+worker-app/config.json
 
-# Private repo
-../krelz-private/
+# Confidential ops (lives in ../plankton-private, never here)
+deploy/plankton-tunnel.service
+deploy/plankton-edge.js
+deploy/wrangler.toml
+deploy/plankton-relay/
+.opencode/
+
 
 # Next.js
 frontend/.next/
 
-
-# Miner installer writes the token-bearing config at runtime (H4)
-miner-app/config.json

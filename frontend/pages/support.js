@@ -7,7 +7,7 @@ import { useAuth, apiFetch, ApiError } from '../utils/api';
 
 // v3.39.0 — user support: list my tickets, open a thread, reply, close.
 // Admin replies live in /admin; this page is strictly the user's own view.
-const CATEGORIES = ['support', 'billing', 'miner'];
+const CATEGORIES = ['support', 'billing', 'worker'];
 
 export default function Support() {
   const { t } = useLanguage();
@@ -141,15 +141,15 @@ export default function Support() {
 
   if (loading || !user) {
     return (
-      <div className="flex-1 bg-gradient-to-br from-sky-50 via-blue-50 to-cyan-50 flex items-center justify-center">
+      <div className="flex-1 page-surface flex items-center justify-center">
         <div className="text-gray-600 text-lg">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 bg-gradient-to-br from-sky-50 via-blue-50 to-cyan-50 min-h-screen">
-      <Head><title>{t('support.pageTitle')} - Krelz Network</title></Head>
+    <div className="flex-1 page-surface min-h-screen">
+      <Head><title>{t('support.pageTitle')} - Plankton Network</title></Head>
       <Navbar />
 
       <main className="container mx-auto px-4 md:px-6 py-6 md:py-12 max-w-2xl">

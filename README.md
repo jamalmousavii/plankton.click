@@ -1,73 +1,76 @@
-# Krelz Network
+<p align="center">
+  <img src="frontend/public/icon-192.png" width="96" alt="Plankton" />
+</p>
 
-Decentralized LLM Network - Share your GPU, earn KRELZ tokens
+<h1 align="center">plankton.</h1>
+
+<p align="center">
+  A decentralized LLM network — chat with open models served by a swarm of community GPU <b>workers</b>,<br/>
+  or run a worker and earn 90% of every paid reply it serves.
+</p>
+
+<p align="center">
+  <a href="https://plankton.click">plankton.click</a> ·
+  <a href="https://plankton.click/worker">Run a worker</a> ·
+  <a href="docs/api.md">API</a> ·
+  <a href="CHANGELOG.md">Changelog</a> · <b>v1.0.0</b>
+</p>
+
+---
+
+## What is a worker?
+
+A **worker** is any machine (and the person who runs it) that joins the
+Plankton ecosystem and takes part in answering user chats. It runs
+[Ollama](https://ollama.com) locally, connects to `wss://plankton.click/ws`
+with its own token, and receives chat tasks for the models it has pulled.
+Workers are paid a flat **90%** of every paid message they serve.
 
 ## Links
 
 | Service | URL |
 |---------|-----|
-| Website | https://krelz.xyz |
-| Chat AI | https://krelz.xyz (homepage = chat) |
-| Miner Install | https://krelz.xyz/miner |
-| API Health | https://krelz.xyz/health |
+| Website + chat | https://plankton.click |
+| Worker install guide | https://plankton.click/worker |
+| My workers | https://plankton.click/workers |
+| API health | https://plankton.click/health |
+| Coder API (OpenAI-compatible) | https://plankton.click/v1 |
 
 ## Features
 
-- **Decentralized LLM Inference** — GPU miners serve AI models via WebSocket
-- **Multi-Coin Payments (v3.18.0)** — USD wallet; Top Up via NowPayments (BTC, ETH, BNB, USDT, TRX, DOGE, XRP on checkout); withdraw USDT TRC-20 min $5
-- **Chat Source Badge (v3.18.4)** — each reply shows `⛏️ via miner` / `💻 local`
-- **Default Model (v3.18.4)** — chat defaults to `llama3.1:8b`
-- **Paid Inference (v3.24.0, miner-only since v3.40.0)** — GPU miners serve everything (exact model, no substitution); no miners → `503 MINER_OFFLINE` waiting state, wrong model → `409 MODEL_UNAVAILABLE` with switch suggestions. Unserved messages are never charged. No free cloud fallback.
-- **Miner Free Credit (v3.25.0)** — an online/busy miner earns its host a free **$1/day** chat allowance; platform-funded (no wallet debit, no miner revenue share).
-- **Fullscreen Chat Frame (v3.19.1)** — chat fits the viewport exactly (no page scrolling at any resolution/zoom); input keeps focus while the model answers; the latest message is always in view, including after refresh
-- **Attachments & Voice (v3.20.0)** — 📎 send an image, PDF or text file (file text is read server-side so any model can answer; images go to vision models), 🎤 record a ≤60s voice note (client-side WAV encoder, `gemma4:12b`); gated per model with explicit errors — attachments are never silently dropped
-- **Per-Model Pricing** — 16 models from 274M to 70B parameters, priced 30-50% cheaper than DeepSeek
-- **Chat Sessions** — Persistent chat history with auto-generated subjects
-- **Profile Dashboard** — USD balance, logout, quick-nav; leaderboard rank card for miners (v3.21.0)
-- **Miner CLI Mode** — Headless CLI for servers (no Electron needed)
-- **Multi-Model Miners (v3.41.0)** — one miner serves every pulled model at once, with per-model health badges and sticky weighted routing
-- **Installer Manager (v3.41.0)** — re-running the installer on an installed box opens a management menu (add/remove/repair models, token/name, update, restart) instead of reinstalling
-- **Resource Monitoring** — CPU, RAM, GPU VRAM, Disk usage tracking
-- **Auth System** — Google OAuth + email/password, password reset
-- **Uninstall Scripts** — Clean removal for Ubuntu/Debian, RedHat/Fedora, macOS and Windows; unregisters from your dashboard (v3.22.0) — earnings stay in the Miner History section on `/miners`
-- **Mobile-Friendly UI (v3.23.0)** — usable on any phone: keyboard never covers the chat input (iOS visual-viewport fix), no focus zoom, touch targets ≥40px, full-screen mobile menu, overlay session drawer, safe-area insets for notched devices
-- **Smart Model Fallback** — Auto-selects closest available model when exact model not found
-- **Install Self-Cleanup (v3.10.0)** — Install scripts auto-delete after successful installation
-- **Uninstall Self-Cleanup (v3.19.0)** — Uninstall scripts delete themselves after a successful removal (cancel or a failed step keeps the file so it can be rerun)
-- **Miner Earnings** — 90% of paid usage goes to miners
-- **Earnings Surfaces (v3.29.0)** — flat **90%** share shown everywhere: "Your Earnings" card on `/miner` (5 sources: 🎟️ token pot / 👛 wallet / ⭐ Plus / 🚀 Pro / 👑 Max), account-level breakdown on `/miners` and the profile (shared `EarningsBreakdown` component)
-- **Per-Miner Lifetime (v3.41.3)** — every server (active or uninstalled) expands to its lifetime tasks/earnings plus the same 5-way breakdown, so a removed server keeps its full story
-- **Pricing Everywhere (v3.29.0 + v3.30.0)** — public pricing section on the empty homepage (`/#plans`) plus a **pricing modal** that opens from the Navbar `⭐ Plans` link or a `/#plans` deep link in any homepage state, including mid-chat
-- **Multi-Miner Accounts** — unlimited miners per user, each with its own unique token; add/remove/rename from `/miners`, no cap
-- **Internationalization (v3.16.0)** — 33 languages with country flags; browser auto-detect; session-persisted user choice; RTL for FA/AR/HE/UR
-- **Global Version Footer (v3.16.0)** — every page shows a one-line footer sentence including the current version
-- **USD Wallet (v3.18.0)** — Settings/Profile show `$` balance; Top Up → NowPayments; withdraw USDT-TRC20
-- **Chat-First Homepage (v3.15.0)** — Landing page IS the chat: centered model picker + input; after start, history sidebar left + input bottom
-- **Split Pages (v3.15.0)** — Dashboard (`/profile`), Miners (`/miners`), Settings (`/settings`) separated
-- **Modern Neutral Chat UI (v3.37.0)** — ChatGPT/Gemini-style chat experience (auto-growing composer, neutral palette, sky accents)
-- **Support Tickets (v3.39.0)** — `/support`: categorized tickets (support/billing/miner) with threaded replies and close/reopen; admins answer from `/admin`
-- **Full Admin Panel (v3.39.0)** — 8 tabs (dashboard/users/miners/tasks/tickets/payments/purchases/orgs) with real actions: role & ban, ±USD balance, ±token pot, plan grant, miner remove/restore — every mutation written to `admin_audit_log`
-- **Transactions Card (v3.39.0)** — profile shows the merged deposit/withdrawal history with status badges
-- **Miner Docs vs Interactive (v3.16.0)** — `/miner`: full install/connect/delete guide + GitHub; `/miners`: copy-command Quick Install + miner cards
+- **Worker-only inference** — every reply comes from a community GPU worker, exact model only (no silent substitution). No worker online → `503 WORKER_OFFLINE` waiting state; wrong model → `409 MODEL_UNAVAILABLE` with switch suggestions. Unserved messages are never charged.
+- **Multi-model workers** — one worker serves every pulled model, with per-model health and sticky, GPU-weighted routing plus failover.
+- **Unlimited workers per account** — each with its own token (`pw_…`); add, rename, rotate token, remove (history kept) from `/workers`.
+- **Installers for Ubuntu/Debian, RedHat/Fedora, macOS 13+ and Windows 10/11** — re-running opens a manager menu (add/remove/repair models, token/name, update, restart); matching uninstallers unregister the worker.
+- **End-to-end encrypted tasks** between server and worker (key derived from the worker token).
+- **Attachments & voice** — images (vision models), PDFs/text files (parsed server-side), ≤60s voice notes.
+- **Conversation context** — a sliding window of recent turns rides every dispatch.
+- **Payments** — USD wallet via NowPayments (BTC, ETH, BNB, USDT, TRX, DOGE, XRP), USDT-TRC20 withdrawals, daily free allowance, Plus/Pro/Max plans, never-expiring token bundles, organization plans with a shared bucket.
+- **Worker free credit** — an online worker earns its owner $1/day of free chat.
+- **Coder API** — OpenAI-compatible `/v1` for coding agents (opencode, Continue, Aider…).
+- **Support tickets + full admin panel** (users, workers, tasks, tickets, payments, purchases, orgs) with an audit log.
+- **33 languages** with browser detection and RTL for FA/AR/HE/UR.
+- **Modern UI** — ocean-ink + bioluminescent palette, animated hero, mobile-first chat frame (keyboard-safe on iOS/Android, safe-area aware).
+- **Ops** — encrypted nightly DB backups with restore drill, billing reconciliation, graceful shutdown, health/readiness endpoints.
 
-## Quick Install (Miner)
+## Quick Install (Worker)
 
 ### Ubuntu / Debian
 
 ```bash
-wget https://raw.githubusercontent.com/jamalmousavii/krelz.xyz/main/miner-app/install-ubuntu.sh && bash install-ubuntu.sh
+wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh
 ```
 
 ### RedHat / Fedora / CentOS
 
 ```bash
-wget https://raw.githubusercontent.com/jamalmousavii/krelz.xyz/main/miner-app/install-redhat.sh && bash install-redhat.sh
+wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-redhat.sh && bash install-redhat.sh
 ```
 
 ### macOS 13+ (Apple Silicon / Intel with AVX2)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jamalmousavii/krelz.xyz/main/miner-app/install-macos.sh -o install-macos.sh && bash install-macos.sh
+curl -fsSL https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-macos.sh -o install-macos.sh && bash install-macos.sh
 ```
 
 Requires macOS 13 (Ventura) or newer — Big Sur and older are not supported.
@@ -77,7 +80,7 @@ Needs Homebrew. First run: right-click → Open (unsigned build). Re-running ope
 ### Windows 10 / 11
 
 ```powershell
-Invoke-WebRequest -Uri https://raw.githubusercontent.com/jamalmousavii/krelz.xyz/main/miner-app/install-windows.ps1 -OutFile install-windows.ps1
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-windows.ps1 -OutFile install-windows.ps1
 powershell -ExecutionPolicy Bypass -File .\install-windows.ps1
 ```
 
@@ -85,65 +88,65 @@ The install script automatically sets up:
 - Node.js 20
 - Ollama
 - Selected AI models (16 available)
-- Krelz Miner (CLI mode, systemd service)
+- Plankton Worker (CLI mode, systemd service)
 
-> **Token prompt:** when the installer asks for your miner token, the input is
+> **Token prompt:** when the installer asks for your worker token, the input is
 > **visible** (what you paste/type shows on screen) with a char-count
 > confirmation — if paste seems to "do nothing", you're likely on the old
 > script; re-download it. Avoid pasting on shared terminals or recordings
-> (a leaked token can be rotated from Profile → Miner Settings).
+> (a leaked token can be rotated from Profile → Worker Settings).
 
 Requires **~15 GB free disk** (checked before the model download; bypass with
-`KRELZ_SKIP_DISK_CHECK=1`). Every script passes `shellcheck` (enforced in CI).
+`PLANKTON_SKIP_DISK_CHECK=1`). Every script passes `shellcheck` (enforced in CI).
 
-### Add another miner (same account, unlimited)
-Each server-miner gets its **own unique token** (the token IS the miner identity).
-1. Profile → Miner Settings → **+ Add Miner** (optional name) → copy its token
+### Add another worker (same account, unlimited)
+Each server-worker gets its **own unique token** (the token IS the worker identity).
+1. Profile → Worker Settings → **+ Add Worker** (optional name) → copy its token
 2. On the new machine, install with **that token**:
 ```bash
-wget https://raw.githubusercontent.com/jamalmousavii/krelz.xyz/main/miner-app/install-ubuntu.sh && bash install-ubuntu.sh --token kz_... --name my-second-miner
+wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token pw_... --name my-second-worker
 ```
-3. The new miner appears as its own card (status, model, earnings). Remove any
-miner anytime from profile (history is preserved, soft delete).
+3. The new worker appears as its own card (status, model, earnings). Remove any
+worker anytime from profile (history is preserved, soft delete).
 
 ### Uninstall
 
 ```bash
 # Ubuntu/Debian
-wget https://raw.githubusercontent.com/jamalmousavii/krelz.xyz/main/miner-app/uninstall-ubuntu.sh && bash uninstall-ubuntu.sh
+wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-ubuntu.sh && bash uninstall-ubuntu.sh
 
 # RedHat/Fedora
-wget https://raw.githubusercontent.com/jamalmousavii/krelz.xyz/main/miner-app/uninstall-redhat.sh && bash uninstall-redhat.sh
+wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-redhat.sh && bash uninstall-redhat.sh
 
 # macOS
-curl -fsSL https://raw.githubusercontent.com/jamalmousavii/krelz.xyz/main/miner-app/uninstall-macos.sh -o uninstall-macos.sh && bash uninstall-macos.sh
+curl -fsSL https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-macos.sh -o uninstall-macos.sh && bash uninstall-macos.sh
 ```
 
 ```powershell
 # Windows
-Invoke-WebRequest -Uri https://raw.githubusercontent.com/jamalmousavii/krelz.xyz/main/miner-app/uninstall-windows.ps1 -OutFile uninstall-windows.ps1
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-windows.ps1 -OutFile uninstall-windows.ps1
 powershell -ExecutionPolicy Bypass -File .\uninstall-windows.ps1
 ```
 
-Choose to remove miner only or everything (miner + Ollama + models).
+Choose to remove worker only or everything (worker + Ollama + models).
 
-## Coder API for AI Agents (v3.43.0)
+## Coder API for AI Agents
 
 OpenAI-compatible endpoints so coding agents (opencode, Continue, Aider…)
 use the two coder models on your balance:
 
 1. Settings → create an API key (`sk_...`, shown once).
 2. Key needs a token balance, wallet funds, or Plus/Pro/Max — free plan alone gets `402`.
-3. Paste into `opencode.json` (with `KRELZ_API_KEY` exported):
+3. Paste into `opencode.json` (with `PLANKTON_API_KEY` exported):
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
   "provider": {
-    "krelz": {
+    "plankton": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "Krelz",
-      "options": { "baseURL": "https://krelz.xyz/v1", "apiKey": "{env:KRELZ_API_KEY}" },
+      "name": "Plankton",
+      "options": { "baseURL": "https://plankton.click/v1", "apiKey": "{env:PLANKTON_API_KEY}" },
       "models": {
         "qwen3-coder:30b": { "name": "Qwen3 Coder 30B", "limit": { "context": 262144, "output": 32768 } },
         "qwen2.5-coder:32b": { "name": "Qwen2.5 Coder 32B", "limit": { "context": 32768, "output": 8192 } }
@@ -181,15 +184,15 @@ use the two coder models on your balance:
 ## Payments, Free Allowance & Plans
 
 Every message settles in one row-locked transaction, in order:
-1. **Daily free allowance (v3.27.0)** — **2,000,000 tokens per UTC day** for every subject (signed-in users by account, guests by IP); plan tiers raise the cap (up to 80M/day on Max); `payment_status: "free"`, platform-funded
-2. **Miner credit (v3.25.0)** — with a miner `online`/`busy`, the first **$1.00 per UTC day** is free (`payment_status: "free_miner"`); the miner earns nothing from these chats
-3. **Token bundle pot (v3.28.0)** — prepaid tokens ($1 = 1M, never expires) drain all-or-nothing per message (`payment_status: "tokens"`); the miner earns 90% of the message's catalog value, paid from bundle revenue
-4. **USD wallet** (deposits via NowPayments) — a miner serving a **paid** reply earns a flat **90%** of the cost, whatever plan the payer is on
+1. **Daily free allowance** — **2,000,000 tokens per UTC day** for every subject (signed-in users by account, guests by IP); plan tiers raise the cap (up to 80M/day on Max); `payment_status: "free"`, platform-funded
+2. **Worker credit** — with a worker `online`/`busy`, the first **$1.00 per UTC day** is free (`payment_status: "free_worker"`); the worker earns nothing from these chats
+3. **Token bundle pot** — prepaid tokens ($1 = 1M, never expires) drain all-or-nothing per message (`payment_status: "tokens"`); the worker earns 90% of the message's catalog value, paid from bundle revenue
+4. **USD wallet** (deposits via NowPayments) — a worker serving a **paid** reply earns a flat **90%** of the cost, whatever plan the payer is on
 5. Race fallback — an already-generated reply is still served as `"free"`
 
 **Wall:** a subject with *zero* coverage (allowance spent + no credit + empty pot + empty wallet) gets `402 upgrade_required` with the plan catalog + bundle offer — checked **before** dispatch; partial coverage never blocks.
 
-**Plans (v3.28.0)** — bought with crypto via NowPayments, renewal extends from `max(now, expiry)` by 30 days:
+**Plans** — bought with crypto via NowPayments, renewal extends from `max(now, expiry)` by 30 days:
 
 | Tier | Price | Tokens/day | Catalog value/day* |
 |------|-------|-----------:|-------------------:|
@@ -200,68 +203,68 @@ Every message settles in one row-locked transaction, in order:
 
 \* at the default model's catalog output price ($0.158/1M).
 
-**Token bundles (v3.28.0)** — whole dollars **$1–$500 → 1M tokens per $1**, one-time payment, **never expires**, settled between the daily allowance and the wallet.
+**Token bundles** — whole dollars **$1–$500 → 1M tokens per $1**, one-time payment, **never expires**, settled between the daily allowance and the wallet.
 
-**Miner earnings breakdown (v3.28.0)** — every earning row records its source and the payer's plan; the profile shows 5 buckets: 🎟️ Tokens / 👛 Wallet / ⭐ Plus / 🚀 Pro / 👑 Max (free legs pay miners nothing).
+**Worker earnings breakdown** — every earning row records its source and the payer's plan; the profile shows 5 buckets: 🎟️ Tokens / 👛 Wallet / ⭐ Plus / 🚀 Pro / 👑 Max (free legs pay workers nothing).
 
-**Organization plans (v3.44.0)** — a company/leader shares their plan cap as one bucket: admin creates the org, the leader adds registered users by email, everyone drains the shared allowance with per-member usage reporting on `/org`. No member cap; one active org per user.
+**Organization plans** — a company/leader shares their plan cap as one bucket: admin creates the org, the leader adds registered users by email, everyone drains the shared allowance with per-member usage reporting on `/org`. No member cap; one active org per user.
 
-**Data safety + correctness (v3.45.0)** — encrypted nightly DB backups (14-day retention, rclone-ready offsite, restore-drill script) with a systemd timer; billing reconciliation for settlement failures (`billing_pending` → retried by maintenance); race-proof orgs (transactions + DB-enforced single active membership); one shared pricing source; purchase double-click guard (client lock + server `409`).
+**Data safety + correctness** — encrypted nightly DB backups (14-day retention, rclone-ready offsite, restore-drill script) with a systemd timer; billing reconciliation for settlement failures (`billing_pending` → retried by maintenance); race-proof orgs (transactions + DB-enforced single active membership); one shared pricing source; purchase double-click guard (client lock + server `409`).
 
 ## Project Structure
 
 ```
-krelz.xyz/
+plankton.click/
 ├── backend/                    # API Server (Node.js/Express)
 │   ├── src/
-│   │   ├── server.js          # Entry point (v3.19.0)
+│   │   ├── server.js          # Entry point
 │   │   ├── models.js          # AI models + pricing
 │   │   ├── database/
 │   │   │   ├── pool.js        # PostgreSQL connection
-│   │   │   ├── tx.js          # withTransaction helper (v3.45.0)
+│   │   │   ├── tx.js          # withTransaction helper
 │   │   │   └── migrate.js     # DB migration (25 tables + resource columns)
 │   │   ├── routes/
 │   │   │   ├── auth.js        # Authentication
-│   │   │   ├── miners.js      # Miner management
+│   │   │   ├── workers.js      # Worker management
 │   │   │   ├── chat.js        # LLM chat + payment chain + coverage wall
 │   │   │   ├── payments.js    # USD wallet + NowPayments (deposit/plan/token IPN)
 │   │   │   ├── plans.js       # Plan catalog (Plus/Pro/Max) + tier/token-bundle purchase
 │   │   │   ├── token.js       # Balance snapshot
 │   │   │   ├── models.js      # Model list API
-│   │   │   ├── tickets.js     # User support tickets (v3.39.0)
-│   │   │   └── admin.js       # Admin panel API: views + audited actions (v3.39.0)
+│   │   │   ├── tickets.js     # User support tickets
+│   │   │   └── admin.js       # Admin panel API: views + audited actions
 │   │   ├── middleware/
 │   │   │   └── auth.js        # JWT auth
 │   │   └── cache.js           # Redis caching
 │   └── package.json
 ├── frontend/                   # UI (Next.js 14 + Tailwind CSS)
 │   ├── pages/
-│   │   ├── index.js           # Chat homepage (state hub; UI split into components/chat/ v3.36.0)
-│   │   ├── profile.js         # Dashboard (balance, plans + token bundle cards, transactions card v3.39.0, earnings breakdown, miner credit, rank)
-│   │   ├── miners.js          # Miner management + Quick Install copy + history (v3.22.0)
+│   │   ├── index.js           # Chat homepage (state hub; UI split into components/chat/)
+│   │   ├── profile.js         # Dashboard (balance, plans + token bundle cards, transactions card, earnings breakdown, worker credit, rank)
+│   │   ├── workers.js          # Worker management + Quick Install copy + history
 │   │   ├── settings.js        # Settings (USD wallet, 33-lang dropdown, password)
-│   │   ├── miner.js           # Miner docs: install/connect/delete + GitHub (v3.16.0)
-│   │   ├── leaderboard.js     # Top miners/users
-│   │   ├── support.js         # Support tickets: list/new/thread (v3.39.0)
-│   │   └── admin.js           # Admin panel: 8 tabs + management actions (v3.39.0; orgs v3.44.0)
+│   │   ├── worker.js           # Worker docs: install/connect/delete + GitHub
+│   │   ├── leaderboard.js     # Top workers/users
+│   │   ├── support.js         # Support tickets: list/new/thread
+│   │   └── admin.js           # Admin panel: 8 tabs + management actions
 │   ├── components/
-│   │   ├── Navbar.js          # Nav (Miner, ⭐ Plans, Leaderboard; 🎫 Support in avatar dropdown + mobile menu, 🛡️ Admin) + auth + lang dropdown
-│   │   ├── EarningsBreakdown.js # 5-way miner earnings breakdown (profile, /miners, /miner)
-│   │   ├── PlansContent.js    # Pricing cards shared by inline section + modal (v3.30.0)
-│   │   ├── PlansModal.js      # Pricing overlay for /#plans deep links + Navbar (v3.30.0)
-│   │   ├── Footer.js          # Global version footer (v3.16.0)
+│   │   ├── Navbar.js          # Nav (Worker, ⭐ Plans, Leaderboard; 🎫 Support in avatar dropdown + mobile menu, 🛡️ Admin) + auth + lang dropdown
+│   │   ├── EarningsBreakdown.js # 5-way worker earnings breakdown (profile, /workers, /worker)
+│   │   ├── PlansContent.js    # Pricing cards shared by inline section + modal
+│   │   ├── PlansModal.js      # Pricing overlay for /#plans deep links + Navbar
+│   │   ├── Footer.js          # Global version footer
 │   │   ├── GoogleLogin.js     # Google OAuth
 │   │   ├── ErrorBoundary.js   # Error boundary
 │   │   ├── LanguageSwitcher.js # 33-lang dropdown with flags
-│   │   └── chat/              # Chat UI split (Sidebar, MessageList, Composer, UpgradeWall; v3.36.0)
+│   │   └── chat/              # Chat UI split (Sidebar, MessageList, Composer, UpgradeWall)
 │   ├── hooks/
-│   │   └── useApi.js          # Abort-aware fetch hook (leaderboard; v3.36.0)
+│   │   └── useApi.js          # Abort-aware fetch hook (leaderboard)
 │   ├── i18n/
 │   │   ├── translations.js    # Code-split registry (en static + 32 lazy) + LANGUAGES + detectLanguage
 │   │   ├── translations/      # One file per language (33 files)
 │   │   └── LanguageContext.js  # Provider (browser detect + sessionStorage)
 │   └── package.json
-├── miner-app/                  # Miner install scripts
+├── worker-app/                  # Worker install scripts
 └── docs/                       # Documentation
 ```
 
@@ -269,30 +272,30 @@ krelz.xyz/
 
 | Table | Purpose |
 |-------|---------|
-| users | User accounts (+ `role`, `banned` since v3.39.0) |
-| miners | GPU miner registrations (multi-miner: unique `miner_token` per row) |
+| users | User accounts (+ `role`, `banned` since) |
+| workers | GPU worker registrations (multi-worker: unique `worker_token` per row) |
 | tasks | Chat task history |
 | transactions | Token transactions |
 | staking | Staking records |
-| user_balances | KRELZ token balance |
+| user_balances | PLANKTON token balance |
 | deposits | Deposit history |
 | api_keys | API key management |
 | user_coin_balances | Multi-coin balances |
 | coin_deposits | Crypto deposit history |
 | coin_withdrawals | Crypto withdrawal history |
-| miner_coin_earnings | Miner earnings |
+| worker_coin_earnings | Worker earnings |
 | chat_sessions | Chat session groups |
 | daily_tokens | Daily free allowance — signed-in users (2M tokens/UTC-day) |
-| miner_daily_credit | Free daily chat credit for miner hosts ($1/UTC-day) |
+| worker_daily_credit | Free daily chat credit for worker hosts ($1/UTC-day) |
 | daily_tokens_guest | Daily free allowance — guests, keyed by client IP |
 | user_plans | Active subscription tiers (plus/pro/max) |
 | plan_purchases | Plan/token invoice claims — IPN exactly-once idempotency |
 | user_token_balances | Prepaid token pot — $1 = 1M tokens, never expires |
-| tickets | Support tickets — subject/category/status (v3.39.0) |
-| ticket_messages | Ticket thread messages, user + admin replies (v3.39.0) |
-| admin_audit_log | Admin action trail — who/action/target/reason/payload (v3.39.0) |
-| orgs | Organization plans — admin-created, leader-owned shared bucket (v3.44.0) |
-| org_members | Active memberships — one ACTIVE org per user (partial unique, v3.45.0) |
+| tickets | Support tickets — subject/category/status |
+| ticket_messages | Ticket thread messages, user + admin replies |
+| admin_audit_log | Admin action trail — who/action/target/reason/payload |
+| orgs | Organization plans — admin-created, leader-owned shared bucket |
+| org_members | Active memberships — one ACTIVE org per user (partial unique) |
 | schema_migrations | Migration bookkeeping |
 
 ## Tech Stack
@@ -301,7 +304,7 @@ krelz.xyz/
 |-------|-----------|
 | Frontend | Next.js 14, React 18, Tailwind CSS |
 | Backend | Node.js 20, Express, PostgreSQL, Redis |
-| LLM | Ollama (on miners), 16 models (Llama, Qwen, Gemma, DeepSeek, Phi, GPT-OSS, Mistral, BGE) — no server-side inference since v3.40.0 |
+| LLM | Ollama (on workers), 16 models (Llama, Qwen, Gemma, DeepSeek, Phi, GPT-OSS, Mistral, BGE) |
 | Auth | Google OAuth 2.0, JWT |
 | Payments | NowPayments — USD wallet, 7 coins at checkout, USDT TRC-20 withdraw |
 | Server | Ubuntu 24.04, Nginx, Let's Encrypt |
@@ -335,7 +338,7 @@ client id as `GOOGLE_CLIENT_ID` in `backend/.env`).
 
 | Doc | Contents |
 |-----|----------|
-| [docs/api.md](docs/api.md) | Full API reference (auth, chat billing, miners, payments, health) |
+| [docs/api.md](docs/api.md) | Full API reference (auth, chat billing, workers, payments, health) |
 | [docs/AUDIT.md](docs/AUDIT.md) | Security/money audit: findings, fixes, open risks, deploy checklist |
 | [docs/architecture.md](docs/architecture.md) | Architecture overview |
 | [docs/tokenomics.md](docs/tokenomics.md) | Token model |

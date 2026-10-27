@@ -9,12 +9,12 @@ const minimalWav = () => Buffer.concat([
   Buffer.from('WAVE'),
 ]);
 
-// Tiny single-page PDF containing the text HELLO KRELZ.
+// Tiny single-page PDF containing the text HELLO WORLD.
 const tinyPdf = () => Buffer.from(
   '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n' +
   '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
   '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n' +
-  '4 0 obj<</Length 44>>stream\nBT /F1 24 Tf 20 100 Td (HELLO KRELZ) Tj ET\nendstream endobj\n' +
+  '4 0 obj<</Length 44>>stream\nBT /F1 24 Tf 20 100 Td (HELLO WORLD) Tj ET\nendstream endobj\n' +
   '5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n' +
   'trailer<</Root 1 0 R>>\n%%EOF',
   'latin1'
@@ -64,7 +64,7 @@ describe('prepareAttachment', () => {
       { type: 'file', name: 'doc.pdf', mime: 'application/pdf', data: b64(tinyPdf()) },
       'summarize'
     );
-    expect(out.effectiveMessage).toContain('HELLO KRELZ');
+    expect(out.effectiveMessage).toContain('HELLO WORLD');
     expect(out.effectiveMessage).toContain('[File: doc.pdf]');
     expect(out.effectiveMessage).not.toContain('-- 1 of 1 --');
   });

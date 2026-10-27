@@ -6,6 +6,13 @@ const API_TARGET = process.env.API_REWRITE_URL || process.env.API_URL || 'http:/
 
 const nextConfig = {
   reactStrictMode: true,
+  // 1.0.0 renamed miners to workers — keep old bookmarks and shared links alive.
+  async redirects() {
+    return [
+      { source: '/miner', destination: '/worker', permanent: true },
+      { source: '/miners', destination: '/workers', permanent: true },
+    ];
+  },
   async rewrites() {
     return [
       {

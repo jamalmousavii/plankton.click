@@ -19,7 +19,7 @@ describe('model catalog', () => {
 
   it('contains only ids that can actually be pulled from Ollama', () => {
     // Regression: a menu/catalog entry for a model that does not exist made
-    // miners advertise a model the dispatcher could never route to.
+    // workers advertise a model the dispatcher could never route to.
     const allowed = new Set([
       'llama3.1:8b', 'llama3.3:70b', 'deepseek-r1:70b', 'qwen3:32b',
       'gpt-oss:20b', 'phi4:14b', 'llama3.2:3b',
@@ -50,6 +50,6 @@ describe('chat pricing', () => {
   });
 
   it('keeps the revenue split as documented', () => {
-    expect(chat.MINER_REVENUE_SHARE).toBe(0.9);
+    expect(chat.WORKER_REVENUE_SHARE).toBe(0.9);
   });
 });

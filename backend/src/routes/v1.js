@@ -12,7 +12,7 @@ const { logger } = require('../logger');
 
 // OpenAI-compatible coder API (v3.43.0) for agents (opencode et al).
 // Phase 1: non-streaming chat completions on the two coder models only.
-// Everything is keyed off the API key owner: same miners, same billing
+// Everything is keyed off the API key owner: same workers, same billing
 // chain as chat, no guests. Tools/streaming come in later phases with
 // explicit 400 codes (never silent misbehaviour).
 const CODER_MODELS = ['qwen3-coder:30b', 'qwen2.5-coder:32b'];
@@ -32,7 +32,7 @@ router.get('/models', (req, res) => {
     object: 'list',
     data: CODER_MODELS.map((id) => {
       const m = MODELS.find((x) => x.id === id);
-      return { id, object: 'model', created: 0, owned_by: 'krelz', name: m ? m.name : id };
+      return { id, object: 'model', created: 0, owned_by: 'plankton', name: m ? m.name : id };
     }),
   });
 });
@@ -158,9 +158,9 @@ router.post('/chat/completions', async (req, res) => {
     const needHistory = history.length > 0;
 
     const wsServer = req.app.get('wsServer');
-    const candidates = wsServer ? wsServer.findMinersForModel(model, false, needHistory) : [];
+    const candidates = wsServer ? wsServer.findWorkersForModel(model, false, needHistory) : [];
     const taskResult = await pool.query(
-      `INSERT INTO tasks (user_id, miner_id, prompt, model, status, session_id, media, prepared_prompt, history)
+      `INSERT INTO tasks (user_id, worker_id, prompt, model, status, session_id, media, prepared_prompt, history)
        VALUES ($1, NULL, $2, $3, 'pending', NULL, NULL, NULL, $4)
        RETURNING id`,
       [userId, prompt, model, JSON.stringify(history)]
@@ -176,49 +176,49 @@ router.post('/chat/completions', async (req, res) => {
     };
 
     if (candidates.length === 0) {
-      const usable = wsServer ? wsServer.countUsableMiners(false) : 0;
-      await failTask(usable === 0 ? 'No miners online' : 'No miner holds the requested model');
+      const usable = wsServer ? wsServer.countUsableWorkers(false) : 0;
+      await failTask(usable === 0 ? 'No workers online' : 'No worker holds the requested model');
       if (usable === 0) {
-        const r = openAiError(503, 'No miners online right now — retry with backoff.', 'server_error', { code: 'miner_offline', retryable: true });
+        const r = openAiError(503, 'No workers online right now — retry with backoff.', 'server_error', { code: 'worker_offline', retryable: true });
         return res.status(r.status).json(r.body);
       }
-      const r = openAiError(400, `No online miner serves ${model} right now.`, 'invalid_request_error', { code: 'model_unavailable', alternatives: CODER_MODELS.filter((m) => m !== model) });
+      const r = openAiError(400, `No online worker serves ${model} right now.`, 'invalid_request_error', { code: 'model_unavailable', alternatives: CODER_MODELS.filter((m) => m !== model) });
       return res.status(r.status).json(r.body);
     }
 
     let response = null;
     let tokensUsed = 0;
-    let minerId = null;
+    let workerId = null;
     const tried = new Set();
     for (;;) {
       const cand = wsServer.pickCandidate({ model, needsMedia: false, needHistory, sessionKey: null, exclude: tried });
       if (!cand) break;
-      tried.add(cand.minerId);
+      tried.add(cand.workerId);
       try {
-        await pool.query("UPDATE tasks SET status = 'processing', miner_id = $1 WHERE id = $2", [cand.minerId, taskId]);
-        const result = await wsServer.dispatchTask(cand.minerId, taskId, prompt, cand.model, null, history);
+        await pool.query("UPDATE tasks SET status = 'processing', worker_id = $1 WHERE id = $2", [cand.workerId, taskId]);
+        const result = await wsServer.dispatchTask(cand.workerId, taskId, prompt, cand.model, null, history);
         if (result.error) {
-          wsServer.recordModelResult(cand.minerId, model, false);
+          wsServer.recordModelResult(cand.workerId, model, false);
           continue;
         }
         const reported = Number(result.tokens_used);
         if (!Number.isFinite(reported) || reported < 0 || reported > MAX_TASK_TOKENS) {
-          wsServer.recordModelResult(cand.minerId, model, false);
+          wsServer.recordModelResult(cand.workerId, model, false);
           continue;
         }
         response = result.response;
         tokensUsed = reported;
-        minerId = cand.minerId;
-        wsServer.recordModelResult(cand.minerId, model, true);
+        workerId = cand.workerId;
+        wsServer.recordModelResult(cand.workerId, model, true);
         break;
       } catch (e) {
-        wsServer.recordModelResult(cand.minerId, model, false);
+        wsServer.recordModelResult(cand.workerId, model, false);
       }
     }
 
     if (response === null) {
-      await failTask('All miners failed for this task');
-      const r = openAiError(503, 'Miners failed to answer — retry with backoff.', 'server_error', { code: 'miner_offline', retryable: true });
+      await failTask('All workers failed for this task');
+      const r = openAiError(503, 'Workers failed to answer — retry with backoff.', 'server_error', { code: 'worker_offline', retryable: true });
       return res.status(r.status).json(r.body);
     }
 
@@ -235,7 +235,7 @@ router.post('/chat/completions', async (req, res) => {
     // billing_pending for the maintenance retry (nothing was charged).
     try {
       const resolved = await resolveCap(userId, null);
-      await settleMessage({ userId, guestKey: null, tokensUsed, cost, minerId, servedByMiner: true, freeCap: resolved.cap, freeRemainingInit: null, bucketUserId: resolved.bucketUserId, paymentCoin: 'USD', taskId });
+      await settleMessage({ userId, guestKey: null, tokensUsed, cost, workerId, servedByWorker: true, freeCap: resolved.cap, freeRemainingInit: null, bucketUserId: resolved.bucketUserId, paymentCoin: 'USD', taskId });
     } catch (err) {
       logger.error({ err, taskId }, 'Settlement failed after task completed — marked billing_pending');
       await pool.query(

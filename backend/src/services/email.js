@@ -12,7 +12,7 @@ function isEmailConfigured() {
 }
 
 function appBaseUrl() {
-  return (process.env.BACKEND_URL || 'https://krelz.xyz').replace(/\/+$/, '');
+  return (process.env.BACKEND_URL || 'https://plankton.click').replace(/\/+$/, '');
 }
 
 async function sendMail({ to, subject, html, text }) {
@@ -21,7 +21,7 @@ async function sendMail({ to, subject, html, text }) {
     throw new Error('RESEND_API_KEY is not configured');
   }
 
-  const from = process.env.EMAIL_FROM || 'Krelz <no-reply@krelz.xyz>';
+  const from = process.env.EMAIL_FROM || 'Plankton <no-reply@plankton.click>';
 
   const response = await axios.post(
     RESEND_API_URL,
@@ -40,10 +40,10 @@ async function sendMail({ to, subject, html, text }) {
 
 async function sendPasswordResetEmail(to, resetToken) {
   const url = `${appBaseUrl()}/reset-password?token=${encodeURIComponent(resetToken)}`;
-  const subject = 'Reset your Krelz password';
+  const subject = 'Reset your Plankton password';
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;padding:24px">
-      <h2 style="color:#0284c7;margin-top:0">Krelz Network</h2>
+      <h2 style="color:#0284c7;margin-top:0">Plankton Network</h2>
       <p>We received a request to reset the password for <strong>${to}</strong>.</p>
       <p style="margin:28px 0">
         <a href="${url}"
@@ -62,7 +62,7 @@ async function sendPasswordResetEmail(to, resetToken) {
     to,
     subject,
     html,
-    text: `Reset your Krelz password: ${url} (expires in 1 hour)`,
+    text: `Reset your Plankton password: ${url} (expires in 1 hour)`,
   });
 
   logger.info({ email: to }, 'Password reset email sent');

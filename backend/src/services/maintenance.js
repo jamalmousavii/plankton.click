@@ -94,7 +94,7 @@ async function pruneOldMedia() {
 // is recomputed at retry time (resolveCap) — a rare, bounded drift.
 async function reconcileBilling() {
   const rows = await pool.query(
-    `SELECT id, user_id, miner_id, tokens_used, cost
+    `SELECT id, user_id, worker_id, tokens_used, cost
        FROM tasks
       WHERE billing_status = 'pending'
         AND status = 'completed'
@@ -113,8 +113,8 @@ async function reconcileBilling() {
         guestKey: null,
         tokensUsed: Number(t.tokens_used) || 0,
         cost: Number(t.cost) || 0,
-        minerId: t.miner_id,
-        servedByMiner: !!t.miner_id,
+        workerId: t.worker_id,
+        servedByWorker: !!t.worker_id,
         freeCap: resolved.cap,
         freeRemainingInit: null,
         bucketUserId: resolved.bucketUserId,

@@ -58,9 +58,9 @@ export default function ResetPassword() {
     'w-full bg-white text-gray-800 placeholder-gray-400 border border-sky-200 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-400';
 
   return (
-    <div className={`min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-cyan-50`}>
+    <div className={`min-h-screen page-surface`}>
       <Head>
-        <title>{t('nav.resetPassword')} - Krelz Network</title>
+        <title>{t('nav.resetPassword')} - Plankton Network</title>
       </Head>
 
       <Navbar />

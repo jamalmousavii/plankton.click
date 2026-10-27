@@ -69,7 +69,7 @@ export default function Org() {
   const fmtTokens = (n) => Number(n || 0).toLocaleString('en-US');
 
   return (
-    <div className="flex-1 bg-gradient-to-br from-sky-50 via-blue-50 to-cyan-50">
+    <div className="flex-1 page-surface">
       <Head><title>{t('org.pageTitle')}</title></Head>
       <Navbar />
       <main className="container mx-auto px-4 md:px-6 py-6 md:py-12 pb-8 max-w-3xl">

@@ -3,7 +3,7 @@ const router = express.Router();
 const pool = require('../database/pool');
 const { authenticate } = require('../middleware/auth');
 const nowpayments = require('../services/nowpayments');
-const { getMinerCreditStatus } = require('../services/minerCredit');
+const { getWorkerCreditStatus } = require('../services/workerCredit');
 const { FREE_DAILY_TOKENS, PLANS, TOKEN_BUNDLE, listPlans, getActivePlan } = require('../services/plans');
 const { getTokenBalance } = require('../services/tokenBundles');
 const { applyPlanPurchase, applyDeposit } = require('../services/paymentClaims');
@@ -50,7 +50,7 @@ router.post('/deposit/create', authenticate, async (req, res) => {
     // if invoice creation fails the row is marked 'failed' instead of lingering.
     // randomUUID suffix avoids same-ms double-click collisions on UNIQUE(order_id).
     const { randomUUID } = require('crypto');
-    const orderId = `krelz-${userId}-${Date.now()}-${randomUUID().slice(0, 8)}`;
+    const orderId = `plankton-${userId}-${Date.now()}-${randomUUID().slice(0, 8)}`;
     await pool.query(
       `INSERT INTO coin_deposits (user_id, coin, amount, order_id, status)
        VALUES ($1, 'USD', $2, $3, 'pending')`,
@@ -126,7 +126,7 @@ router.post('/deposit/webhook', async (req, res) => {
 
     // Paid order ids: "<tier>-…" (v3.28.0). Plan tiers activate the
     // subscription; 'tok' credits the prepaid token pot; wallet deposits keep
-    // the legacy "krelz-…" prefix. The UPDATE-while-pending claim (now in
+    // the legacy "plankton-…" prefix. The UPDATE-while-pending claim (now in
     // services/paymentClaims.js) keeps replays exactly-once — a second
     // 'finished' IPN can never extend or credit twice. B4: the webhook and the
     // nightly reconciler share those helpers so both apply money identically.
@@ -165,7 +165,7 @@ router.get('/balance', authenticate, async (req, res) => {
       'SELECT password IS NOT NULL AS has_password FROM users WHERE id = $1',
       [userId]
     );
-    const minerCredit = await getMinerCreditStatus(userId);
+    const workerCredit = await getWorkerCreditStatus(userId);
     const plan = await getActivePlan(userId);
     const cap = plan ? PLANS[plan.plan_type].daily_tokens : FREE_DAILY_TOKENS;
     const freeStatus = await getFreeStatus({ userId, cap });
@@ -183,11 +183,11 @@ router.get('/balance', authenticate, async (req, res) => {
       balances,
       currency: 'USD',
       has_password: userRow.rows[0]?.has_password || false,
-      miner_credit: {
-        eligible: minerCredit.eligible,
-        limit: minerCredit.limit,
-        used: minerCredit.used,
-        remaining: minerCredit.remaining,
+      worker_credit: {
+        eligible: workerCredit.eligible,
+        limit: workerCredit.limit,
+        used: workerCredit.used,
+        remaining: workerCredit.remaining,
       },
       free_tokens: {
         limit: freeStatus.limit,

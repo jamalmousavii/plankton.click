@@ -197,14 +197,14 @@ describe('B4: pending row before invoice', () => {
 });
 
 // ---------------------------------------------------------------------------
-// B6 — a disconnected miner must reject its in-flight tasks immediately.
+// B6 — a disconnected worker must reject its in-flight tasks immediately.
 // ---------------------------------------------------------------------------
 const WSServer = require('../src/ws');
 
 describe('B6: disconnect rejects in-flight tasks', () => {
   it('rejects pending dispatchTask callbacks the moment the socket closes', async () => {
     const server = Object.create(WSServer.prototype);
-    server.miners = new Map();
+    server.workers = new Map();
     server.taskCallbacks = new Map();
     server.authFails = new Map();
 
@@ -219,7 +219,7 @@ describe('B6: disconnect rejects in-flight tasks', () => {
     server.handleConnection(fakeWs, { headers: {} });
     expect(typeof handlers.close).toBe('function');
 
-    server.miners.set(42, {
+    server.workers.set(42, {
       id: 42,
       ws: fakeWs,
       status: 'online',
@@ -229,18 +229,18 @@ describe('B6: disconnect rejects in-flight tasks', () => {
 
     const pending = server.dispatchTask(42, 500, 'hi', 'llama3.1:8b', null);
     expect(server.taskCallbacks.has(500)).toBe(true);
-    expect(server.taskCallbacks.get(500).minerId).toBe(42);
+    expect(server.taskCallbacks.get(500).workerId).toBe(42);
 
     handlers.close();
 
-    await expect(pending).rejects.toThrow('Miner disconnected');
+    await expect(pending).rejects.toThrow('Worker disconnected');
     expect(server.taskCallbacks.size).toBe(0);
-    expect(server.miners.size).toBe(0);
+    expect(server.workers.size).toBe(0);
   });
 
-  it("leaves other miners' pending tasks alone", async () => {
+  it("leaves other workers' pending tasks alone", async () => {
     const server = Object.create(WSServer.prototype);
-    server.miners = new Map();
+    server.workers = new Map();
     server.taskCallbacks = new Map();
     server.authFails = new Map();
 
@@ -255,17 +255,17 @@ describe('B6: disconnect rejects in-flight tasks', () => {
     server.handleConnection(socketA, { headers: {} });
 
     const socketB = { readyState: 1, send: () => {} };
-    server.miners.set(1, { id: 1, ws: socketA, status: 'online', current_model: 'm', e2eKey: null });
-    server.miners.set(2, { id: 2, ws: socketB, status: 'online', current_model: 'm', e2eKey: null });
+    server.workers.set(1, { id: 1, ws: socketA, status: 'online', current_model: 'm', e2eKey: null });
+    server.workers.set(2, { id: 2, ws: socketB, status: 'online', current_model: 'm', e2eKey: null });
 
     const pendingA = server.dispatchTask(1, 600, 'hi', 'm');
     const pendingB = server.dispatchTask(2, 601, 'hi', 'm');
 
     handlersA.close();
 
-    await expect(pendingA).rejects.toThrow('Miner disconnected');
+    await expect(pendingA).rejects.toThrow('Worker disconnected');
     expect(server.taskCallbacks.has(601)).toBe(true);
-    expect(server.miners.has(2)).toBe(true);
+    expect(server.workers.has(2)).toBe(true);
     // settle B so its 180s timer doesn't keep the process alive
     const cb = server.taskCallbacks.get(601);
     clearTimeout(cb.timeout);

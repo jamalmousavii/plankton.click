@@ -9,7 +9,7 @@ const pool = require('../database/pool');
 const { authenticate } = require('../middleware/auth');
 const { logger } = require('../logger');
 
-const CATEGORIES = ['support', 'billing', 'miner'];
+const CATEGORIES = ['support', 'billing', 'worker'];
 const MAX_SUBJECT = 200;
 const MAX_BODY = 4000;
 const MAX_LIST = 50;

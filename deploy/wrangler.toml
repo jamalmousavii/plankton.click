@@ -1,6 +1,0 @@
-# Krelz Worker proxy — serves the site at https://krelz.<account>.workers.dev
-# for visitors whose network filters the krelz.xyz SNI.
-# Deploy: CLOUDFLARE_API_TOKEN=... npx wrangler deploy -c deploy/wrangler.toml
-name = "krelz-proxy"
-main = "deploy/krelz-worker.js"
-compatibility_date = "2026-10-06"

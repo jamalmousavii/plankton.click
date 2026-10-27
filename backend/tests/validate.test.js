@@ -21,8 +21,8 @@ describe('register validation', () => {
     expect(res.body.details.some((d) => d.field === 'role')).toBe(true);
   });
 
-  it('accepts role=miner and role=user', async () => {
-    for (const role of ['user', 'miner']) {
+  it('accepts role=worker and role=user', async () => {
+    for (const role of ['user', 'worker']) {
       const res = await request(app).post('/x').send({ email: 'a@b.co', password: 'Secret123', role });
       expect(res.status).toBe(200);
     }

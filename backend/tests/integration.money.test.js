@@ -101,7 +101,7 @@ d('real-database money flow', () => {
     );
     expect(order.rows.length).toBe(1);
     const orderId = order.rows[0].order_id;
-    expect(orderId).toMatch(/^krelz-/);
+    expect(orderId).toMatch(/^plankton-/);
 
     const ipn = canonicalIpn({
       order_id: orderId,

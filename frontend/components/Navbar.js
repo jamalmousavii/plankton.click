@@ -5,6 +5,7 @@ import Portal from './Portal';
 import { useLanguage } from '../i18n/LanguageContext';
 import LanguageSwitcher from './LanguageSwitcher';
 import GoogleLogin from './GoogleLogin';
+import Logo from './Logo';
 import { clearSession, setSession, AUTH_EXPIRED_EVENT } from '../utils/api';
 
 export default function Navbar() {
@@ -33,10 +34,10 @@ export default function Navbar() {
       } catch (e) { setUser(null); }
     };
     syncUser();
-    window.addEventListener('krelz:auth-changed', syncUser);
+    window.addEventListener('plankton:auth-changed', syncUser);
     window.addEventListener(AUTH_EXPIRED_EVENT, syncUser);
     return () => {
-      window.removeEventListener('krelz:auth-changed', syncUser);
+      window.removeEventListener('plankton:auth-changed', syncUser);
       window.removeEventListener(AUTH_EXPIRED_EVENT, syncUser);
     };
   }, []);
@@ -55,7 +56,7 @@ export default function Navbar() {
   const closeMenu = () => setMenuOpen(false);
 
   const handleLogout = () => {
-    // F4: clearSession() removes the credentials AND fires krelz:auth-changed
+    // F4: clearSession() removes the credentials AND fires plankton:auth-changed
     // (the old inline removeItem left other listeners to notice nothing);
     // reload wipes any in-memory chat/history state.
     clearSession();
@@ -178,18 +179,18 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="w-full border-b border-gray-200/70 bg-white/70 backdrop-blur-md">
-      <div className="container mx-auto px-4 md:px-6 py-3 flex items-center justify-between">
-        <Link href="/" className="text-xl md:text-2xl font-bold text-gray-800">🚀 Krelz Network</Link>
+    <nav className="sticky top-0 z-40 w-full border-b border-white/60 bg-white/60 backdrop-blur-xl supports-[backdrop-filter]:bg-white/50">
+      <div className="container mx-auto px-4 md:px-6 py-2.5 flex items-center justify-between">
+        <Link href="/" aria-label="Plankton home" className="rounded-xl"><Logo size={34} /></Link>
 
         {/* Desktop */}
         <div className="hidden md:flex items-center gap-4">
           <LanguageSwitcher />
-          <Link href="/miner" className="text-gray-600 hover:text-sky-700 transition">{t('nav.miner')}</Link>
-          <Link href="/#plans" onClick={() => window.dispatchEvent(new CustomEvent('krelz:show-plans'))} className="text-gray-600 hover:text-sky-700 transition">⭐ {t('nav.plans')}</Link>
-          <Link href="/leaderboard" className="text-gray-600 hover:text-sky-700 transition">🏆</Link>
+          <Link href="/worker" className="px-3 py-1.5 rounded-full text-sm font-medium text-gray-600 hover:text-sky-800 hover:bg-sky-50 transition">{t('nav.worker')}</Link>
+          <Link href="/#plans" onClick={() => window.dispatchEvent(new CustomEvent('plankton:show-plans'))} className="px-3 py-1.5 rounded-full text-sm font-medium text-gray-600 hover:text-sky-800 hover:bg-sky-50 transition">⭐ {t('nav.plans')}</Link>
+          <Link href="/leaderboard" className="px-3 py-1.5 rounded-full text-sm font-medium text-gray-600 hover:text-sky-800 hover:bg-sky-50 transition">🏆</Link>
           {user?.role === 'admin' && (
-            <Link href="/admin" className="text-gray-600 hover:text-sky-700 transition">🛡️ {t('nav.admin')}</Link>
+            <Link href="/admin" className="px-3 py-1.5 rounded-full text-sm font-medium text-gray-600 hover:text-sky-800 hover:bg-sky-50 transition">🛡️ {t('nav.admin')}</Link>
           )}
 
           <div className="relative" ref={dropdownRef}>
@@ -197,7 +198,7 @@ export default function Navbar() {
               <>
                 <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
-                  className="flex items-center gap-2 bg-white hover:bg-gray-50 px-3 py-2 rounded-lg transition border border-gray-200"
+                  className="flex items-center gap-2 bg-white/80 hover:bg-white px-2.5 py-1.5 rounded-full transition border border-gray-200 shadow-sm"
                 >
                   {user.avatar ? (
                     <img src={user.avatar} alt="avatar" width={28} height={28} className="w-7 h-7 rounded-full border border-gray-200" />
@@ -210,12 +211,12 @@ export default function Navbar() {
                   <span className="text-gray-400 text-xs">▼</span>
                 </button>
                 {dropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-52 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden z-50">
+                  <div className="absolute right-0 mt-2 w-56 bg-white/95 backdrop-blur-xl border border-gray-200/80 rounded-2xl shadow-glow overflow-hidden z-50 animate-rise">
                     <Link href="/profile" className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition">
                       📊 {t('nav.dashboard')}
                     </Link>
-                    <Link href="/miners" className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition">
-                      ⛏️ {t('nav.miners')}
+                    <Link href="/workers" className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition">
+                      🖥️ {t('nav.workers')}
                     </Link>
                     <Link href="/org" className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition">
                       🏢 {t('nav.org')}
@@ -245,12 +246,12 @@ export default function Navbar() {
               <>
                 <button
                   onClick={() => { setDropdownOpen(!dropdownOpen); resetAuthForm(); setAuthMode('login'); }}
-                  className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-lg transition text-sm font-medium"
+                  className="btn-glow text-sm !py-2"
                 >
                   {t('nav.login')}
                 </button>
                 {dropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden z-50 p-5">
+                  <div className="absolute right-0 mt-2 w-80 bg-white/95 backdrop-blur-xl border border-gray-200/80 rounded-2xl shadow-glow overflow-hidden z-50 p-5 animate-rise">
                     {authMode === 'login' && (
                       <div className="space-y-3">
                         <h3 className="text-gray-800 font-bold text-center">{t('nav.login')}</h3>
@@ -371,7 +372,7 @@ export default function Navbar() {
         <Portal>
         <div className="md:hidden fixed inset-0 z-[60] bg-white flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0">
-            <Link href="/" onClick={closeMenu} className="text-xl font-bold text-gray-800">🚀 Krelz Network</Link>
+            <Link href="/" onClick={closeMenu} aria-label="Plankton home"><Logo size={32} /></Link>
             <button
               onClick={closeMenu}
               aria-label="Close menu"
@@ -381,14 +382,14 @@ export default function Navbar() {
           <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
             <div className="flex flex-col gap-3 pt-4">
               <LanguageSwitcher />
-              <Link href="/miner" onClick={closeMenu} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">{t('nav.miner')}</Link>
-              <Link href="/#plans" onClick={() => { closeMenu(); window.dispatchEvent(new CustomEvent('krelz:show-plans')); }} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">⭐ {t('nav.plans')}</Link>
+              <Link href="/worker" onClick={closeMenu} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">{t('nav.worker')}</Link>
+              <Link href="/#plans" onClick={() => { closeMenu(); window.dispatchEvent(new CustomEvent('plankton:show-plans')); }} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">⭐ {t('nav.plans')}</Link>
               <Link href="/leaderboard" onClick={closeMenu} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">🏆 {t('nav.leaderboard')}</Link>
 
             {user ? (
               <>
                 <Link href="/profile" onClick={closeMenu} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">📊 {t('nav.dashboard')}</Link>
-                <Link href="/miners" onClick={closeMenu} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">⛏️ {t('nav.miners')}</Link>
+                <Link href="/workers" onClick={closeMenu} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">🖥️ {t('nav.workers')}</Link>
                 <Link href="/org" onClick={closeMenu} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">🏢 {t('nav.org')}</Link>
                 <Link href="/support" onClick={closeMenu} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">🎫 {t('nav.support')}</Link>
                 <Link href="/settings" onClick={closeMenu} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">⚙️ {t('nav.settings')}</Link>

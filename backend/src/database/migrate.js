@@ -10,7 +10,59 @@ const migrate = async () => {
   
   try {
     await client.query('BEGIN');
-    
+
+    // === 1.0.0 rename: miner → worker (Plankton relaunch) ===
+    // Pre-1.0 databases (Krelz Network) still use the miner_* schema. Rename
+    // in place so every row, sequence and FK survives; each step is guarded,
+    // so a fresh database or a re-run is a no-op.
+    await client.query(`
+      DO $$
+      DECLARE r RECORD;
+      BEGIN
+        IF to_regclass('public.miners') IS NOT NULL AND to_regclass('public.workers') IS NULL THEN
+          ALTER TABLE miners RENAME TO workers;
+        END IF;
+        IF to_regclass('public.miner_coin_earnings') IS NOT NULL AND to_regclass('public.worker_coin_earnings') IS NULL THEN
+          ALTER TABLE miner_coin_earnings RENAME TO worker_coin_earnings;
+        END IF;
+        IF to_regclass('public.miner_daily_credit') IS NOT NULL AND to_regclass('public.worker_daily_credit') IS NULL THEN
+          ALTER TABLE miner_daily_credit RENAME TO worker_daily_credit;
+        END IF;
+        FOR r IN
+          SELECT table_name, column_name FROM information_schema.columns
+           WHERE table_schema = 'public'
+             AND (table_name, column_name) IN (
+               ('workers', 'miner_token'), ('users', 'miner_token'),
+               ('tasks', 'miner_id'), ('worker_coin_earnings', 'miner_id'))
+        LOOP
+          EXECUTE format('ALTER TABLE %I RENAME COLUMN %I TO %I',
+            r.table_name, r.column_name, replace(r.column_name, 'miner', 'worker'));
+        END LOOP;
+        FOR r IN
+          SELECT c.relname, c.relkind FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+           WHERE n.nspname = 'public' AND c.relkind IN ('i', 'S') AND c.relname LIKE '%miner%'
+        LOOP
+          IF to_regclass('public.' || replace(r.relname, 'miner', 'worker')) IS NULL THEN
+            EXECUTE format('ALTER %s %I RENAME TO %I',
+              CASE WHEN r.relkind = 'S' THEN 'SEQUENCE' ELSE 'INDEX' END,
+              r.relname, replace(r.relname, 'miner', 'worker'));
+          END IF;
+        END LOOP;
+      END $$;
+    `);
+    // Stored enum-like values that carried the old name.
+    if ((await client.query("SELECT to_regclass('public.users') AS t")).rows[0].t) {
+      await client.query("UPDATE users SET role = 'worker' WHERE role = 'miner'");
+    }
+    if ((await client.query("SELECT to_regclass('public.tickets') AS t")).rows[0].t) {
+      await client.query("UPDATE tickets SET category = 'worker' WHERE category = 'miner'");
+    }
+    if ((await client.query("SELECT to_regclass('public.admin_audit_log') AS t")).rows[0].t) {
+      await client.query("UPDATE admin_audit_log SET target_type = 'worker' WHERE target_type = 'miner'");
+      await client.query("UPDATE admin_audit_log SET action = replace(action, 'miner', 'worker') WHERE action LIKE '%miner%'");
+    }
+    console.log('✅ 1.0.0: miner → worker schema rename checked');
+
     // جدول کاربران
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -28,9 +80,9 @@ const migrate = async () => {
     `);
     console.log('✅ جدول users ایجاد شد');
     
-    // جدول ماینرها
+    // جدول ورکرها
     await client.query(`
-      CREATE TABLE IF NOT EXISTS miners (
+      CREATE TABLE IF NOT EXISTS workers (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id),
         wallet_address VARCHAR(42) NOT NULL,
@@ -47,17 +99,17 @@ const migrate = async () => {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log('✅ جدول miners ایجاد شد');
+    console.log('✅ جدول workers ایجاد شد');
     
     // جدول درخواست‌ها
     await client.query(`
       CREATE TABLE IF NOT EXISTS tasks (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id),
-        miner_id INTEGER REFERENCES miners(id),
+        worker_id INTEGER REFERENCES workers(id),
         prompt TEXT NOT NULL,
         response TEXT,
-        model VARCHAR(50) DEFAULT 'llama3:8b',
+        model VARCHAR(50) DEFAULT 'llama3.1:8b',
         tokens_used INTEGER DEFAULT 0,
         cost DECIMAL(20,8) DEFAULT 0,
         status VARCHAR(20) DEFAULT 'pending',
@@ -134,11 +186,11 @@ const migrate = async () => {
     // Indexes
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_miners_status ON miners(status)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_miners_wallet ON miners(wallet_address)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_workers_status ON workers(status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_workers_wallet ON workers(wallet_address)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_tasks_miner_id ON tasks(miner_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tasks_worker_id ON tasks(worker_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_staking_user ON staking(user_id, status)');
     console.log('✅ Indexes created');
@@ -162,7 +214,7 @@ const migrate = async () => {
     // Admin user
     await client.query(`
       DO $$ BEGIN
-        INSERT INTO users (email, name, role) VALUES ('admin@krelz.xyz', 'Admin', 'admin')
+        INSERT INTO users (email, name, role) VALUES ('admin@plankton.click', 'Admin', 'admin')
         ON CONFLICT (email) DO NOTHING;
       EXCEPTION WHEN OTHERS THEN null;
       END $$;
@@ -244,7 +296,7 @@ const migrate = async () => {
             END
           ) AS usd
           FROM user_coin_balances
-          WHERE coin <> 'USD' AND coin <> 'KRELZ'
+          WHERE coin <> 'USD' AND coin <> 'PLANKTON'
           GROUP BY user_id
         ) x
         WHERE u.user_id = x.user_id AND u.coin = 'USD'
@@ -260,25 +312,25 @@ const migrate = async () => {
     }
 
     
-    // Miner coin earnings
+    // Worker coin earnings
     await client.query(`
-      CREATE TABLE IF NOT EXISTS miner_coin_earnings (
+      CREATE TABLE IF NOT EXISTS worker_coin_earnings (
         id SERIAL PRIMARY KEY,
-        miner_id INTEGER REFERENCES miners(id),
+        worker_id INTEGER REFERENCES workers(id),
         coin VARCHAR(10) NOT NULL,
         amount DECIMAL(20,8) NOT NULL,
         task_id INTEGER REFERENCES tasks(id),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log('✅ جدول miner_coin_earnings ایجاد شد');
+    console.log('✅ جدول worker_coin_earnings ایجاد شد');
     
     // Multi-coin indexes
     await client.query('CREATE INDEX IF NOT EXISTS idx_coin_deposits_user ON coin_deposits(user_id, coin)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_coin_deposits_status ON coin_deposits(status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_coin_withdrawals_user ON coin_withdrawals(user_id, coin)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_coin_withdrawals_status ON coin_withdrawals(status)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_miner_coin_earnings_miner ON miner_coin_earnings(miner_id, coin)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_worker_coin_earnings_worker ON worker_coin_earnings(worker_id, coin)');
     console.log('✅ Multi-coin indexes created');
     
     // === Chat Sessions ===
@@ -328,16 +380,16 @@ const migrate = async () => {
       EXCEPTION WHEN duplicate_column THEN null;
       END $$;
     `);
-    // miners.app_version: what the miner advertised at auth. Media dispatch
-    // (images/audio) only targets miners >= 3.20.0 which understand the
+    // workers.app_version: what the worker advertised at auth. Media dispatch
+    // (images/audio) only targets workers >= 3.20.0 which understand the
     // `attachment` field on task messages.
     await client.query(`
       DO $$ BEGIN
-        ALTER TABLE miners ADD COLUMN IF NOT EXISTS app_version VARCHAR(32);
+        ALTER TABLE workers ADD COLUMN IF NOT EXISTS app_version VARCHAR(32);
       EXCEPTION WHEN duplicate_column THEN null;
       END $$;
     `);
-    console.log('✅ Column tasks.media + miners.app_version added');
+    console.log('✅ Column tasks.media + workers.app_version added');
     // tasks.history (v3.41.0): snapshot of the conversation window sent with
     // the dispatch ([{role, content}...], capped). NULL/empty = single prompt.
     await client.query(`
@@ -348,31 +400,31 @@ const migrate = async () => {
     `);
     console.log('✅ Column tasks.history added');
 
-    // === Miner history (v3.22.0) ===
-    // miners.last_seen: last time the miner actually talked to us (auth /
+    // === Worker history (v3.22.0) ===
+    // workers.last_seen: last time the worker actually talked to us (auth /
     // heartbeat / resource report). NOT updated_at — that also moves on
     // rename/soft-delete. The dashboard uses COALESCE(last_seen, created_at)
-    // to archive miners offline for > 10 days into the history section.
+    // to archive workers offline for > 10 days into the history section.
     await client.query(`
       DO $$ BEGIN
-        ALTER TABLE miners ADD COLUMN IF NOT EXISTS last_seen TIMESTAMP;
+        ALTER TABLE workers ADD COLUMN IF NOT EXISTS last_seen TIMESTAMP;
       EXCEPTION WHEN duplicate_column THEN null;
       END $$;
     `);
-    // miners.uninstalled_at: when the miner was removed (dashboard 🗑️ or the
-    // uninstall script calling POST /api/miners/unregister).
+    // workers.uninstalled_at: when the worker was removed (dashboard 🗑️ or the
+    // uninstall script calling POST /api/workers/unregister).
     await client.query(`
       DO $$ BEGIN
-        ALTER TABLE miners ADD COLUMN IF NOT EXISTS uninstalled_at TIMESTAMP;
+        ALTER TABLE workers ADD COLUMN IF NOT EXISTS uninstalled_at TIMESTAMP;
       EXCEPTION WHEN duplicate_column THEN null;
       END $$;
     `);
     // Backfill: existing rows have no last_seen — treat last known contact as
     // updated_at so the 10-day archive rule starts from real data.
     await client.query(
-      'UPDATE miners SET last_seen = updated_at WHERE last_seen IS NULL AND updated_at IS NOT NULL'
+      'UPDATE workers SET last_seen = updated_at WHERE last_seen IS NULL AND updated_at IS NOT NULL'
     );
-    console.log('✅ Columns miners.last_seen + miners.uninstalled_at added');
+    console.log('✅ Columns workers.last_seen + workers.uninstalled_at added');
 
     // === Daily Free Tokens ===
     // Legacy table (feature removed in v3.24.0), reactivated in v3.27.0 by
@@ -390,18 +442,18 @@ const migrate = async () => {
     await client.query('CREATE INDEX IF NOT EXISTS idx_daily_tokens_user ON daily_tokens(user_id)');
     console.log('✅ Daily tokens index created');
 
-    // === Miner free chat credit (v3.25.0) ===
-    // Signed-in users with an online/busy miner get a USD allowance per UTC
+    // === Worker free chat credit (v3.25.0) ===
+    // Signed-in users with an online/busy worker get a USD allowance per UTC
     // day. Spent only inside the chat payment txn: platform-funded, so it
-    // never debits the wallet and never credits a miner (no revenue share).
+    // never debits the wallet and never credits a worker (no revenue share).
     await client.query(`
-      CREATE TABLE IF NOT EXISTS miner_daily_credit (
+      CREATE TABLE IF NOT EXISTS worker_daily_credit (
         user_id INTEGER PRIMARY KEY REFERENCES users(id),
         usd_used_today DECIMAL(20,8) DEFAULT 0,
         last_reset_date DATE
       )
     `);
-    console.log('✅ جدول miner_daily_credit ایجاد شد');
+    console.log('✅ جدول worker_daily_credit ایجاد شد');
 
     // === Daily free allowance — guests (v3.27.0) ===
     // Guests have no users row, so their 2M/day free allowance is tracked by
@@ -479,30 +531,30 @@ const migrate = async () => {
     // them came from wallet-paid chats (the only paying leg before v3.28.0).
     await client.query(`
       DO $$ BEGIN
-        ALTER TABLE miner_coin_earnings ADD COLUMN IF NOT EXISTS source VARCHAR(16) NOT NULL DEFAULT 'wallet';
+        ALTER TABLE worker_coin_earnings ADD COLUMN IF NOT EXISTS source VARCHAR(16) NOT NULL DEFAULT 'wallet';
       EXCEPTION WHEN duplicate_column THEN null;
       END $$;
     `);
     await client.query(`
       DO $$ BEGIN
-        ALTER TABLE miner_coin_earnings ADD COLUMN IF NOT EXISTS plan_type VARCHAR(16) NOT NULL DEFAULT 'free';
+        ALTER TABLE worker_coin_earnings ADD COLUMN IF NOT EXISTS plan_type VARCHAR(16) NOT NULL DEFAULT 'free';
       EXCEPTION WHEN duplicate_column THEN null;
       END $$;
     `);
     await client.query(
-      "UPDATE miner_coin_earnings SET source = 'wallet', plan_type = 'free' WHERE source IS NULL OR plan_type IS NULL"
+      "UPDATE worker_coin_earnings SET source = 'wallet', plan_type = 'free' WHERE source IS NULL OR plan_type IS NULL"
     );
-    console.log('✅ ستون‌های source/plan_type به miner_coin_earnings اضافه شد');
+    console.log('✅ ستون‌های source/plan_type به worker_coin_earnings اضافه شد');
 
 
-    // === Miner Token + Password Reset ===
+    // === Worker Token + Password Reset ===
     await client.query(`
       DO $$ BEGIN
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS miner_token VARCHAR(128) UNIQUE;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS worker_token VARCHAR(128) UNIQUE;
       EXCEPTION WHEN duplicate_column THEN null;
       END $$;
     `);
-    console.log('✅ ستون miner_token اضافه شد');
+    console.log('✅ ستون worker_token اضافه شد');
 
     await client.query(`
       DO $$ BEGIN
@@ -526,8 +578,8 @@ const migrate = async () => {
     await client.query('CREATE INDEX IF NOT EXISTS idx_tasks_user_created ON tasks(user_id, created_at DESC)');
     console.log('✅ ایندکس‌های reset_token و tasks(user_id, created_at) ساخته شد');
 
-    await client.query('CREATE INDEX IF NOT EXISTS idx_users_miner_token ON users(miner_token)');
-    console.log('✅ Miner token index created');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_users_worker_token ON users(worker_token)');
+    console.log('✅ Worker token index created');
 
     // === H3: JWT invalidation version — bumping it kills every outstanding session ===
     await client.query(`
@@ -538,97 +590,97 @@ const migrate = async () => {
     `);
     console.log('✅ ستون token_version اضافه شد');
 
-    // === Miner Resource Usage Columns ===
+    // === Worker Resource Usage Columns ===
     await client.query(`
       DO $$ BEGIN
-        ALTER TABLE miners ADD COLUMN IF NOT EXISTS gpu_usage NUMERIC(5,2) DEFAULT 0;
+        ALTER TABLE workers ADD COLUMN IF NOT EXISTS gpu_usage NUMERIC(5,2) DEFAULT 0;
       EXCEPTION WHEN duplicate_column THEN null;
       END $$;
     `);
     await client.query(`
       DO $$ BEGIN
-        ALTER TABLE miners ADD COLUMN IF NOT EXISTS ram_usage NUMERIC(5,2) DEFAULT 0;
+        ALTER TABLE workers ADD COLUMN IF NOT EXISTS ram_usage NUMERIC(5,2) DEFAULT 0;
       EXCEPTION WHEN duplicate_column THEN null;
       END $$;
     `);
     await client.query(`
       DO $$ BEGIN
-        ALTER TABLE miners ADD COLUMN IF NOT EXISTS cpu_usage NUMERIC(5,2) DEFAULT 0;
+        ALTER TABLE workers ADD COLUMN IF NOT EXISTS cpu_usage NUMERIC(5,2) DEFAULT 0;
       EXCEPTION WHEN duplicate_column THEN null;
       END $$;
     `);
     await client.query(`
       DO $$ BEGIN
-        ALTER TABLE miners ADD COLUMN IF NOT EXISTS disk_usage NUMERIC(5,2) DEFAULT 0;
+        ALTER TABLE workers ADD COLUMN IF NOT EXISTS disk_usage NUMERIC(5,2) DEFAULT 0;
       EXCEPTION WHEN duplicate_column THEN null;
       END $$;
     `);
     console.log('✅ Resource usage columns added');
 
-    // === Multi-Miner Support (v3.12.0): machine_id + name ===
-    // Allows unlimited miners per user (one row per machine).
+    // === Multi-Worker Support (v3.12.0): machine_id + name ===
+    // Allows unlimited workers per user (one row per machine).
     await client.query(`
       DO $$ BEGIN
-        ALTER TABLE miners ADD COLUMN IF NOT EXISTS machine_id VARCHAR(64);
+        ALTER TABLE workers ADD COLUMN IF NOT EXISTS machine_id VARCHAR(64);
       EXCEPTION WHEN duplicate_column THEN null;
       END $$;
     `);
     await client.query(`
       DO $$ BEGIN
-        ALTER TABLE miners ADD COLUMN IF NOT EXISTS name VARCHAR(100);
+        ALTER TABLE workers ADD COLUMN IF NOT EXISTS name VARCHAR(100);
       EXCEPTION WHEN duplicate_column THEN null;
       END $$;
     `);
-    // Backfill existing miners (no machine_id yet) with a stable generated id
+    // Backfill existing workers (no machine_id yet) with a stable generated id
     await client.query(`
-      UPDATE miners
+      UPDATE workers
       SET machine_id = 'm_' || md5(random()::text || id::text)
       WHERE machine_id IS NULL
     `);
     await client.query(`
       DO $$ BEGIN
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_miners_user_machine ON miners(user_id, machine_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_workers_user_machine ON workers(user_id, machine_id);
       EXCEPTION WHEN duplicate_table THEN null;
       END $$;
     `);
-    await client.query('CREATE INDEX IF NOT EXISTS idx_miners_machine ON miners(machine_id)');
-    console.log('✅ Multi-miner columns added (machine_id, name)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_workers_machine ON workers(machine_id)');
+    console.log('✅ Multi-worker columns added (machine_id, name)');
 
-    // === Per-Miner Unique Tokens (v3.13.0): one token per miner row ===
-    // Each server-miner gets its own token; token IS the miner identity.
+    // === Per-Worker Unique Tokens (v3.13.0): one token per worker row ===
+    // Each server-worker gets its own token; token IS the worker identity.
     await client.query(`
       DO $$ BEGIN
-        ALTER TABLE miners ADD COLUMN IF NOT EXISTS miner_token VARCHAR(128);
+        ALTER TABLE workers ADD COLUMN IF NOT EXISTS worker_token VARCHAR(128);
       EXCEPTION WHEN duplicate_column THEN null;
       END $$;
     `);
     // Backfill existing rows (no extension needed: md5 yields 32 hex chars)
     await client.query(`
-      UPDATE miners
-      SET miner_token = 'kz_' || md5(random()::text || id::text || clock_timestamp()::text)
-      WHERE miner_token IS NULL
+      UPDATE workers
+      SET worker_token = 'pw_' || md5(random()::text || id::text || clock_timestamp()::text)
+      WHERE worker_token IS NULL
     `);
     await client.query(`
       DO $$ BEGIN
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_miners_token ON miners(miner_token);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_workers_token ON workers(worker_token);
       EXCEPTION WHEN duplicate_table THEN null;
       END $$;
     `);
-    console.log('✅ Per-miner token column added (miner_token)');
+    console.log('✅ Per-worker token column added (worker_token)');
 
     // === Single-use token display (v3.14.0): hide token after first connect ===
     // token_used_at is set on first successful /setup or WS auth.
-    // GET /api/miners/mine hides miner_token when this is set;
-    // PUT /api/miners/mine/:id/token rotates the token and clears it.
+    // GET /api/workers/mine hides worker_token when this is set;
+    // PUT /api/workers/mine/:id/token rotates the token and clears it.
     await client.query(`
       DO $$ BEGIN
-        ALTER TABLE miners ADD COLUMN IF NOT EXISTS token_used_at TIMESTAMP;
+        ALTER TABLE workers ADD COLUMN IF NOT EXISTS token_used_at TIMESTAMP;
       EXCEPTION WHEN duplicate_column THEN null;
       END $$;
     `);
-    // Existing miners that have connected (gpu info present) are considered used
+    // Existing workers that have connected (gpu info present) are considered used
     await client.query(`
-      UPDATE miners SET token_used_at = COALESCE(token_used_at, updated_at)
+      UPDATE workers SET token_used_at = COALESCE(token_used_at, updated_at)
       WHERE token_used_at IS NULL AND gpu_model IS NOT NULL
     `);
     console.log('✅ Single-use token column added (token_used_at)');
@@ -677,7 +729,7 @@ const migrate = async () => {
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket ON ticket_messages(ticket_id, id)');
     console.log('✅ جدول ticket_messages ایجاد شد');
 
-    // ---- v3.39.0: audit trail for every admin mutation (money/role/ban/miner) ----
+    // ---- v3.39.0: audit trail for every admin mutation (money/role/ban/worker) ----
     await client.query(`
       CREATE TABLE IF NOT EXISTS admin_audit_log (
         id SERIAL PRIMARY KEY,
@@ -693,7 +745,7 @@ const migrate = async () => {
     await client.query('CREATE INDEX IF NOT EXISTS idx_admin_audit_created ON admin_audit_log(created_at DESC)');
     console.log('✅ جدول admin_audit_log ایجاد شد');
 
-    // ---- v3.39.0: account ban — orthogonal to role (a banned miner keeps role) ----
+    // ---- v3.39.0: account ban — orthogonal to role (a banned worker keeps role) ----
     await client.query(`
       DO $$ BEGIN
         ALTER TABLE users ADD COLUMN IF NOT EXISTS banned BOOLEAN NOT NULL DEFAULT false;
@@ -746,7 +798,7 @@ const migrate = async () => {
     );
     // Billing reconciliation (v3.45.0): chat/v1 mark a task 'pending' when it
     // was served but settleMessage threw (nothing charged — it is one
-    // rolled-back transaction). The maintenance worker retries; after
+    // rolled-back transaction). The maintenance job retries; after
     // billing_attempts >= 3 the row parks as 'unreconciled' for ops.
     await client.query(`
       DO $$ BEGIN

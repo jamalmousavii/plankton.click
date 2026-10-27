@@ -1,0 +1,35 @@
+[Unit]
+Description=Plankton Network Worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/plankton/worker-app
+ExecStart=/usr/bin/node src/cli.js
+Restart=always
+RestartSec=10
+TimeoutStopSec=30
+Environment=NODE_ENV=production
+Environment=API_WS_URL=ws://127.0.0.1:8444/ws
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=plankton-worker
+
+# Pre-filled instance of worker-app/plankton-worker.service (M10: one templated
+# unit — the placeholders above are filled for the server box, which talks to
+# the local backend over the loopback WS port instead of the public endpoint).
+# Hardening must stay identical to the template.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

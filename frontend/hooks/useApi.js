@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 //    response can never clobber a newer tab's data or set state after
 //    unmount (the race the leaderboard fetches used to have);
 //  - AbortError is swallowed: it is our own cancellation, not a failure;
-//  - non-2xx and body.success === false both surface as `error` (all krelz
+//  - non-2xx and body.success === false both surface as `error` (all plankton
 //    APIs use the success flag).
 // fetchOptions is read through a ref, so passing a fresh object literal each
 // render does not retrigger the request — declare what should refetch in deps.

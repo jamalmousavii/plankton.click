@@ -3,7 +3,7 @@
 // Free: every subject (signed-in user or guest, tracked by IP) gets a daily
 // token allowance. Paid plans raise that allowance for 30 days; token bundles
 // are a non-expiring prepaid token pot. Marginal serving cost is ~0 (our own
-// Ollama + miner network), so pricing follows market value, not token cost.
+// Ollama + worker network), so pricing follows market value, not token cost.
 const pool = require('../database/pool');
 const MODELS = require('../models');
 
@@ -14,7 +14,7 @@ const DEFAULT_MODEL_ID = 'llama3.1:8b';
 // (0.158/0.176/0.188) for the same case.
 const DEFAULT_OUTPUT_PRICE = 0.158; // fallback if the catalog loses the default model
 // Hard per-task output-token bound (H1). tokens_used drives both the user
-// charge and the miner share, so an inflated or NaN report must fail the
+// charge and the worker share, so an inflated or NaN report must fail the
 // task — never be clamped into a charge. Shared by routes/chat.js,
 // routes/v1.js and the WS task-result handler (v3.45.0).
 const MAX_TASK_TOKENS = 65536;
@@ -35,10 +35,10 @@ const TOKEN_BUNDLE = {
   max_usd: 500,
 };
 
-// Flat miner share on every paid leg (wallet debit and token-pot spend).
-// Free legs (daily allowance, $1 miner credit) are platform-funded and pay
-// miners nothing — unchanged since v3.25.0/v3.27.0.
-const MINER_REVENUE_SHARE = 0.9;
+// Flat worker share on every paid leg (wallet debit and token-pot spend).
+// Free legs (daily allowance, $1 worker credit) are platform-funded and pay
+// workers nothing — unchanged since v3.25.0/v3.27.0.
+const WORKER_REVENUE_SHARE = 0.9;
 
 // Single source of truth for output pricing (v3.45.0): chat, the v1 agent
 // API and the WS result handler all resolve through here.
@@ -123,7 +123,7 @@ module.exports = {
   FREE_DAILY_TOKENS,
   PLANS,
   TOKEN_BUNDLE,
-  MINER_REVENUE_SHARE,
+  WORKER_REVENUE_SHARE,
   MAX_TASK_TOKENS,
   modelOutputPrice,
   listPlans,
