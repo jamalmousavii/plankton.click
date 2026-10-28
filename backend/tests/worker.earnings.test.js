@@ -56,8 +56,11 @@ describe('GET /api/workers/mine/:id/earnings', () => {
       ownerId: 7,
       earningRows: [
         { source: 'tokens', plan_type: 'free', amount: '1.00' },
+        // A Pro subscriber paying from the wallet is still a wallet earning;
+        // only source 'plan' (subscription revenue share) lands in Pro.
         { source: 'wallet', plan_type: 'pro', amount: '2.00' },
         { source: 'wallet', plan_type: 'free', amount: '0.50' },
+        { source: 'plan', plan_type: 'pro', amount: '0.75' },
       ],
     });
     const res = await request(app)
@@ -67,7 +70,7 @@ describe('GET /api/workers/mine/:id/earnings', () => {
     expect(res.body.worker).toMatchObject({ id: 9, name: 'h1', status: 'removed', total_tasks: 12 });
     expect(res.body.worker).not.toHaveProperty('user_id');
     expect(res.body.worker).not.toHaveProperty('worker_token');
-    expect(res.body.breakdown).toEqual({ tokens: 1, wallet: 0.5, plus: 0, pro: 2, max: 0 });
+    expect(res.body.breakdown).toEqual({ tokens: 1, wallet: 2.5, plus: 0, pro: 0.75, max: 0 });
   });
 
   it('404s someone else\u2019s worker (existence-hiding)', async () => {

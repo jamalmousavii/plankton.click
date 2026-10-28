@@ -188,7 +188,7 @@ const en = {
     viewGuide: 'Full guide on GitHub',
     earningsTitle: 'Your Earnings',
     earningsShare: 'You keep 90% of every paid message your worker serves.',
-    earningsDesc: 'Paid messages come from the user\'s wallet or token bundle; free messages pay nothing. What you earn per source depends on the payer\'s plan.',
+    earningsDesc: 'Wallet and token-bundle messages pay you 90% of their price. Plus/Pro/Max subscribers pay you 90% of their plan\'s daily price per token you serve (Plus: $2.99 ÷ 30 days ÷ 10M tokens). Free-tier messages pay nothing.',
     earningsSourceHint: 'Your share: 90%',
     earningsNoWorker: 'Add a worker to start earning and see your real numbers here.',
     showDetails: 'Details',

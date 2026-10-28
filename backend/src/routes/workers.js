@@ -517,7 +517,9 @@ router.get('/mine/:id/earnings', authenticate, async (req, res) => {
       if (r.source === 'tokens') {
         breakdown.tokens += amount;
       } else {
-        const key = ['plus', 'pro', 'max'].includes(r.plan_type) ? r.plan_type : 'wallet';
+        // Plus/Pro/Max = subscription revenue shared per token (source 'plan');
+        // wallet = pay-as-you-go, whatever tier the payer happened to be on.
+        const key = r.source === 'plan' && ['plus', 'pro', 'max'].includes(r.plan_type) ? r.plan_type : 'wallet';
         breakdown[key] += amount;
       }
     }

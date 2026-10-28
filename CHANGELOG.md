@@ -16,6 +16,13 @@ All notable changes to Plankton are documented here. The project follows
   every worker automatically and cannot be removed from the manager menu.
 
 ### Changed
+- **Workers now earn from subscriptions.** Previously a plan's price went
+  entirely to the platform and plan-covered messages paid workers nothing.
+  Now every token a worker serves to a Plus/Pro/Max subscriber earns 90% of
+  `price ÷ 30 ÷ daily cap` (Plus: $0.00897 per 1M tokens), credited per
+  message with source `plan` (`payment_status: "plan"`). Free tier still pays
+  nothing. The Plus/Pro/Max earnings buckets now mean subscription revenue;
+  wallet payments count as Wallet whatever the payer's tier.
 - **New, market-beating pricing.** Every model is now priced at or below the
   cheapest public hosted rate (DeepInfra / OpenRouter / Groq, Oct 2026) and
   scales with model size — e.g. `llama3.1:8b` $0.015 / $0.025 per 1M

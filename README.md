@@ -201,7 +201,7 @@ Chat is billed on output tokens; embeddings on input tokens.
 ## Payments, Free Allowance & Plans
 
 Every message settles in one row-locked transaction, in order:
-1. **Daily free allowance** — **2,000,000 tokens per UTC day** for every subject (signed-in users by account, guests by IP); plan tiers raise the cap (up to 80M/day on Max); `payment_status: "free"`, platform-funded
+1. **Daily allowance** — **2,000,000 tokens per UTC day** for every subject (signed-in users by account, guests by IP); Plus/Pro/Max raise the cap to 10M/30M/80M. Free tier: `payment_status: "free"`, pays workers nothing. Paid plan: `payment_status: "plan"`, the serving worker earns its per-token share of the plan (below)
 2. **Worker credit** — with a worker `online`/`busy`, the first **$1.00 per UTC day** is free (`payment_status: "free_worker"`); the worker earns nothing from these chats
 3. **Token bundle pot** — prepaid tokens ($1 = 40M default-model tokens, never expires) drain all-or-nothing per message (`payment_status: "tokens"`); the worker earns 90% of the message's catalog value, paid from bundle revenue
 4. **USD wallet** (deposits via NowPayments) — a worker serving a **paid** reply earns a flat **90%** of the cost, whatever plan the payer is on
@@ -213,7 +213,7 @@ Every message settles in one row-locked transaction, in order:
 
 | Tier | Price | Tokens/day | Catalog value/day* |
 |------|-------|-----------:|-------------------:|
-| Free | $0 | 2,000,000 | ≈ $0.32 |
+| Free | $0 | 2,000,000 | ≈ $0.05 |
 | ⭐ Plus | $2.99/mo | 10,000,000 | ≈ $0.25 |
 | 🚀 Pro | $5.99/mo | 30,000,000 | ≈ $0.75 |
 | 👑 Max | $11.99/mo | 80,000,000 | ≈ $2.00 |
@@ -222,7 +222,23 @@ Every message settles in one row-locked transaction, in order:
 
 **Token bundles** — whole dollars **$1–$500 → 40M tokens per $1** (a pot token = one `llama3.1:8b` output token; pricier models drain proportionally more, so $1 of pot is worth exactly $1 of usage), one-time payment, **never expires**, settled between the daily allowance and the wallet.
 
-**Worker earnings breakdown** — every earning row records its source and the payer's plan; the profile shows 5 buckets: 🎟️ Tokens / 👛 Wallet / ⭐ Plus / 🚀 Pro / 👑 Max (free legs pay workers nothing).
+**How plan money reaches workers (per token, transparent)** — a plan's daily
+price (`price ÷ 30`) buys its daily token cap, so every plan-covered token is
+worth `price ÷ 30 ÷ daily tokens`, and the worker that served it earns **90%**
+of that, credited on the message itself. Unused allowance stays with the
+platform, so total payouts can never exceed what the subscription brought in.
+
+| Tier | Daily price | Daily cap | Worker earns per 1M tokens served |
+|------|------------:|----------:|----------------------------------:|
+| ⭐ Plus | $0.0997 | 10M | $0.00897 |
+| 🚀 Pro | $0.1997 | 30M | $0.00599 |
+| 👑 Max | $0.3997 | 80M | $0.00450 |
+
+Example: a Plus subscriber uses 1M tokens in a day and one worker served all of
+it → that worker earns 10% of the day's $0.0997 × 90% = **$0.00897**. Rates are
+also published as `worker_usd_per_million` in `GET /api/plans`.
+
+**Worker earnings breakdown** — 5 buckets on the profile and `/workers`: 🎟️ Tokens / 👛 Wallet (pay-as-you-go, whatever tier the payer is on) / ⭐ Plus / 🚀 Pro / 👑 Max (subscription revenue share, source `plan`). Free-tier messages pay workers nothing.
 
 **Organization plans** — a company/leader shares their plan cap as one bucket: admin creates the org, the leader adds registered users by email, everyone drains the shared allowance with per-member usage reporting on `/org`. No member cap; one active org per user.
 

@@ -248,6 +248,16 @@ Models defined in `backend/src/models.js` with per-model pricing:
 
 ## Daily Free Allowance & Plans
 
+**Plan revenue share (`services/plans.js` → `planWorkerEarning`).** A
+message covered by a paid plan's allowance (the bucket owner's tier — the org
+leader's for org members) credits the serving worker
+`tokens × price ÷ interval_days ÷ daily_tokens × WORKER_REVENUE_SHARE`
+inside the same settlement transaction (`worker_coin_earnings.source =
+'plan'`, `plan_type` = the funding tier; `payment_status: "plan"`). The
+allowance is all-or-nothing per message, so a day's payouts are bounded by
+`price ÷ 30 × 0.9`. Free-tier allowance pays nothing. Tested in
+`tests/plan.share.test.js`.
+
 Every subject gets a **2,000,000-token free allowance per UTC day** —
 signed-in users in `daily_tokens` (keyed by `user_id`), guests in
 `daily_tokens_guest` (keyed by `req.ip`; `trust proxy` is set in

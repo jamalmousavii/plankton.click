@@ -2,7 +2,7 @@ const pool = require('../database/pool');
 const { chargeFreeTokens } = require('./freeAllowance');
 const { chargeWorkerCredit } = require('./workerCredit');
 const { chargeTokenPot } = require('./tokenBundles');
-const { getActivePlan, WORKER_REVENUE_SHARE, potTokensFor } = require('./plans');
+const { getActivePlan, WORKER_REVENUE_SHARE, potTokensFor, PLANS, planWorkerEarning } = require('./plans');
 const { invalidateCache } = require('../cache');
 const { logger } = require('../logger');
 
@@ -28,8 +28,10 @@ async function settleMessage({ userId, guestKey, tokensUsed, cost, workerId, ser
   let freeLow = false;
   let freeExhausted = false;
 
-  const creditWorkerEarning = async (client, earning, source) => {
-    const payerPlan = await getActivePlan(userId, client);
+  // planType: the tier that funded a 'plan' earning; other sources record
+  // the payer's own active tier (or 'free').
+  const creditWorkerEarning = async (client, earning, source, planType = null) => {
+    const payerPlan = planType ? { plan_type: planType } : await getActivePlan(userId, client);
     await client.query(
       'UPDATE workers SET earnings = earnings + $1 WHERE id = $2',
       [earning, workerId]
@@ -53,6 +55,17 @@ async function settleMessage({ userId, guestKey, tokensUsed, cost, workerId, ser
 
         if (freeCharge.charged) {
           paymentStatus = 'free';
+          // Covered by a PAID plan (the bucket owner's tier — the org leader's
+          // for org members): the serving worker earns its per-token share of
+          // that plan's daily price. The Free tier pays workers nothing.
+          const bucketPlan = bucket ? await getActivePlan(bucket, client) : null;
+          if (bucketPlan && PLANS[bucketPlan.plan_type]) {
+            paymentStatus = 'plan';
+            if (workerId && servedByWorker) {
+              const earning = planWorkerEarning(bucketPlan.plan_type, tokensUsed);
+              if (earning > 0) await creditWorkerEarning(client, earning, 'plan', bucketPlan.plan_type);
+            }
+          }
           if (freeRemaining <= 0) {
             freeExhausted = true;
           } else if (freeCap > 0 && freeRemaining <= freeCap * 0.1) {

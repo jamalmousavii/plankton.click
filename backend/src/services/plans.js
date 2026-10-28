@@ -88,6 +88,8 @@ function listPlans() {
     daily_tokens: p.daily_tokens,
     interval_days: p.interval_days,
     ...tokenValueUsd(p.daily_tokens, price),
+    // What a worker earns per 1M tokens it serves to this tier's subscribers.
+    worker_usd_per_million: Math.round(planTokenRate(p.name) * 1e6 * WORKER_REVENUE_SHARE * 1e8) / 1e8,
   }));
 }
 
@@ -95,6 +97,21 @@ function listPlans() {
 // output tokens (>= 1 for any non-free message).
 function potTokensFor(costUsd) {
   return Math.max(1, Math.ceil((costUsd * 1e6) / modelOutputPrice(DEFAULT_MODEL_ID) - 1e-9));
+}
+
+// Plan revenue share (per token, fully transparent): a tier's daily price
+// (price / interval_days) buys its daily token cap, so every plan-covered
+// token is worth price / interval_days / daily_tokens. The worker that served
+// it earns WORKER_REVENUE_SHARE of that. Unused allowance stays with the
+// platform, so payouts can never exceed what the subscription brought in.
+//   Plus: 2.99 / 30 / 10M = $0.00997 per 1M tokens → worker $0.00897 per 1M
+function planTokenRate(tier) {
+  const p = PLANS[tier];
+  return p ? p.price / p.interval_days / p.daily_tokens : 0;
+}
+
+function planWorkerEarning(tier, tokens) {
+  return Math.max(0, Number(tokens) || 0) * planTokenRate(tier) * WORKER_REVENUE_SHARE;
 }
 
 function quoteTokens(amountUsd) {
@@ -149,6 +166,8 @@ module.exports = {
   modelOutputPrice,
   modelInputPrice,
   potTokensFor,
+  planTokenRate,
+  planWorkerEarning,
   listPlans,
   quoteTokens,
   tokenValueUsd,
