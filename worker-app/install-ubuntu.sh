@@ -618,7 +618,7 @@ echo -e "  ${GREEN}✓ RAM: ${RAM_SIZE}${NC}"
 
 CPU_MODEL=$(lscpu | grep 'Model name' | sed 's/Model name:\s*//' | head -1)
 if [ -z "$CPU_MODEL" ]; then
-  CPU_MODEL=$(cat /proc/cpuinfo | grep 'model name' | head -1 | sed 's/.*:\s*//')
+  CPU_MODEL=$(grep 'model name' /proc/cpuinfo | head -1 | sed 's/.*:\s*//')
 fi
 [ -z "$CPU_MODEL" ] && CPU_MODEL="Unknown"
 echo -e "  ${GREEN}✓ CPU: ${CPU_MODEL}${NC}"
