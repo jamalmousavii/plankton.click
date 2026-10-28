@@ -48,6 +48,8 @@ Workers are paid a flat **90%** of every paid message they serve.
 - **Payments** — USD wallet via NowPayments (BTC, ETH, BNB, USDT, TRX, DOGE, XRP), USDT-TRC20 withdrawals, daily free allowance, Plus/Pro/Max plans, never-expiring token bundles, organization plans with a shared bucket.
 - **Worker free credit** — an online worker earns its owner $1/day of free chat.
 - **Coder API** — OpenAI-compatible `/v1` for coding agents (opencode, Continue, Aider…).
+- **Embeddings** — `POST /v1/embeddings` (OpenAI shape, `bge-m3` / `embeddinggemma` / `nomic-embed-text`), billed on input tokens; every worker installs `bge-m3` automatically.
+- **Chat over large files (RAG)** — a big attached file is split into excerpts, embedded with `bge-m3`, and only the passages most relevant to the question reach the chat model.
 - **Support tickets + full admin panel** (users, workers, tasks, tickets, payments, purchases, orgs) with an audit log.
 - **33 languages** with browser detection and RTL for FA/AR/HE/UR.
 - **Modern UI** — ocean-ink + bioluminescent palette, animated hero, mobile-first chat frame (keyboard-safe on iOS/Android, safe-area aware).
@@ -87,7 +89,8 @@ powershell -ExecutionPolicy Bypass -File .\install-windows.ps1
 The install script automatically sets up:
 - Node.js 20
 - Ollama
-- Selected AI models (16 available)
+- Selected AI models (13 chat/code/vision models to pick from)
+- `bge-m3` (1.2 GB), always installed — it serves embeddings
 - Plankton Worker (CLI mode, systemd service)
 
 > **Token prompt:** when the installer asks for your worker token, the input is
@@ -157,6 +160,18 @@ use the two coder models on your balance:
 ```
 
 `GET /v1/models` · `POST /v1/chat/completions` (non-streaming; `stream`/`tools` → honest `400`, phase 2). Full reference: `docs/api.md`.
+
+### Embeddings
+
+```bash
+curl https://plankton.click/v1/embeddings \
+  -H "Authorization: Bearer sk_..." -H "Content-Type: application/json" \
+  -d '{"model":"bge-m3","input":["first text","second text"]}'
+```
+
+Up to 64 inputs (8,192 chars each, 200,000 total) per request. Priced on input
+tokens at the model's catalog input price; same ownership gate (`402`) as chat
+completions. Embedding models are not offered in the chat UI.
 
 ## AI Models & Pricing
 

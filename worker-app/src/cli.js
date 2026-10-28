@@ -39,7 +39,8 @@ const ws = new WorkerWebSocket(
     }
     const result = await ollama.generate(prompt, model);
     return result;
-  }
+  },
+  (model, inputs) => ollama.embed(model, inputs)
 );
 
 // Installed models (config.csv `models`) verified against `ollama list` —

@@ -47,6 +47,14 @@ function modelOutputPrice(modelId) {
   return m ? m.outputPrice : DEFAULT_OUTPUT_PRICE;
 }
 
+// Embedding requests have no output text: they are priced on their INPUT
+// tokens at the model's catalog input price (same fallback rule).
+const DEFAULT_INPUT_PRICE = 0.079;
+function modelInputPrice(modelId) {
+  const m = MODELS.find((x) => x.id === modelId);
+  return m ? m.inputPrice : DEFAULT_INPUT_PRICE;
+}
+
 // What a day's allowance is worth at the default model's catalog output
 // price — used to show "N tokens/day (≈ $X/day, $Y/month worth)".
 function outputPrice() {
@@ -126,6 +134,7 @@ module.exports = {
   WORKER_REVENUE_SHARE,
   MAX_TASK_TOKENS,
   modelOutputPrice,
+  modelInputPrice,
   listPlans,
   quoteTokens,
   tokenValueUsd,

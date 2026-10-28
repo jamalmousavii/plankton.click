@@ -24,6 +24,7 @@ const { getTokenBalance } = require('../services/tokenBundles');
 const { settleMessage, WORKER_REVENUE_SHARE } = require('../services/billing');
 const { resolveCap } = require('../services/org');
 const { withTransaction } = require('../database/tx');
+const { embed, cosine, DEFAULT_EMBED_MODEL } = require('../services/embeddings');
 
 // Single source of truth for the default model (was split between
 // 'llama3:8b' — which exists in no catalog — and 'llama3.1:8b').
@@ -40,6 +41,49 @@ const DEFAULT_MODEL = 'llama3.1:8b';
 const HISTORY_TURNS = 10;
 const HISTORY_TOKENS = 6000;
 const HISTORY_HARD_TOKENS = 16000;
+
+// RAG over large attached files: past RAG_MIN_CHARS the file is chunked,
+// embedded together with the question on a worker (bge-m3), and only the
+// RAG_TOP_K most relevant chunks are sent to the chat model. Bounds keep one
+// request within the embeddings service limits (64 inputs, 200k chars).
+const RAG_MIN_CHARS = 12000;
+const RAG_CHUNK = 1800;
+const RAG_STEP = 1600;
+const RAG_MAX_CHUNKS = 63;
+const RAG_TOP_K = 6;
+
+function chunkText(text) {
+  const chunks = [];
+  for (let i = 0; i < text.length && chunks.length < RAG_MAX_CHUNKS; i += RAG_STEP) {
+    const piece = text.slice(i, i + RAG_CHUNK);
+    if (piece.trim()) chunks.push({ index: chunks.length, text: piece });
+  }
+  return chunks;
+}
+
+// Returns the prompt with the file replaced by its most relevant excerpts,
+// or null when RAG does not apply / fails (caller keeps the full text).
+async function ragPrompt({ wsServer, userId, guestKey, fileName, fileText, question }) {
+  if (!fileText || fileText.length < RAG_MIN_CHARS || !question.trim()) return null;
+  const chunks = chunkText(fileText);
+  try {
+    const out = await embed({
+      wsServer, userId, guestKey, model: DEFAULT_EMBED_MODEL,
+      input: [question.slice(0, 8000), ...chunks.map((c) => c.text)],
+    });
+    const [q, ...vectors] = out.embeddings;
+    const best = chunks
+      .map((c, i) => ({ ...c, score: cosine(q, vectors[i]) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, RAG_TOP_K)
+      .sort((a, b) => a.index - b.index); // keep document order for the model
+    const excerpts = best.map((c) => `[Excerpt ${c.index + 1}/${chunks.length}]\n${c.text}`).join('\n…\n');
+    return `[File: ${fileName} — the ${best.length} most relevant of ${chunks.length} excerpts]\n${excerpts}\n---\n\n${question}`;
+  } catch (err) {
+    logger.warn({ err: err.message }, 'RAG embedding failed — sending the full file text instead');
+    return null;
+  }
+}
 
 async function buildHistory(sessionId) {
   if (!sessionId) return { history: [], truncated: false, tokens: 0 };
@@ -72,7 +116,7 @@ function buildAlternatives(requestedModel, counts) {
   const requested = MODELS.find(m => m.id === requestedModel);
   const reqCat = requested ? requested.category : null;
   return MODELS
-    .filter(m => (counts[m.id] || 0) > 0 && m.id !== requestedModel)
+    .filter(m => (counts[m.id] || 0) > 0 && m.id !== requestedModel && m.category !== 'embedding')
     .map(m => ({
       id: m.id, name: m.name, size: m.size, ram: m.ram,
       category: m.category, vision: m.vision, audio: m.audio,
@@ -256,6 +300,14 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
     // must never be silently dropped.
     const requestedModel = model || DEFAULT_MODEL;
     const caps = MODELS.find(m => m.id === requestedModel);
+    // Embedding models produce vectors, not replies: they are served through
+    // /v1/embeddings and chat RAG, never as a chat partner.
+    if (caps && caps.category === 'embedding') {
+      return res.status(400).json({
+        error: `${requestedModel} is an embedding model and cannot chat. Pick a chat model.`,
+        code: 'MODEL_NOT_CHAT',
+      });
+    }
     if (attachment && attachment.type === 'image' && !(caps && caps.vision)) {
       return res.status(400).json({
         error: `Model ${requestedModel} cannot read images. Pick a vision-capable model or remove the image.`,
@@ -275,9 +327,11 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
     let effectiveMessage = message;
     let media = null;
     let dbAttachment = null;
+    let fileText = null;
+    let fileName = null;
     if (attachment) {
       try {
-        ({ effectiveMessage, media, dbAttachment } = await prepareAttachment(attachment, message));
+        ({ effectiveMessage, media, dbAttachment, fileText, fileName } = await prepareAttachment(attachment, message));
       } catch (err) {
         if (err instanceof AttachmentError) {
           return res.status(400).json({ error: err.message, code: err.code });
@@ -346,6 +400,16 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
           signed_in: !!userId,
         });
       }
+    }
+
+    // Large file + a real question: retrieve the relevant excerpts instead of
+    // shipping (and truncating) the whole document. Runs after the coverage
+    // wall so an uncovered subject is never charged for the embedding.
+    if (fileText) {
+      const rag = await ragPrompt({
+        wsServer: req.app.get('wsServer'), userId, guestKey, fileName, fileText, question: message,
+      });
+      if (rag) effectiveMessage = rag;
     }
 
     // Resolve or create session
@@ -649,5 +713,7 @@ router.WORKER_REVENUE_SHARE = WORKER_REVENUE_SHARE;
 // way stats.js exposes its aggregate reset.
 router.__sanitizeWorkerDetail = sanitizeWorkerDetail;
 router.__buildAlternatives = buildAlternatives;
+router.__chunkText = chunkText;
+router.__ragPrompt = ragPrompt;
 
 module.exports = router;

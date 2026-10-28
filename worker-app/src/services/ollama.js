@@ -135,6 +135,18 @@ class OllamaService {
     }
   }
 
+  // Vector embeddings for a batch of inputs (POST /api/embed). Returns
+  // { embeddings: number[][], prompt_eval_count }. Bounded below the
+  // server's 120s embed dispatch timeout.
+  async embed(model, inputs) {
+    const response = await axios.post(`${this.url}/api/embed`, {
+      model,
+      input: inputs,
+      truncate: true,
+    }, { timeout: 110000 });
+    return response.data;
+  }
+
   async getStatus() {
     try {
       const response = await axios.get(`${this.url}/api/tags`, { timeout: 5000 });

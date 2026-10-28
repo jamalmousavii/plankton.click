@@ -5,13 +5,17 @@ const { deriveKey, encrypt, decrypt, isEncrypted } = require('./e2e');
 // pw_ tokens (1.0.0+) and legacy kz_ tokens both carry an e2e-capable identity.
 const isWorkerToken = (t) => typeof t === 'string' && /^(pw|kz)_/.test(t);
 // Capability protocol advertised at auth (server: FULL_PROTOCOL in ws.js).
-// 2 = understands `attachment` + `history` on task messages.
-const PROTOCOL = 2;
+// 2 = understands `attachment` + `history` on task messages;
+// 3 = also answers `embed` messages (only when an embed handler is wired).
+const PROTOCOL_CHAT = 2;
+const PROTOCOL_EMBED = 3;
 
 class WorkerWebSocket {
-  constructor(walletAddress, onTask) {
+  constructor(walletAddress, onTask, onEmbed = null) {
     this.walletAddress = walletAddress;
     this.onTask = onTask;
+    // (model, inputs) => { embeddings, prompt_eval_count }
+    this.onEmbed = onEmbed;
     this.lastReauthAt = 0;
     this.ws = null;
     this.workerId = null;
@@ -118,7 +122,7 @@ class WorkerWebSocket {
     // the server only routes media tasks (images/voice notes) to
     // workers that advertise a version new enough to handle `attachment`.
     authMsg.app_version = require('../../package.json').version;
-    authMsg.protocol = PROTOCOL;
+    authMsg.protocol = this.onEmbed ? PROTOCOL_EMBED : PROTOCOL_CHAT;
     // advertise every installed model for multi-model routing.
     if (this.installedModels.length > 0) authMsg.models = this.installedModels;
     if (isWorkerToken(this.walletAddress)) {
@@ -169,6 +173,10 @@ class WorkerWebSocket {
 
       case 'task':
         this.handleTask(msg);
+        break;
+
+      case 'embed':
+        this.handleEmbed(msg);
         break;
 
       case 'error':
@@ -260,6 +268,38 @@ class WorkerWebSocket {
         task_id,
         error: err.message
       });
+    }
+  }
+
+  async handleEmbed(msg) {
+    const { task_id, model } = msg;
+    try {
+      if (!this.onEmbed) throw new Error('Embeddings not supported by this worker');
+      let inputs = msg.input;
+      if (isEncrypted(inputs)) {
+        if (!isWorkerToken(this.walletAddress)) throw new Error('Encrypted input but no e2e key');
+        inputs = JSON.parse(decrypt(deriveKey(this.walletAddress), inputs));
+      }
+      if (!Array.isArray(inputs) || inputs.some((x) => typeof x !== 'string')) {
+        throw new Error('Invalid embed input');
+      }
+      console.log(`📥 Received embed #${task_id} (${model}, ${inputs.length} input(s))`);
+      const out = await this.onEmbed(model, inputs);
+      if (!out || !Array.isArray(out.embeddings) || out.embeddings.length !== inputs.length) {
+        throw new Error('Embedding model returned no vectors');
+      }
+      this.send({
+        type: 'embed_result',
+        task_id,
+        embeddings: this.e2eEnabled
+          ? encrypt(deriveKey(this.walletAddress), JSON.stringify(out.embeddings))
+          : out.embeddings,
+        tokens_used: out.prompt_eval_count || 0,
+      });
+      console.log(`✅ Embed #${task_id} completed (${out.prompt_eval_count || 0} tokens)`);
+    } catch (err) {
+      console.error(`❌ Embed #${task_id} failed:`, err.message);
+      this.send({ type: 'embed_result', task_id, error: err.message });
     }
   }
 

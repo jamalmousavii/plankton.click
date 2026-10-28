@@ -95,7 +95,8 @@ app.whenReady().then(() => {
       }
       const result = await ollamaService.generate(prompt, model);
       return result;
-    }
+    },
+    (model, inputs) => ollamaService.embed(model, inputs)
   );
   try {
     const wanted = String(config.models || config.default_model || 'llama3.1:8b')

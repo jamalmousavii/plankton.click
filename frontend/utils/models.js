@@ -20,6 +20,12 @@ export function workerCount(m) {
 }
 
 // Busiest model first; ties keep their relative (catalog) order.
+// Embedding models answer with vectors, not text: they power /v1/embeddings
+// and RAG over large files, but are never offered as a chat partner.
+export function chatModels(models) {
+  return (models || []).filter((m) => m.category !== 'embedding');
+}
+
 export function sortModels(models) {
   return [...(models || [])].sort((a, b) => workerCount(b) - workerCount(a));
 }

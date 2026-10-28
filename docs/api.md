@@ -369,6 +369,24 @@ curl https://plankton.click/v1/chat/completions \
 
 محدودیت فاز ۱: `stream:true` → `400 stream_not_supported`؛ `tools` → `400 tool_not_supported`.
 
+### Embeddings — `POST /v1/embeddings`
+
+ورودی `{model, input: string | string[], encoding_format?: "float"}`؛ مدل‌ها: `bge-m3` (پیش‌فرض، روی همهٔ ورکرها نصب است)، `embeddinggemma`، `nomic-embed-text`.
+خروجی استاندارد OpenAI: `{object:"list", data:[{object:"embedding", index, embedding:number[]}], model, usage:{prompt_tokens, total_tokens}}`.
+
+- محدودیت: حداکثر ۶۴ ورودی، هر ورودی ۸۱۹۲ کاراکتر، مجموع ۲۰۰٬۰۰۰ کاراکتر → وگرنه `400`.
+- قیمت: توکن‌های **ورودی** × قیمت ورودی کاتالوگ مدل؛ همان زنجیرهٔ billing و همان گیت مالکیت (`402 api_payment_required`).
+- ورکری آنلاین نیست → `503 {code:"worker_offline", retryable:true}`؛ مدل ناشناس → `400 model_not_found`.
+- مدل‌های embedding در چت قابل انتخاب نیستند: `POST /api/chat` با آن‌ها → `400 MODEL_NOT_CHAT`.
+
+```bash
+curl https://plankton.click/v1/embeddings \
+  -H "Authorization: Bearer sk_..." -H "Content-Type: application/json" \
+  -d '{"model":"bge-m3","input":["متن اول","متن دوم"]}'
+```
+
+**RAG در چت:** اگر فایل پیوست‌شده بزرگ‌تر از ۱۲٬۰۰۰ کاراکتر باشد و کاربر سؤال هم پرسیده باشد، فایل به تکه‌های ۱۸۰۰ کاراکتری تقسیم، همراه سؤال با `bge-m3` embed، و فقط ۶ تکهٔ مرتبط‌تر به مدل چت فرستاده می‌شود. هزینهٔ embedding جداگانه (قیمت ورودی) تسویه می‌شود. اگر ورکر embedding نباشد یا خطا بدهد، مثل قبل کل متن فرستاده می‌شود.
+
 ---
 
 ## کلیدهای API (v3.43.0 — نیازمند JWT؛ ساخت از Settings)

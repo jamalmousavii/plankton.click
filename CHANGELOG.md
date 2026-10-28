@@ -3,6 +3,23 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **`POST /v1/embeddings`** — OpenAI-compatible embeddings (`bge-m3`,
+  `embeddinggemma`, `nomic-embed-text`), served by workers and billed on
+  input tokens at the catalog input price; listed in `GET /v1/models`.
+- **RAG over large chat files** — files over 12,000 chars are chunked,
+  embedded with the question, and only the 6 most relevant excerpts reach the
+  chat model (falls back to the full text if no embedding worker answers).
+- **Worker protocol 3** (`embed` / `embed_result`); `bge-m3` is installed on
+  every worker automatically and cannot be removed from the manager menu.
+
+### Changed
+- Embedding models are no longer installer menu choices (they were never
+  useful alone) and no longer appear in the chat model picker; chatting with
+  one returns `400 MODEL_NOT_CHAT`.
+
 ## [1.0.0] — 2026-10-27
 
 First release under the **Plankton** name at **https://plankton.click**.

@@ -12,7 +12,7 @@ import MessageList from '../components/chat/MessageList';
 import Composer from '../components/chat/Composer';
 import { apiFetch, ApiError } from '../utils/api';
 import { audioBlobToWav16k } from '../lib/audio';
-import { sortModels, topOnlineModel, workerCount } from '../utils/models';
+import { chatModels, sortModels, topOnlineModel, workerCount } from '../utils/models';
 
 const AUTO_RETRY_MAX = 3;
 const AUTO_RETRY_MS = 10000;
@@ -399,7 +399,7 @@ export default function Home() {
       const data = await res.json();
       if (!data.success) return;
       // Busiest model first (shared util, stable for ties).
-      const sorted = sortModels(data.models);
+      const sorted = sortModels(chatModels(data.models));
       setModels(sorted);
       // v3.40.0 auto-switch: the selected model has no workers but others
       // do — move to the busiest online one instead of 409ing every send.

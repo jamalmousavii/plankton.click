@@ -611,6 +611,14 @@ history ≥ 3.41). Bump `FULL_PROTOCOL` (server) and `PROTOCOL`
 (`worker-app/src/services/websocket.js`) together when the task message format
 changes. Never gate on the app version again: it was reset at 1.0.0.
 
+`protocol: 3` (current worker app) also answers `embed` messages:
+`{type:'embed', task_id, model, input: string[]}` → `{type:'embed_result',
+task_id, embeddings: number[][], tokens_used}` (both encrypted under E2E). The
+server only routes embeddings to `protocol >= 3` workers (`EMBED_PROTOCOL` in
+`ws.js`) and validates the vectors (count, finite numbers, equal dims ≤ 8192).
+`services/embeddings.js` is the single path for `/v1/embeddings` and chat RAG;
+installers always add `bge-m3` and refuse to remove it in the manager menu.
+
 ### Schema rename on upgrade (1.0.0)
 
 `migrate.js` starts by renaming a pre-1.0 database in place (old table,

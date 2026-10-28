@@ -9,6 +9,7 @@ const { getTokenBalance } = require('../services/tokenBundles');
 const { settleMessage } = require('../services/billing');
 const { resolveCap, getActiveOrg } = require('../services/org');
 const { logger } = require('../logger');
+const { embed, EmbedError, EMBED_MODELS } = require('../services/embeddings');
 
 // OpenAI-compatible coder API (v3.43.0) for agents (opencode et al).
 // Phase 1: non-streaming chat completions on the two coder models only.
@@ -30,7 +31,7 @@ function openAiError(status, message, code, extra = {}) {
 router.get('/models', (req, res) => {
   res.json({
     object: 'list',
-    data: CODER_MODELS.map((id) => {
+    data: [...CODER_MODELS, ...EMBED_MODELS].map((id) => {
       const m = MODELS.find((x) => x.id === id);
       return { id, object: 'model', created: 0, owned_by: 'plankton', name: m ? m.name : id };
     }),
@@ -256,6 +257,58 @@ router.post('/chat/completions', async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'POST /v1/chat/completions failed');
+    res.status(500).json({ error: { message: 'Server error', type: 'server_error', code: 'internal' } });
+  }
+});
+
+// 402 body shared by every paid /v1 endpoint.
+function paymentRequiredBody(what) {
+  return {
+    error: {
+      message: `${what} needs a token balance, wallet funds, or an active Plus/Pro/Max plan. Free plan alone cannot use it.`,
+      type: 'server_error',
+      code: 'api_payment_required',
+      plans: listPlans(),
+      token_bundle: {
+        price_per_million: TOKEN_BUNDLE.price_per_million,
+        tokens_per_usd: TOKEN_BUNDLE.tokens_per_usd,
+        min_usd: TOKEN_BUNDLE.min_usd,
+        max_usd: TOKEN_BUNDLE.max_usd,
+      },
+    },
+  };
+}
+
+// POST /v1/embeddings — OpenAI shape: { model, input: string | string[] }.
+// Served by workers (bge-m3 is installed on every worker by default) and
+// billed on input tokens at the model's catalog input price.
+router.post('/embeddings', async (req, res) => {
+  try {
+    const { model, input, encoding_format: encodingFormat } = req.body || {};
+    if (encodingFormat !== undefined && encodingFormat !== 'float') {
+      const r = openAiError(400, "only encoding_format 'float' is supported", 'invalid_request_error', { code: 'unsupported_encoding' });
+      return res.status(r.status).json(r.body);
+    }
+    const coverage = await checkApiCoverage(req.user.id);
+    if (!coverage.covered) {
+      return res.status(402).json(paymentRequiredBody('The embeddings API'));
+    }
+    const out = await embed({ wsServer: req.app.get('wsServer'), userId: req.user.id, model, input });
+    res.json({
+      object: 'list',
+      data: out.embeddings.map((embedding, index) => ({ object: 'embedding', index, embedding })),
+      model,
+      usage: { prompt_tokens: out.tokensUsed, total_tokens: out.tokensUsed },
+    });
+  } catch (err) {
+    if (err instanceof EmbedError) {
+      const r = openAiError(err.status, err.message, err.status === 400 ? 'invalid_request_error' : err.code, {
+        code: err.code,
+        ...(err.status === 503 ? { retryable: true } : {}),
+      });
+      return res.status(r.status).json(r.body);
+    }
+    logger.error({ err }, 'POST /v1/embeddings failed');
     res.status(500).json({ error: { message: 'Server error', type: 'server_error', code: 'internal' } });
   }
 });

@@ -151,13 +151,13 @@ describe('sk_ auth', () => {
 });
 
 describe('GET /v1/models', () => {
-  it('lists exactly the two coders in OpenAI shape', async () => {
+  it('lists the two coders plus the embedding models in OpenAI shape', async () => {
     pool.__state.queryImpl = async () => ({ rows: [{ id: 1, user_id: 7, name: 'x', banned: false }] });
     const app = v1App(fakeWs());
     const res = await request(app).get('/v1/models').set('Authorization', 'Bearer sk_' + 'c'.repeat(48));
     expect(res.status).toBe(200);
     expect(res.body.object).toBe('list');
-    expect(res.body.data.map((m) => m.id).sort()).toEqual(['qwen2.5-coder:32b', 'qwen3-coder:30b']);
+    expect(res.body.data.map((m) => m.id).sort()).toEqual(['bge-m3', 'embeddinggemma', 'nomic-embed-text', 'qwen2.5-coder:32b', 'qwen3-coder:30b']);
     expect(res.body.data[0]).toMatchObject({ object: 'model', owned_by: 'plankton' });
   });
 });

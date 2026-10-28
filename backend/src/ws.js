@@ -21,6 +21,10 @@ const HISTORY_APP_VERSION = { major: 3, minor: 41 }; // legacy (pre-1.0) binarie
 // 1.0.0 reset app versions, so capabilities are negotiated with an explicit
 // protocol number instead: protocol >= 2 understands attachment + history.
 const FULL_PROTOCOL = 2;
+// protocol >= 3 also answers `embed` messages (vector embeddings via Ollama).
+const EMBED_PROTOCOL = 3;
+// Embedding vectors: bounded so a hostile worker cannot balloon memory.
+const MAX_EMBED_DIM = 8192;
 const HEARTBEAT_STATUSES = new Set(['online', 'busy', 'offline']);
 const clampPct = (v) => {
   const n = Number(v);
@@ -184,6 +188,9 @@ class WSServer {
         break;
       case 'task_result':
         await this.handleTaskResult(ws, msg);
+        break;
+      case 'embed_result':
+        await this.handleEmbedResult(ws, msg);
         break;
       case 'task_request':
         await this.handleTaskRequest(ws, msg);
@@ -687,6 +694,72 @@ class WSServer {
     });
   }
 
+  // Embedding dispatch: `inputs` is an array of strings; the worker answers
+  // with `embed_result` { task_id, embeddings: number[][], tokens_used }.
+  // Encrypted like every other payload when E2E was negotiated.
+  async dispatchEmbed(workerId, taskId, model, inputs, timeoutMs = 120000) {
+    return new Promise((resolve, reject) => {
+      const worker = this.workers.get(workerId);
+      if (!worker) {
+        reject(new Error('Worker not connected'));
+        return;
+      }
+      const timeout = setTimeout(() => {
+        this.taskCallbacks.delete(taskId);
+        reject(new Error('Task timeout'));
+      }, timeoutMs);
+      this.taskCallbacks.set(taskId, { resolve, reject, timeout, workerId, embed: inputs.length });
+      worker.ws.send(JSON.stringify({
+        type: 'embed',
+        task_id: taskId,
+        model,
+        input: worker.e2eKey ? encrypt(worker.e2eKey, JSON.stringify(inputs)) : inputs,
+      }));
+    });
+  }
+
+  async handleEmbedResult(ws, msg) {
+    const worker = this.findWorkerByWs(ws);
+    if (!worker) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }));
+      return;
+    }
+    const cb = this.taskCallbacks.get(msg.task_id);
+    // Only the worker this embed was dispatched to may answer it, once.
+    if (!cb || !cb.embed || cb.workerId !== worker.id) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Task not assigned to this worker' }));
+      return;
+    }
+    this.taskCallbacks.delete(msg.task_id);
+    clearTimeout(cb.timeout);
+
+    if (msg.error) {
+      cb.resolve({ error: String(msg.error).slice(0, 200) });
+      return;
+    }
+    let vectors = msg.embeddings;
+    try {
+      if (worker.e2eKey) {
+        if (!isEncrypted(vectors)) throw new Error('Plaintext result rejected (e2e required)');
+        vectors = JSON.parse(decrypt(worker.e2eKey, vectors));
+      } else if (isEncrypted(vectors)) {
+        throw new Error('E2E not negotiated');
+      }
+    } catch (err) {
+      cb.resolve({ error: err.message });
+      return;
+    }
+    const valid = Array.isArray(vectors)
+      && vectors.length === cb.embed
+      && vectors.every((v) => Array.isArray(v) && v.length > 0 && v.length <= MAX_EMBED_DIM
+        && v.length === vectors[0].length && v.every((x) => typeof x === 'number' && Number.isFinite(x)));
+    if (!valid) {
+      cb.resolve({ error: 'invalid embeddings payload' });
+      return;
+    }
+    cb.resolve({ embeddings: vectors, tokens_used: msg.tokens_used });
+  }
+
   // Effective installed list: reported models, or the single legacy
   // current_model for old binaries that never send `models`.
   effectiveModels(worker) {
@@ -716,8 +789,9 @@ class WSServer {
   }
 
   // Single predicate for "can this worker serve this task right now".
-  workerServes(worker, model, needsMedia = false, needHistory = false) {
+  workerServes(worker, model, needsMedia = false, needHistory = false, needEmbed = false) {
     if (!worker || worker.status !== 'online') return false;
+    if (needEmbed && !(Number(worker.protocol) >= EMBED_PROTOCOL)) return false;
     if (needsMedia && !workerSupportsMedia(worker.app_version, worker.protocol)) return false;
     if (needHistory && !workerSupportsHistory(worker.app_version, worker.protocol)) return false;
     if (!this.effectiveModels(worker).includes(model)) return false;
@@ -738,10 +812,10 @@ class WSServer {
   // v3.41.0: matches on the installed-models list (multi-model workers serve
   // every pulled model at once), honours per-model down-marking, and can
   // require history support when the task carries conversation context.
-  findWorkersForModel(model, needsMedia = false, needHistory = false) {
+  findWorkersForModel(model, needsMedia = false, needHistory = false, needEmbed = false) {
     const out = [];
     for (const [workerId, worker] of this.workers) {
-      if (this.workerServes(worker, model, needsMedia, needHistory)) {
+      if (this.workerServes(worker, model, needsMedia, needHistory, needEmbed)) {
         out.push({ workerId, model });
       }
     }
@@ -816,8 +890,8 @@ class WSServer {
   //   the WRR pick instead of queueing behind it.
   // - Unknown sessions (guests without session, first message) go straight
   //   to WRR. `exclude` skips already-tried workers during failover.
-  pickCandidate({ model, needsMedia = false, needHistory = false, sessionKey = null, exclude = null }) {
-    const cands = this.findWorkersForModel(model, needsMedia, needHistory)
+  pickCandidate({ model, needsMedia = false, needHistory = false, needEmbed = false, sessionKey = null, exclude = null }) {
+    const cands = this.findWorkersForModel(model, needsMedia, needHistory, needEmbed)
       .filter((c) => !(exclude && exclude.has(c.workerId)));
     if (cands.length === 0) return null;
     if (sessionKey) {
@@ -825,7 +899,7 @@ class WSServer {
       const sticky = mapped && cands.find((c) => c.workerId === mapped);
       if (sticky && this.inflightCount(sticky.workerId) < SPILL_CAP) return sticky;
     }
-    const pick = this.pickWeighted(cands, `${model}#${needsMedia ? 'm' : ''}${needHistory ? 'h' : ''}`);
+    const pick = this.pickWeighted(cands, `${model}#${needsMedia ? 'm' : ''}${needHistory ? 'h' : ''}${needEmbed ? 'e' : ''}`);
     if (sessionKey) {
       this.affinity.set(sessionKey, pick.workerId);
       if (this.affinity.size > 50000) {
@@ -893,3 +967,4 @@ class WSServer {
 module.exports = WSServer;
 module.exports.computeWeight = computeWeight;
 module.exports.workerSupportsHistory = workerSupportsHistory;
+module.exports.EMBED_PROTOCOL = EMBED_PROTOCOL;

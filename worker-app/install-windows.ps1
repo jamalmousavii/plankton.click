@@ -119,6 +119,7 @@ function Show-Manager {
       "2" {
         $rm = Read-Host "  Model name to remove"
         if (-not $rm) { break }
+        if ($rm -eq "bge-m3") { Step-Warn "bge-m3 is required (it serves embeddings) and cannot be removed"; break }
         ollama rm $rm 2>$null || Step-Warn "$rm was not pulled locally"
         $merged = Merge-ConfigModels "remove" @($rm)
         if ($merged) { Step-Done "Now serving: $merged"; Restart-Worker }
@@ -223,21 +224,21 @@ Write-Host ""
 Write-Host "  Select models to install" -ForegroundColor Cyan
 Write-Host "  1) llama3.1:8b (5 GB, default) / 2) llama3.3:70b / 3) deepseek-r1:70b"
 Write-Host "  5) qwen3-coder:30b / 6) qwen2.5-coder:32b / 7) qwen3-vl:8b / 8) gemma4:12b"
-Write-Host "  9) embeddinggemma / a) nomic-embed-text / b) bge-m3 / h-m) more / c-g) presets / 0) custom"
+Write-Host "  h-m) more / c-g) presets / 0) custom"
+Write-Host "  + bge-m3 (1.2 GB) is always installed: it serves embeddings (API + chat over files)" -ForegroundColor Cyan
 Write-Host ""
-$choice = Read-Host "  Enter choice [1-9, a-m, 0] (default: 1)"
+$choice = Read-Host "  Enter choice [1-8, c-m, 0] (default: 1)"
 if (-not $choice) { $choice = "1" }
 
 $SELECTED = switch ($choice) {
   "1" { @("llama3.1:8b") } "2" { @("llama3.3:70b") } "3" { @("deepseek-r1:70b") }
   "5" { @("qwen3-coder:30b") } "6" { @("qwen2.5-coder:32b") }
-  "7" { @("qwen3-vl:8b") } "8" { @("gemma4:12b") } "9" { @("embeddinggemma") }
-  "a" { @("nomic-embed-text") } "b" { @("bge-m3") }
+  "7" { @("qwen3-vl:8b") } "8" { @("gemma4:12b") }
   "c" { @("llama3.3:70b", "deepseek-r1:70b", "llama3.1:8b", "llama3.2:3b", "phi4:14b", "gpt-oss:20b", "qwen3:32b") }
   "d" { @("qwen3-coder:30b", "qwen2.5-coder:32b") }
   "e" { @("qwen3-vl:8b", "gemma4:12b", "mistral-small3.2:24b", "gemma3:27b") }
-  "f" { @("llama3.1:8b", "qwen3-coder:30b", "qwen3-vl:8b", "embeddinggemma") }
-  "g" { @($MODEL_SIZES.Keys) }
+  "f" { @("llama3.1:8b", "qwen3-coder:30b", "qwen3-vl:8b") }
+  "g" { @($MODEL_SIZES.Keys | Where-Object { $_ -notin @("embeddinggemma", "nomic-embed-text", "bge-m3") }) }
   "h" { @("llama3.2:3b") } "i" { @("phi4:14b") } "j" { @("gpt-oss:20b") }
   "k" { @("qwen3:32b") } "l" { @("mistral-small3.2:24b") } "m" { @("gemma3:27b") }
   "0" {
@@ -246,6 +247,10 @@ $SELECTED = switch ($choice) {
   }
   default { @("llama3.1:8b") }
 }
+# Every worker also serves embeddings (/v1/embeddings + chat RAG over large
+# files), so bge-m3 is installed automatically — never a menu choice.
+$SELECTED = @($SELECTED)
+if ($SELECTED -notcontains "bge-m3") { $SELECTED += "bge-m3" }
 Write-Host ""
 Write-Host "  Installing models: $($SELECTED -join ' ')" -ForegroundColor Cyan
 

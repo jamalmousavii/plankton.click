@@ -152,6 +152,10 @@ async function prepareAttachment(attachment, message) {
       effectiveMessage: `[File: ${name}]\n${text}\n---\n\n${message}`,
       media: null,
       dbAttachment: { type: 'file', name, mime },
+      // Raw extracted text + name, so chat can swap the full text for the
+      // most relevant excerpts (RAG) when the file is large.
+      fileText: text,
+      fileName: name,
     };
   }
 

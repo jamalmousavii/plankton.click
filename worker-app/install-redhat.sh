@@ -245,6 +245,10 @@ manage_add_models() {
 manage_remove_model() {
   read -r -p "  Model name to remove: " RM
   [ -z "$RM" ] && return
+  if [ "$RM" = "bge-m3" ]; then
+    echo -e "  ${YELLOW}  ⚠ bge-m3 is required (it serves embeddings) and cannot be removed${NC}"
+    return
+  fi
   ollama rm "$RM" 2>/dev/null || echo -e "  ${YELLOW}  ⚠ $RM was not pulled locally${NC}"
   MERGED=$(manage_config_models remove "$RM") || return
   echo -e "  ${GREEN}✓ Now serving: $MERGED${NC}"
@@ -409,23 +413,20 @@ echo -e "  ${GREEN}l${NC}) mistral-small3.2:24b (15 GB) - Fast vision + tools"
 echo -e "  ${GREEN}m${NC}) gemma3:27b         (18 GB)  - Google multimodal"
 echo ""
 
-echo -e "  ${CYAN}--- Embedding ---${NC}"
-echo -e "  ${GREEN}9${NC}) embeddinggemma      (0.5 GB) - Newest embeddings"
-echo -e "  ${GREEN}a${NC}) nomic-embed-text   (0.3 GB) - Classic default"
-echo -e "  ${GREEN}b${NC}) bge-m3             (1.2 GB) - Multilingual RAG"
+echo -e "  ${CYAN}+ bge-m3 (1.2 GB) is always installed: it serves embeddings (API + chat over files)${NC}"
 echo ""
 echo -e "  ${YELLOW}--- Presets ---${NC}"
 echo -e "  ${GREEN}c${NC}) All Chat (1+2+3+4+h+i+j+k)"
 echo -e "  ${GREEN}d${NC}) All Code (5+6)"
 echo -e "  ${GREEN}e${NC}) All Vision (7+8+l+m)"
-echo -e "  ${GREEN}f${NC}) All recommended (1+5+7+9)"
-echo -e "  ${GREEN}g${NC}) Everything (all 16 local models)"
+echo -e "  ${GREEN}f${NC}) All recommended (1+5+7)"
+echo -e "  ${GREEN}g${NC}) Everything (all 13 chat/code/vision models)"
 echo -e "  ${GREEN}0${NC}) Custom (enter model names manually)"
 echo ""
 
 SELECTED_MODELS=""
 
-read -r -p "  Enter choice [1-9, a-m, 0] (default: 1): " choice
+read -r -p "  Enter choice [1-8, c-m, 0] (default: 1): " choice
 choice=${choice:-4}
 
 case $choice in
@@ -437,14 +438,11 @@ case $choice in
   6) SELECTED_MODELS="qwen2.5-coder:32b" ;;
   7) SELECTED_MODELS="qwen3-vl:8b" ;;
   8) SELECTED_MODELS="gemma4:12b" ;;
-  9) SELECTED_MODELS="embeddinggemma" ;;
-  a) SELECTED_MODELS="nomic-embed-text" ;;
-  b) SELECTED_MODELS="bge-m3" ;;
   c) SELECTED_MODELS="llama3.3:70b deepseek-r1:70b llama3.1:8b llama3.2:3b phi4:14b gpt-oss:20b qwen3:32b" ;;
   d) SELECTED_MODELS="qwen3-coder:30b qwen2.5-coder:32b" ;;
   e) SELECTED_MODELS="qwen3-vl:8b gemma4:12b mistral-small3.2:24b gemma3:27b" ;;
-  f) SELECTED_MODELS="llama3.1:8b qwen3-coder:30b qwen3-vl:8b embeddinggemma" ;;
-  g) SELECTED_MODELS="llama3.3:70b deepseek-r1:70b llama3.1:8b qwen3-coder:30b qwen2.5-coder:32b qwen3-vl:8b gemma4:12b embeddinggemma nomic-embed-text bge-m3 llama3.2:3b phi4:14b gpt-oss:20b qwen3:32b mistral-small3.2:24b gemma3:27b" ;;
+  f) SELECTED_MODELS="llama3.1:8b qwen3-coder:30b qwen3-vl:8b" ;;
+  g) SELECTED_MODELS="llama3.3:70b deepseek-r1:70b llama3.1:8b qwen3-coder:30b qwen2.5-coder:32b qwen3-vl:8b gemma4:12b llama3.2:3b phi4:14b gpt-oss:20b qwen3:32b mistral-small3.2:24b gemma3:27b" ;;
   h) SELECTED_MODELS="llama3.2:3b" ;;
   i) SELECTED_MODELS="phi4:14b" ;;
   j) SELECTED_MODELS="gpt-oss:20b" ;;
@@ -462,9 +460,6 @@ case $choice in
     echo -e "  ${GREEN}6${NC}) qwen2.5-coder:32b  (20 GB)"
     echo -e "  ${GREEN}7${NC}) qwen3-vl:8b        (8 GB)"
     echo -e "  ${GREEN}8${NC}) gemma4:12b         (7 GB)"
-    echo -e "  ${GREEN}9${NC}) embeddinggemma      (0.5 GB)"
-    echo -e "  ${GREEN}a${NC}) nomic-embed-text   (0.3 GB)"
-    echo -e "  ${GREEN}b${NC}) bge-m3             (1.2 GB)"
     echo -e "  ${GREEN}h${NC}) llama3.2:3b        (2 GB)"
     echo -e "  ${GREEN}i${NC}) phi4:14b           (9 GB)"
     echo -e "  ${GREEN}j${NC}) gpt-oss:20b        (14 GB)"
@@ -484,9 +479,6 @@ case $choice in
         6) SELECTED_MODELS="$SELECTED_MODELS qwen2.5-coder:32b" ;;
         7) SELECTED_MODELS="$SELECTED_MODELS qwen3-vl:8b" ;;
         8) SELECTED_MODELS="$SELECTED_MODELS gemma4:12b" ;;
-        9) SELECTED_MODELS="$SELECTED_MODELS embeddinggemma" ;;
-        a) SELECTED_MODELS="$SELECTED_MODELS nomic-embed-text" ;;
-        b) SELECTED_MODELS="$SELECTED_MODELS bge-m3" ;;
         h) SELECTED_MODELS="$SELECTED_MODELS llama3.2:3b" ;;
         i) SELECTED_MODELS="$SELECTED_MODELS phi4:14b" ;;
         j) SELECTED_MODELS="$SELECTED_MODELS gpt-oss:20b" ;;
@@ -499,6 +491,14 @@ case $choice in
     SELECTED_MODELS=${SELECTED_MODELS:-"llama3.1:8b"}
     ;;
   *) SELECTED_MODELS="llama3.1:8b" ;;
+esac
+
+# Every worker also serves embeddings (/v1/embeddings + chat RAG over large
+# files), so bge-m3 is installed automatically — never a menu choice.
+EMBED_MODEL="bge-m3"
+case " $SELECTED_MODELS " in
+  *" $EMBED_MODEL "*) ;;
+  *) SELECTED_MODELS="$SELECTED_MODELS $EMBED_MODEL" ;;
 esac
 
 echo ""
