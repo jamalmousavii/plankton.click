@@ -13,7 +13,6 @@ PLANKTON_VERSION="1.0.0"
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
 NC='\033[0m'
 
 INSTALL_DIR="$HOME/plankton-worker"

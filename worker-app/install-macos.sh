@@ -73,7 +73,8 @@ spinner() {
 run_with_spinner() {
   local msg=$1
   shift
-  local logfile=$(mktemp)
+  local logfile
+  logfile=$(mktemp)
   "$@" > "$logfile" 2>&1 &
   local pid=$!
   spinner "$pid" "$msg"
@@ -301,7 +302,7 @@ if [ "$(uname -m)" != "arm64" ]; then
   fi
 fi
 STEP_END=$(date +%s)
-step_done "Prerequisites ready ($(($STEP_END - $STEP_START))s)"
+step_done "Prerequisites ready ($((STEP_END - STEP_START))s)"
 
 # --- Step 2: Node.js ---
 step_start 2 "Installing Node.js..."
@@ -311,11 +312,11 @@ if ! command -v node &> /dev/null || [ "$(node -v | cut -d'.' -f1 | tr -d 'v')" 
   brew link --overwrite node@20 2>/dev/null || true
   NODE_VER=$(node -v)
   STEP_END=$(date +%s)
-  step_done "Node.js ${NODE_VER} installed ($(($STEP_END - $STEP_START))s)"
+  step_done "Node.js ${NODE_VER} installed ($((STEP_END - STEP_START))s)"
 else
   NODE_VER=$(node -v)
   STEP_END=$(date +%s)
-  step_done "Node.js ${NODE_VER} already installed ($(($STEP_END - $STEP_START))s)"
+  step_done "Node.js ${NODE_VER} already installed ($((STEP_END - STEP_START))s)"
 fi
 command -v jq &> /dev/null || run_with_spinner "Installing jq..." brew install jq
 
@@ -325,10 +326,10 @@ STEP_START=$(date +%s)
 if ! command -v ollama &> /dev/null; then
   run_with_spinner "Installing Ollama..." brew install ollama
   STEP_END=$(date +%s)
-  step_done "Ollama installed ($(($STEP_END - $STEP_START))s)"
+  step_done "Ollama installed ($((STEP_END - STEP_START))s)"
 else
   STEP_END=$(date +%s)
-  step_done "Ollama already installed ($(($STEP_END - $STEP_START))s)"
+  step_done "Ollama already installed ($((STEP_END - STEP_START))s)"
 fi
 
 brew services start ollama 2>/dev/null || true
@@ -522,7 +523,7 @@ else
 fi
 run_with_spinner "Installing npm dependencies..." bash -c "cd '$INSTALL_DIR/worker-app' && npm ci --omit=dev"
 STEP_END=$(date +%s)
-step_done "Worker installed at $INSTALL_DIR ($(($STEP_END - $STEP_START))s)"
+step_done "Worker installed at $INSTALL_DIR ($((STEP_END - STEP_START))s)"
 
 # --- Email & Token ---
 echo ""
@@ -581,7 +582,7 @@ echo -e "  ${GREEN}✓ RAM: ${RAM_SIZE}${NC}"
 echo -e "  ${GREEN}✓ CPU: ${CPU_MODEL}${NC}"
 
 STEP_END=$(date +%s)
-step_done "System info detected ($(($STEP_END - $STEP_START))s)"
+step_done "System info detected ($((STEP_END - STEP_START))s)"
 
 # --- Step 7: Register Worker ---
 step_start 7 "Registering worker..."
@@ -604,7 +605,7 @@ SETUP_RESPONSE=$(printf '%s' "$SETUP_PAYLOAD" | curl -s -X POST https://plankton
 
 STEP_END=$(date +%s)
 if echo "$SETUP_RESPONSE" | grep -q '"success":true'; then
-  step_done "Worker registered ($(($STEP_END - $STEP_START))s)"
+  step_done "Worker registered ($((STEP_END - STEP_START))s)"
 else
   step_fail "Registration failed. Check email and token."
   echo -e "  ${YELLOW}Response: $SETUP_RESPONSE${NC}"
@@ -644,7 +645,7 @@ launchctl list 2>/dev/null | grep -q "$PLIST_LABEL" \
   || echo -e "  ${YELLOW}  ⚠ Service may not be loaded — check: launchctl list | grep plankton${NC}"
 
 STEP_END=$(date +%s)
-step_done "Service started ($(($STEP_END - $STEP_START))s)"
+step_done "Service started ($((STEP_END - STEP_START))s)"
 
 # --- Summary ---
 SCRIPT_END=$(date +%s)
