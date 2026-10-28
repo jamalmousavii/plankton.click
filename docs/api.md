@@ -115,8 +115,8 @@
   "free_tokens_remaining": 1999580,
   "token_balance_remaining": 4200000,
   "notice": "upgrade_recommended",
-  "plans": [ { "name": "plus", "label": "Plus", "price": 4.99, "daily_tokens": 10000000, "interval_days": 30, "value_usd_day": 1.58, "value_usd_month": 47.4 } ],
-  "token_bundle": { "price_per_million": 1, "tokens_per_usd": 1000000, "min_usd": 1, "max_usd": 500 }
+  "plans": [ { "name": "plus", "label": "Plus", "price": 2.99, "daily_tokens": 10000000, "interval_days": 30, "value_usd_day": 0.25, "value_usd_month": 7.5 } ],
+  "token_bundle": { "price_per_million": 0.025, "tokens_per_usd": 40000000, "min_usd": 1, "max_usd": 500 }
 }
 ```
 
@@ -270,7 +270,7 @@
 ### `GET /api/payments/balance` (نیازمند JWT)
 
 ```json
-{ "success": true, "balances": { "USD": { "available": 12.5, "total_earned": 30, "total_spent": 17.5 } }, "worker_credit": { "eligible": true, "limit": 1, "used": 0.01, "remaining": 0.99 }, "free_tokens": { "limit": 2000000, "used": 420, "remaining": 1999580 }, "plan": { "name": "plus", "active": true, "expires_at": "2026-11-02T00:00:00.000Z" }, "plans": [ ... ], "token_bundle": { "price_per_million": 1, "tokens_per_usd": 1000000, "min_usd": 1, "max_usd": 500, "balance": 5000000 } }
+{ "success": true, "balances": { "USD": { "available": 12.5, "total_earned": 30, "total_spent": 17.5 } }, "worker_credit": { "eligible": true, "limit": 1, "used": 0.01, "remaining": 0.99 }, "free_tokens": { "limit": 2000000, "used": 420, "remaining": 1999580 }, "plan": { "name": "plus", "active": true, "expires_at": "2026-11-02T00:00:00.000Z" }, "plans": [ ... ], "token_bundle": { "price_per_million": 0.025, "tokens_per_usd": 40000000, "min_usd": 1, "max_usd": 500, "balance": 5000000 } }
 ```
 
 ### `POST /api/payments/withdraw`
@@ -298,13 +298,13 @@
 ```json
 { "success": true,
   "plans": [
-    { "name": "plus", "label": "Plus", "price": 4.99, "daily_tokens": 10000000, "interval_days": 30, "value_usd_day": 1.58, "value_usd_month": 47.4 },
-    { "name": "pro",  "label": "Pro",  "price": 9.99, "daily_tokens": 30000000, "interval_days": 30, "value_usd_day": 4.74, "value_usd_month": 142.2 },
-    { "name": "max",  "label": "Max",  "price": 19.99, "daily_tokens": 80000000, "interval_days": 30, "value_usd_day": 12.64, "value_usd_month": 379.2 }
+    { "name": "plus", "label": "Plus", "price": 2.99, "daily_tokens": 10000000, "interval_days": 30, "value_usd_day": 0.25, "value_usd_month": 7.5 },
+    { "name": "pro",  "label": "Pro",  "price": 5.99, "daily_tokens": 30000000, "interval_days": 30, "value_usd_day": 0.75, "value_usd_month": 22.5 },
+    { "name": "max",  "label": "Max",  "price": 11.99, "daily_tokens": 80000000, "interval_days": 30, "value_usd_day": 2, "value_usd_month": 60 }
   ],
   "plan": { "name": "free", "active": false, "expires_at": null },
   "daily_limit": 2000000,
-  "token_bundle": { "price_per_million": 1, "tokens_per_usd": 1000000, "min_usd": 1, "max_usd": 500 },
+  "token_bundle": { "price_per_million": 0.025, "tokens_per_usd": 40000000, "min_usd": 1, "max_usd": 500 },
   "free_tokens": { "limit": 2000000, "used": 420, "remaining": 1999580 },
   "token_balance": 0 }
 ```
@@ -336,7 +336,7 @@ IPN با پیشوند `tok-` → ادعای exactly-once `plan_purchases` → `c
 ### `GET /api/token/balance` (نیازمند JWT)
 
 ```json
-{ "success": true, "available": 5.0, "total_earned": 2.0, "total_spent": 0.5, "worker_credit": { "eligible": true, "limit": 1, "used": 0.01, "remaining": 0.99 }, "free_tokens": { "limit": 2000000, "used": 420, "remaining": 1999580 }, "plan": { "name": "free", "active": false, "expires_at": null }, "plans": [ ... ], "token_bundle": { "price_per_million": 1, "tokens_per_usd": 1000000, "min_usd": 1, "max_usd": 500, "balance": 5000000 } }
+{ "success": true, "available": 5.0, "total_earned": 2.0, "total_spent": 0.5, "worker_credit": { "eligible": true, "limit": 1, "used": 0.01, "remaining": 0.99 }, "free_tokens": { "limit": 2000000, "used": 420, "remaining": 1999580 }, "plan": { "name": "free", "active": false, "expires_at": null }, "plans": [ ... ], "token_bundle": { "price_per_million": 0.025, "tokens_per_usd": 40000000, "min_usd": 1, "max_usd": 500, "balance": 5000000 } }
 ```
 
 ### `POST /api/token/deposit|deduct|transfer`

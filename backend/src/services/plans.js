@@ -12,7 +12,9 @@ const DEFAULT_MODEL_ID = 'llama3.1:8b';
 // The ONE fallback price in the codebase (v3.45.0): an unknown model id
 // resolves here — chat/v1 used to carry three divergent literals
 // (0.158/0.176/0.188) for the same case.
-const DEFAULT_OUTPUT_PRICE = 0.158; // fallback if the catalog loses the default model
+// Conservative (= the highest catalog output price), so an unknown id can
+// never be served below cost.
+const DEFAULT_OUTPUT_PRICE = 0.28;
 // Hard per-task output-token bound (H1). tokens_used drives both the user
 // charge and the worker share, so an inflated or NaN report must fail the
 // task — never be clamped into a charge. Shared by routes/chat.js,
@@ -22,15 +24,20 @@ const MAX_TASK_TOKENS = 65536;
 // Paid tiers. One row per tier in user_plans; a user may hold several active
 // rows and always gets the biggest cap among them.
 const PLANS = {
-  plus: { name: 'plus', label: 'Plus', price: 4.99, daily_tokens: 10000000, interval_days: 30 },
-  pro: { name: 'pro', label: 'Pro', price: 9.99, daily_tokens: 30000000, interval_days: 30 },
-  max: { name: 'max', label: 'Max', price: 19.99, daily_tokens: 80000000, interval_days: 30 },
+  // Priced under the cheapest mainstream AI plans (ChatGPT Go $8, Gemini
+  // entry $4.99 — Oct 2026) so open models win on price.
+  plus: { name: 'plus', label: 'Plus', price: 2.99, daily_tokens: 10000000, interval_days: 30 },
+  pro: { name: 'pro', label: 'Pro', price: 5.99, daily_tokens: 30000000, interval_days: 30 },
+  max: { name: 'max', label: 'Max', price: 11.99, daily_tokens: 80000000, interval_days: 30 },
 };
 
-// Token bundle: whole dollars in, 1M tokens per dollar, no expiry.
+// Token bundle: whole dollars in, no expiry. A pot token is worth one output
+// token of the default model, so $1 buys exactly what $1 of wallet does
+// (bigger models drain proportionally more — see potTokensFor). It used to be
+// a flat $1 = 1M tokens, ~6x worse than paying from the wallet.
 const TOKEN_BUNDLE = {
-  tokens_per_usd: 1000000,
-  price_per_million: 1,
+  tokens_per_usd: Math.round(1e6 / modelOutputPrice(DEFAULT_MODEL_ID)),
+  price_per_million: modelOutputPrice(DEFAULT_MODEL_ID),
   min_usd: 1,
   max_usd: 500,
 };
@@ -84,6 +91,12 @@ function listPlans() {
   }));
 }
 
+// Pot tokens a message costs: its catalog USD cost expressed in default-model
+// output tokens (>= 1 for any non-free message).
+function potTokensFor(costUsd) {
+  return Math.max(1, Math.ceil((costUsd * 1e6) / modelOutputPrice(DEFAULT_MODEL_ID) - 1e-9));
+}
+
 function quoteTokens(amountUsd) {
   return Math.round(amountUsd * TOKEN_BUNDLE.tokens_per_usd);
 }
@@ -135,6 +148,7 @@ module.exports = {
   MAX_TASK_TOKENS,
   modelOutputPrice,
   modelInputPrice,
+  potTokensFor,
   listPlans,
   quoteTokens,
   tokenValueUsd,

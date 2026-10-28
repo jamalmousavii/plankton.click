@@ -191,7 +191,7 @@ describe('dispatch resilience (v3.40.0)', () => {
       .send({ message: 'hello', model: 'llama3.1:8b', session_id: 5 });
     expect(res.status).toBe(200);
     // ...but cost is output-only: 10 tokens × llama3.1:8b output price.
-    expect(res.body.cost).toBeCloseTo((10 * 0.158) / 1000000, 12);
+    expect(res.body.cost).toBeCloseTo((10 * 0.025) / 1000000, 12);
     const [, , , , , histArg] = ws.dispatchTask.mock.calls[0];
     expect(histArg).toEqual([
       { role: 'user', content: 'old question' },

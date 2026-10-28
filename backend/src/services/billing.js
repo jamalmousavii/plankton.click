@@ -2,7 +2,7 @@ const pool = require('../database/pool');
 const { chargeFreeTokens } = require('./freeAllowance');
 const { chargeWorkerCredit } = require('./workerCredit');
 const { chargeTokenPot } = require('./tokenBundles');
-const { getActivePlan, WORKER_REVENUE_SHARE } = require('./plans');
+const { getActivePlan, WORKER_REVENUE_SHARE, potTokensFor } = require('./plans');
 const { invalidateCache } = require('../cache');
 const { logger } = require('../logger');
 
@@ -65,7 +65,9 @@ async function settleMessage({ userId, guestKey, tokensUsed, cost, workerId, ser
         if (creditCharge.charged) {
           paymentStatus = 'free_worker';
         } else {
-          const potCharge = await chargeTokenPot({ userId, tokens: tokensUsed, client });
+          // Pot tokens are default-model tokens: a pricier model drains
+          // proportionally more, so the pot is worth exactly its USD price.
+          const potCharge = await chargeTokenPot({ userId, tokens: potTokensFor(cost), client });
 
           if (potCharge.charged) {
             tokenBalanceRemaining = potCharge.remaining;

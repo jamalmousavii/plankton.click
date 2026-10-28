@@ -46,7 +46,7 @@ function UpgradeWall({ wall, content, t, purchasePlan, purchaseTokens, purchaseB
         <div className="bg-white border border-gray-200 rounded-lg px-2.5 py-2 mb-2 flex items-center gap-2">
           <div className="min-w-0 flex-1 text-xs text-gray-600">
             🎟️ {t('chat.bundleDesc')
-              .replace('{rate}', Number(wall.token_bundle.tokens_per_usd || 1000000).toLocaleString('en-US'))}
+              .replace('{rate}', Number(wall.token_bundle.tokens_per_usd || 40000000).toLocaleString('en-US'))}
           </div>
           <input
             value={bundleAmount}

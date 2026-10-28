@@ -286,7 +286,7 @@ export default function Profile() {
           <h2 className="text-lg font-bold text-gray-800 mb-1">🎟️ {t('profile.bundleTitle')}</h2>
           <p className="text-sm text-gray-500 mb-1">
             {t('profile.bundleDesc')
-              .replace('{rate}', Number(extras?.token_bundle?.tokens_per_usd || 1000000).toLocaleString('en-US'))}
+              .replace('{rate}', Number(extras?.token_bundle?.tokens_per_usd || 40000000).toLocaleString('en-US'))}
           </p>
           <p className="text-xs text-gray-400 mb-3">
             {t('profile.bundleBalance').replace('{tokens}', formatTokens(extras?.token_bundle?.balance || 0))}

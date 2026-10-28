@@ -191,7 +191,7 @@ worker-app/
 | **daily_tokens_guest** | Daily free allowance — guests, keyed by client IP |
 | **user_plans** | Active subscription tiers (`plus`/`pro`/`max`: 10M/30M/80M tokens/day; plus |
 | **plan_purchases** | Plan/token invoice claims — IPN exactly-once idempotency (`plan_type`: plus/pro/max/tokens) |
-| **user_token_balances** | Prepaid token pot — $1 = 1M tokens, never expires |
+| **user_token_balances** | Prepaid token pot — $1 = 40M default-model tokens, never expires |
 | **tickets** | Support tickets — subject, category (`support`/`billing`/`worker`), status (`open`/`answered`/`closed`), |
 | **ticket_messages** | Ticket thread messages (`is_admin` flags the staff reply, `ON DELETE CASCADE`), |
 | **admin_audit_log** | Admin mutation trail — `admin_id`, `action`, `target_type/id`, `reason`, `payload JSONB`, |
@@ -221,39 +221,39 @@ Models defined in `backend/src/models.js` with per-model pricing:
   category: 'chat',
   desc: 'Best budget all-rounder',
   inputPrice: 0.079,   // per 1M tokens
-  outputPrice: 0.158   // per 1M tokens
+  outputPrice: 0.025   // per 1M tokens
 }
 ```
 
-### Pricing Table (vs DeepSeek V4 Flash)
+### Pricing Table (vs the cheapest hosted providers)
 
-| Model | Size | Input/1M | Output/1M | vs DeepSeek |
-|-------|------|----------|-----------|-------------|
-| nomic-embed-text | 274M | $0.070 | $0.140 | -50% |
-| llama3.2:3b | 3B | $0.071 | $0.142 | -49% |
-| embeddinggemma | 300M | $0.073 | $0.146 | -48% |
-| bge-m3 | 567M | $0.076 | $0.152 | -46% |
-| llama3.1:8b | 8B | $0.079 | $0.158 | -44% |
-| qwen3-vl:8b | 8B | $0.082 | $0.164 | -42% |
-| gemma4:12b | 12B | $0.085 | $0.170 | -40% |
-| phi4:14b | 14B | $0.086 | $0.172 | -39% |
-| gpt-oss:20b | 21B MoE | $0.088 | $0.176 | -37% |
-| mistral-small3.2:24b | 24B | $0.090 | $0.180 | -36% |
-| qwen3-coder:30b | 30B | $0.091 | $0.182 | -36% |
-| gemma3:27b | 27B | $0.092 | $0.184 | -34% |
-| qwen2.5-coder:32b | 32B | $0.094 | $0.188 | -34% |
-| qwen3:32b | 32B | $0.095 | $0.190 | -32% |
-| llama3.3:70b | 70B | $0.097 | $0.194 | -32% |
-| deepseek-r1:70b | 70B | $0.098 | $0.196 | -30% |
+| Model | Size | Input/1M | Output/1M | Cheapest hosted elsewhere (in / out) |
+|-------|------|----------|-----------|------|
+| nomic-embed-text | 274M | $0.005 | — | 0.01–0.02 |
+| embeddinggemma | 300M | $0.006 | — | 0.01–0.02 |
+| bge-m3 | 567M | $0.008 | — | 0.01–0.02 |
+| llama3.2:3b | 3B | $0.010 | $0.020 | ~0.01–0.02 |
+| llama3.1:8b | 8B | $0.015 | $0.025 | 0.02 / 0.03 (DeepInfra) |
+| gpt-oss:20b | 21B MoE | $0.015 | $0.070 | 0.018 / 0.09 (OpenRouter) |
+| phi4:14b | 14B | $0.030 | $0.080 | — |
+| qwen3-vl:8b | 8B | $0.030 | $0.080 | — |
+| gemma4:12b | 12B | $0.030 | $0.080 | — |
+| mistral-small3.2:24b | 24B | $0.040 | $0.100 | — |
+| gemma3:27b | 27B | $0.040 | $0.120 | — |
+| qwen2.5-coder:32b | 32B | $0.060 | $0.180 | — |
+| qwen3-coder:30b | 30B MoE | $0.050 | $0.200 | 0.07 / 0.27 |
+| qwen3:32b | 32B | $0.060 | $0.200 | 0.08 / 0.28 (OpenRouter) |
+| llama3.3:70b | 70B | $0.080 | $0.250 | 0.10 / 0.32 (DeepInfra) |
+| deepseek-r1:70b | 70B | $0.080 | $0.280 | 0.10 / 0.40 |
 
 ## Daily Free Allowance & Plans
 
 Every subject gets a **2,000,000-token free allowance per UTC day** —
 signed-in users in `daily_tokens` (keyed by `user_id`), guests in
 `daily_tokens_guest` (keyed by `req.ip`; `trust proxy` is set in
-`server.js`). Paid tiers raise the cap for 30 days: **Plus $4.99 → 10M,
-Pro $9.99 → 30M, Max $19.99 → 80M tokens/day** (`PLANS` in
-`src/services/plans.js`). A separate **token bundle** ($1 = 1M, never
+`server.js`). Paid tiers raise the cap for 30 days: **Plus $2.99 → 10M,
+Pro $5.99 → 30M, Max $11.99 → 80M tokens/day** (`PLANS` in
+`src/services/plans.js`). A separate **token bundle** ($1 = 40M default-model tokens, never
 expires) tops up a prepaid pot (`user_token_balances`).
 
 ### Payment chain (one row-locked transaction in `chat.js`)
@@ -287,7 +287,7 @@ expires) tops up a prepaid pot (`user_token_balances`).
 - `GET /api/plans` (auth optional) — `{ plans: [...with value metrics],
   plan, daily_limit, token_bundle, free_tokens?, token_balance? }`.
   Value metrics (`value_usd_day`/`value_usd_month`) price the allowance at
-  the default model's catalog output price (`outputPrice()` ≈ $0.158/1M).
+  the default model's catalog output price (`outputPrice()` = $0.025/1M).
 - `POST /api/plans/:tier/purchase` (auth) — validates `:tier` against
   `PLANS` (`400 INVALID_PLAN` otherwise), creates a NowPayments invoice
   with `order_id = <tier>-<userId>-<ts>` and a pending `plan_purchases`

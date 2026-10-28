@@ -58,7 +58,7 @@ export default function PlansContent({
           <div className="text-2xl">🎟️</div>
           <div className="font-bold text-gray-800 mt-1">{t('profile.bundleTitle')}</div>
           <div className="text-xs text-gray-600 mt-1">
-            {t('profile.bundleDesc').replace('{rate}', Number(catalog.token_bundle?.tokens_per_usd || 1000000).toLocaleString('en-US'))}
+            {t('profile.bundleDesc').replace('{rate}', Number(catalog.token_bundle?.tokens_per_usd || 40000000).toLocaleString('en-US'))}
           </div>
           <div className="text-[10px] text-gray-400 mt-0.5">
             ${catalog.token_bundle?.min_usd || 1} – ${catalog.token_bundle?.max_usd || 500}

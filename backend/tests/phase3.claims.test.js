@@ -14,7 +14,7 @@ jest.mock('../src/database/pool', () => {
 });
 
 jest.mock('../src/services/plans', () => ({
-  PLANS: { plus: { price: 4.99 }, pro: { price: 9.99 }, max: { price: 19.99 } },
+  PLANS: { plus: { price: 2.99 }, pro: { price: 5.99 }, max: { price: 11.99 } },
   activatePlan: jest.fn(),
 }));
 

@@ -175,33 +175,35 @@ completions. Embedding models are not offered in the chat UI.
 
 ## AI Models & Pricing
 
-| Model | Size | Input/1M | Output/1M | vs DeepSeek |
-|-------|------|----------|-----------|-------------|
-| nomic-embed-text | 274M | $0.070 | $0.140 | -50% |
-| llama3.2:3b | 3B | $0.071 | $0.142 | -49% |
-| embeddinggemma | 300M | $0.073 | $0.146 | -48% |
-| bge-m3 | 567M | $0.076 | $0.152 | -46% |
-| llama3.1:8b | 8B | $0.079 | $0.158 | -44% |
-| qwen3-vl:8b | 8B | $0.082 | $0.164 | -42% |
-| gemma4:12b | 12B | $0.085 | $0.170 | -40% |
-| phi4:14b | 14B | $0.086 | $0.172 | -39% |
-| gpt-oss:20b | 21B MoE | $0.088 | $0.176 | -37% |
-| mistral-small3.2:24b | 24B | $0.090 | $0.180 | -36% |
-| qwen3-coder:30b | 30B | $0.091 | $0.182 | -36% |
-| gemma3:27b | 27B | $0.092 | $0.184 | -34% |
-| qwen2.5-coder:32b | 32B | $0.094 | $0.188 | -34% |
-| qwen3:32b | 32B | $0.095 | $0.190 | -32% |
-| llama3.3:70b | 70B | $0.097 | $0.194 | -32% |
-| deepseek-r1:70b | 70B | $0.098 | $0.196 | -30% |
+| Model | Size | Input/1M | Output/1M | Cheapest hosted elsewhere (in / out) |
+|-------|------|----------|-----------|------|
+| nomic-embed-text | 274M | $0.005 | — | 0.01–0.02 |
+| embeddinggemma | 300M | $0.006 | — | 0.01–0.02 |
+| bge-m3 | 567M | $0.008 | — | 0.01–0.02 |
+| llama3.2:3b | 3B | $0.010 | $0.020 | ~0.01–0.02 |
+| llama3.1:8b | 8B | $0.015 | $0.025 | 0.02 / 0.03 (DeepInfra) |
+| gpt-oss:20b | 21B MoE | $0.015 | $0.070 | 0.018 / 0.09 (OpenRouter) |
+| phi4:14b | 14B | $0.030 | $0.080 | — |
+| qwen3-vl:8b | 8B | $0.030 | $0.080 | — |
+| gemma4:12b | 12B | $0.030 | $0.080 | — |
+| mistral-small3.2:24b | 24B | $0.040 | $0.100 | — |
+| gemma3:27b | 27B | $0.040 | $0.120 | — |
+| qwen2.5-coder:32b | 32B | $0.060 | $0.180 | — |
+| qwen3-coder:30b | 30B MoE | $0.050 | $0.200 | 0.07 / 0.27 |
+| qwen3:32b | 32B | $0.060 | $0.200 | 0.08 / 0.28 (OpenRouter) |
+| llama3.3:70b | 70B | $0.080 | $0.250 | 0.10 / 0.32 (DeepInfra) |
+| deepseek-r1:70b | 70B | $0.080 | $0.280 | 0.10 / 0.40 |
 
-**Reference:** DeepSeek V4 Flash — $0.14 input / $0.28 output per 1M tokens
+Prices are set at or below the cheapest public hosted rate for each model
+(DeepInfra / OpenRouter / Groq listings, Oct 2026) and scale with model size.
+Chat is billed on output tokens; embeddings on input tokens.
 
 ## Payments, Free Allowance & Plans
 
 Every message settles in one row-locked transaction, in order:
 1. **Daily free allowance** — **2,000,000 tokens per UTC day** for every subject (signed-in users by account, guests by IP); plan tiers raise the cap (up to 80M/day on Max); `payment_status: "free"`, platform-funded
 2. **Worker credit** — with a worker `online`/`busy`, the first **$1.00 per UTC day** is free (`payment_status: "free_worker"`); the worker earns nothing from these chats
-3. **Token bundle pot** — prepaid tokens ($1 = 1M, never expires) drain all-or-nothing per message (`payment_status: "tokens"`); the worker earns 90% of the message's catalog value, paid from bundle revenue
+3. **Token bundle pot** — prepaid tokens ($1 = 40M default-model tokens, never expires) drain all-or-nothing per message (`payment_status: "tokens"`); the worker earns 90% of the message's catalog value, paid from bundle revenue
 4. **USD wallet** (deposits via NowPayments) — a worker serving a **paid** reply earns a flat **90%** of the cost, whatever plan the payer is on
 5. Race fallback — an already-generated reply is still served as `"free"`
 
@@ -212,13 +214,13 @@ Every message settles in one row-locked transaction, in order:
 | Tier | Price | Tokens/day | Catalog value/day* |
 |------|-------|-----------:|-------------------:|
 | Free | $0 | 2,000,000 | ≈ $0.32 |
-| ⭐ Plus | $4.99/mo | 10,000,000 | ≈ $1.58 |
-| 🚀 Pro | $9.99/mo | 30,000,000 | ≈ $4.74 |
-| 👑 Max | $19.99/mo | 80,000,000 | ≈ $12.64 |
+| ⭐ Plus | $2.99/mo | 10,000,000 | ≈ $0.25 |
+| 🚀 Pro | $5.99/mo | 30,000,000 | ≈ $0.75 |
+| 👑 Max | $11.99/mo | 80,000,000 | ≈ $2.00 |
 
-\* at the default model's catalog output price ($0.158/1M).
+\* at the default model's catalog output price ($0.025/1M). For comparison (Oct 2026): ChatGPT Go $8, Gemini entry $4.99, ChatGPT Plus / Claude Pro / Google AI Pro ~$20.
 
-**Token bundles** — whole dollars **$1–$500 → 1M tokens per $1**, one-time payment, **never expires**, settled between the daily allowance and the wallet.
+**Token bundles** — whole dollars **$1–$500 → 40M tokens per $1** (a pot token = one `llama3.1:8b` output token; pricier models drain proportionally more, so $1 of pot is worth exactly $1 of usage), one-time payment, **never expires**, settled between the daily allowance and the wallet.
 
 **Worker earnings breakdown** — every earning row records its source and the payer's plan; the profile shows 5 buckets: 🎟️ Tokens / 👛 Wallet / ⭐ Plus / 🚀 Pro / 👑 Max (free legs pay workers nothing).
 
@@ -305,7 +307,7 @@ plankton.click/
 | daily_tokens_guest | Daily free allowance — guests, keyed by client IP |
 | user_plans | Active subscription tiers (plus/pro/max) |
 | plan_purchases | Plan/token invoice claims — IPN exactly-once idempotency |
-| user_token_balances | Prepaid token pot — $1 = 1M tokens, never expires |
+| user_token_balances | Prepaid token pot — $1 = 40M default-model tokens, never expires |
 | tickets | Support tickets — subject/category/status |
 | ticket_messages | Ticket thread messages, user + admin replies |
 | admin_audit_log | Admin action trail — who/action/target/reason/payload |

@@ -34,9 +34,9 @@ describe('plan catalog (v3.28.0)', () => {
 
   it('defines exactly Plus/Pro/Max with the agreed prices and caps', () => {
     expect(Object.keys(PLANS)).toEqual(['plus', 'pro', 'max']);
-    expect(PLANS.plus).toMatchObject({ price: 4.99, daily_tokens: 10000000, interval_days: 30 });
-    expect(PLANS.pro).toMatchObject({ price: 9.99, daily_tokens: 30000000, interval_days: 30 });
-    expect(PLANS.max).toMatchObject({ price: 19.99, daily_tokens: 80000000, interval_days: 30 });
+    expect(PLANS.plus).toMatchObject({ price: 2.99, daily_tokens: 10000000, interval_days: 30 });
+    expect(PLANS.pro).toMatchObject({ price: 5.99, daily_tokens: 30000000, interval_days: 30 });
+    expect(PLANS.max).toMatchObject({ price: 11.99, daily_tokens: 80000000, interval_days: 30 });
   });
 
   it('keeps the flat worker share at 90% for every paid leg', () => {
@@ -51,28 +51,38 @@ describe('plan catalog (v3.28.0)', () => {
     }
   });
 
-  it('shows value metrics at the default model output price ($0.158/1M)', () => {
+  it('shows value metrics at the default model output price ($0.025/1M)', () => {
     const plans = listPlans();
     expect(plans).toHaveLength(3);
     const plus = plans.find((p) => p.name === 'plus');
-    expect(plus.value_usd_day).toBe(1.58);    // 10M * 0.158 / 1M
-    expect(plus.value_usd_month).toBe(47.4);  // 1.58 * 30
+    expect(plus.value_usd_day).toBe(0.25);    // 10M * 0.025 / 1M
+    expect(plus.value_usd_month).toBe(7.5);   // 0.25 * 30
     const max = plans.find((p) => p.name === 'max');
-    expect(max.value_usd_day).toBe(12.64);
-    expect(max.value_usd_month).toBe(379.2);
+    expect(max.value_usd_day).toBe(2);
+    expect(max.value_usd_month).toBe(60);
   });
 
   it('computes token value directly from a token count', () => {
-    expect(tokenValueUsd(2000000)).toEqual({ value_usd_day: 0.32, value_usd_month: 9.48 });
+    expect(tokenValueUsd(2000000)).toEqual({ value_usd_day: 0.05, value_usd_month: 1.5 });
   });
 });
 
-describe('token bundle ($1 = 1M, whole dollars, no expiry)', () => {
-  it('quotes 1M tokens per whole dollar', () => {
-    expect(TOKEN_BUNDLE).toMatchObject({ tokens_per_usd: 1000000, price_per_million: 1, min_usd: 1, max_usd: 500 });
-    expect(quoteTokens(1)).toBe(1000000);
-    expect(quoteTokens(7)).toBe(7000000);
-    expect(quoteTokens(500)).toBe(500000000);
+describe('token bundle (worth exactly its USD price, whole dollars, no expiry)', () => {
+  it('quotes default-model tokens per whole dollar ($1 = 40M at $0.025/1M)', () => {
+    expect(TOKEN_BUNDLE).toMatchObject({ tokens_per_usd: 40000000, price_per_million: 0.025, min_usd: 1, max_usd: 500 });
+    expect(quoteTokens(1)).toBe(40000000);
+    expect(quoteTokens(7)).toBe(280000000);
+    expect(quoteTokens(500)).toBe(20000000000);
+  });
+
+  it('drains the pot by catalog cost, so pricier models use proportionally more', () => {
+    const { potTokensFor, modelOutputPrice } = require('../src/services/plans');
+    const cost = (tok, model) => (tok * modelOutputPrice(model)) / 1e6;
+    expect(potTokensFor(cost(1000, 'llama3.1:8b'))).toBe(1000);
+    expect(potTokensFor(cost(1000, 'llama3.3:70b'))).toBe(10000);
+    expect(potTokensFor(cost(1, 'llama3.2:3b'))).toBe(1); // never free
+    // $1 of pot buys exactly $1 of catalog value.
+    expect(potTokensFor(1)).toBe(TOKEN_BUNDLE.tokens_per_usd);
   });
 });
 

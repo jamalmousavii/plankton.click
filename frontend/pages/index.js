@@ -324,7 +324,7 @@ export default function Home() {
     }
   }, [token, t]);
 
-  // Token bundle ($1 = 1M tokens, whole dollars, never expires).
+  // Token bundle (whole dollars, never expires; rate comes from the API).
   const purchaseTokens = useCallback(async () => {
     if (!token || purchaseLockRef.current) return;
     const amount = parseInt(bundleAmount, 10);

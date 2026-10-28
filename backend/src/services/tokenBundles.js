@@ -1,4 +1,4 @@
-// Prepaid token pot (v3.28.0): whole dollars in, 1M tokens per dollar,
+// Prepaid token pot: whole dollars in (TOKEN_BUNDLE.tokens_per_usd each),
 // never expires. Settles between the daily free allowance and the USD wallet.
 const pool = require('../database/pool');
 

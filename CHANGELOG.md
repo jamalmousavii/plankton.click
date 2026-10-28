@@ -16,6 +16,16 @@ All notable changes to Plankton are documented here. The project follows
   every worker automatically and cannot be removed from the manager menu.
 
 ### Changed
+- **New, market-beating pricing.** Every model is now priced at or below the
+  cheapest public hosted rate (DeepInfra / OpenRouter / Groq, Oct 2026) and
+  scales with model size — e.g. `llama3.1:8b` $0.015 / $0.025 per 1M
+  (was $0.079 / $0.158), `llama3.3:70b` $0.08 / $0.25, `bge-m3` $0.008.
+- **Cheaper plans:** Plus $2.99, Pro $5.99, Max $11.99 per month (were
+  $4.99 / $9.99 / $19.99), same daily caps — below ChatGPT Go ($8) and
+  Gemini's entry tier ($4.99).
+- **Token bundles fixed:** $1 now buys 40M default-model tokens and the pot
+  drains by catalog cost (a 70B token costs 10 pot tokens), so $1 of bundle is
+  worth exactly $1 of usage. The old flat $1 = 1M was ~6x worse than the wallet.
 - Embedding models are no longer installer menu choices (they were never
   useful alone) and no longer appear in the chat model picker; chatting with
   one returns `400 MODEL_NOT_CHAT`.

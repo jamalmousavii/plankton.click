@@ -104,7 +104,7 @@ describe('embeddings service', () => {
     const out = await embed({ wsServer: ws, userId: 7, input: ['a', 'b'] });
     expect(out.embeddings).toHaveLength(2);
     expect(out.tokensUsed).toBe(10);
-    expect(out.cost).toBeCloseTo((10 * 0.076) / 1e6, 12);
+    expect(out.cost).toBeCloseTo((10 * 0.008) / 1e6, 12);
     expect(settleMessage).toHaveBeenCalledWith(expect.objectContaining({ userId: 7, tokensUsed: 10, workerId: 3, taskId: 41 }));
     expect(pool.__state.statements.join('\n')).toMatch(/status = 'completed'/);
   });
