@@ -50,3 +50,6 @@ deploy/plankton-relay/
 # Next.js
 frontend/.next/
 
+
+git
+git.pub
