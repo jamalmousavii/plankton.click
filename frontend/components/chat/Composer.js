@@ -67,6 +67,9 @@ function Composer({
                       <span>{CATEGORY_ICONS[model.category]}</span>
                       <span className="truncate font-medium">{model.name}</span>
                       <span className="text-sky-600 text-xs">{model.size}</span>
+                      {model.token_weight ? (
+                        <span className="text-gray-400 text-[11px] tabular-nums">×{model.token_weight}</span>
+                      ) : null}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       {hasWorkers ? (

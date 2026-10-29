@@ -33,7 +33,7 @@ const PLANS = {
 
 // Token bundle: whole dollars in, no expiry. A pot token is worth one output
 // token of the default model, so $1 buys exactly what $1 of wallet does
-// (bigger models drain proportionally more — see potTokensFor). It used to be
+// (bigger models drain proportionally more — see weightedTokensFor). It used to be
 // a flat $1 = 1M tokens, ~6x worse than paying from the wallet.
 const TOKEN_BUNDLE = {
   tokens_per_usd: Math.round(1e6 / modelOutputPrice(DEFAULT_MODEL_ID)),
@@ -60,6 +60,15 @@ const DEFAULT_INPUT_PRICE = 0.079;
 function modelInputPrice(modelId) {
   const m = MODELS.find((x) => x.id === modelId);
   return m ? m.inputPrice : DEFAULT_INPUT_PRICE;
+}
+
+// Allowance weight per model token (= catalog price / default output price;
+// embeddings are billed on input, so their input price is used).
+function modelTokenWeight(modelId) {
+  const m = MODELS.find((x) => x.id === modelId);
+  if (!m) return Math.round((DEFAULT_OUTPUT_PRICE / modelOutputPrice(DEFAULT_MODEL_ID)) * 100) / 100;
+  const price = m.category === 'embedding' ? m.inputPrice : m.outputPrice;
+  return Math.round((price / modelOutputPrice(DEFAULT_MODEL_ID)) * 100) / 100;
 }
 
 // What a day's allowance is worth at the default model's catalog output
@@ -93,9 +102,12 @@ function listPlans() {
   }));
 }
 
-// Pot tokens a message costs: its catalog USD cost expressed in default-model
-// output tokens (>= 1 for any non-free message).
-function potTokensFor(costUsd) {
+// Weighted tokens a message costs: its catalog USD cost expressed in
+// default-model (llama3.1:8b) output tokens, >= 1 for any priced message.
+// One unit for everything token-denominated — the daily allowance (Free and
+// plan caps), the token-bundle pot and the plan revenue share — so a 70B
+// token burns 10x what an 8B token does and a 3B token burns 0.8x.
+function weightedTokensFor(costUsd) {
   return Math.max(1, Math.ceil((costUsd * 1e6) / modelOutputPrice(DEFAULT_MODEL_ID) - 1e-9));
 }
 
@@ -165,7 +177,8 @@ module.exports = {
   MAX_TASK_TOKENS,
   modelOutputPrice,
   modelInputPrice,
-  potTokensFor,
+  weightedTokensFor,
+  modelTokenWeight,
   planTokenRate,
   planWorkerEarning,
   listPlans,

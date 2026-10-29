@@ -76,13 +76,38 @@ describe('token bundle (worth exactly its USD price, whole dollars, no expiry)',
   });
 
   it('drains the pot by catalog cost, so pricier models use proportionally more', () => {
-    const { potTokensFor, modelOutputPrice } = require('../src/services/plans');
+    const { weightedTokensFor, modelOutputPrice } = require('../src/services/plans');
     const cost = (tok, model) => (tok * modelOutputPrice(model)) / 1e6;
-    expect(potTokensFor(cost(1000, 'llama3.1:8b'))).toBe(1000);
-    expect(potTokensFor(cost(1000, 'llama3.3:70b'))).toBe(10000);
-    expect(potTokensFor(cost(1, 'llama3.2:3b'))).toBe(1); // never free
+    expect(weightedTokensFor(cost(1000, 'llama3.1:8b'))).toBe(1000);
+    expect(weightedTokensFor(cost(1000, 'llama3.3:70b'))).toBe(10000);
+    expect(weightedTokensFor(cost(1, 'llama3.2:3b'))).toBe(1); // never free
     // $1 of pot buys exactly $1 of catalog value.
-    expect(potTokensFor(1)).toBe(TOKEN_BUNDLE.tokens_per_usd);
+    expect(weightedTokensFor(1)).toBe(TOKEN_BUNDLE.tokens_per_usd);
+  });
+});
+
+describe('model token weights (allowance burn rate)', () => {
+  const { modelTokenWeight } = require('../src/services/plans');
+  const MODELS = require('../src/models');
+
+  it('anchors the default model at 1 and scales by catalog price', () => {
+    expect(modelTokenWeight('llama3.1:8b')).toBe(1);
+    expect(modelTokenWeight('llama3.2:3b')).toBe(0.8);
+    expect(modelTokenWeight('llama3.3:70b')).toBe(10);
+    expect(modelTokenWeight('bge-m3')).toBe(0.32); // embeddings: input price
+  });
+
+  it('is strictly ordered inside every category (bigger burns more, no ties)', () => {
+    for (const cat of new Set(MODELS.map((m) => m.category))) {
+      const weights = MODELS.filter((m) => m.category === cat).map((m) => modelTokenWeight(m.id));
+      expect(new Set(weights).size).toBe(weights.length);
+    }
+    const chat = ['llama3.2:3b', 'llama3.1:8b', 'gpt-oss:20b', 'phi4:14b', 'qwen3:32b', 'llama3.3:70b', 'deepseek-r1:70b'].map(modelTokenWeight);
+    expect([...chat].sort((a, b) => a - b)).toEqual(chat);
+  });
+
+  it('charges unknown models at the conservative (max) rate', () => {
+    expect(modelTokenWeight('no-such-model')).toBe(11.2);
   });
 });
 

@@ -237,7 +237,7 @@ Models defined in `backend/src/models.js` with per-model pricing:
 | gpt-oss:20b | 21B MoE | $0.015 | $0.070 | 0.018 / 0.09 (OpenRouter) |
 | phi4:14b | 14B | $0.030 | $0.080 | — |
 | qwen3-vl:8b | 8B | $0.030 | $0.080 | — |
-| gemma4:12b | 12B | $0.030 | $0.080 | — |
+| gemma4:12b | 12B | $0.030 | $0.090 | — |
 | mistral-small3.2:24b | 24B | $0.040 | $0.100 | — |
 | gemma3:27b | 27B | $0.040 | $0.120 | — |
 | qwen2.5-coder:32b | 32B | $0.060 | $0.180 | — |

@@ -16,6 +16,13 @@ All notable changes to Plankton are documented here. The project follows
   every worker automatically and cannot be removed from the manager menu.
 
 ### Changed
+- **Model-weighted token usage.** One token of a model now burns
+  `model price ÷ llama3.1:8b price` allowance tokens (`token_weight` in
+  `GET /api/models`, shown as `×N` in the chat picker): llama3.2:3b ×0.8 …
+  llama3.3:70b ×10, deepseek-r1:70b ×11.2, embeddings ×0.2–0.32, each model
+  distinct inside its category. Applies to the Free/plan daily allowance, the
+  token pot and the plan revenue share. `gemma4:12b` output price 0.08 → 0.09
+  so it no longer ties with `qwen3-vl:8b`.
 - **Workers now earn from subscriptions.** Previously a plan's price went
   entirely to the platform and plan-covered messages paid workers nothing.
   Now every token a worker serves to a Plus/Pro/Max subscriber earns 90% of

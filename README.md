@@ -185,7 +185,7 @@ completions. Embedding models are not offered in the chat UI.
 | gpt-oss:20b | 21B MoE | $0.015 | $0.070 | 0.018 / 0.09 (OpenRouter) |
 | phi4:14b | 14B | $0.030 | $0.080 | — |
 | qwen3-vl:8b | 8B | $0.030 | $0.080 | — |
-| gemma4:12b | 12B | $0.030 | $0.080 | — |
+| gemma4:12b | 12B | $0.030 | $0.090 | — |
 | mistral-small3.2:24b | 24B | $0.040 | $0.100 | — |
 | gemma3:27b | 27B | $0.040 | $0.120 | — |
 | qwen2.5-coder:32b | 32B | $0.060 | $0.180 | — |
@@ -222,9 +222,26 @@ Every message settles in one row-locked transaction, in order:
 
 **Token bundles** — whole dollars **$1–$500 → 40M tokens per $1** (a pot token = one `llama3.1:8b` output token; pricier models drain proportionally more, so $1 of pot is worth exactly $1 of usage), one-time payment, **never expires**, settled between the daily allowance and the wallet.
 
+**Model-weighted tokens** — the daily allowance (Free and plan caps), the
+token-bundle pot and the plan revenue share all count *weighted* tokens: one
+token of a model burns `model price ÷ llama3.1:8b price` allowance tokens, so
+bigger models burn more and every model inside a category has its own rate.
+`GET /api/models` returns it as `token_weight`, and the chat model picker shows
+it as `×N`.
+
+| Category | Model → weight |
+|----------|----------------|
+| Chat | llama3.2:3b ×0.8 · llama3.1:8b ×1 · gpt-oss:20b ×2.8 · phi4:14b ×3.2 · qwen3:32b ×8 · llama3.3:70b ×10 · deepseek-r1:70b ×11.2 |
+| Code | qwen2.5-coder:32b ×7.2 · qwen3-coder:30b ×8 |
+| Vision | qwen3-vl:8b ×3.2 · gemma4:12b ×3.6 · mistral-small3.2:24b ×4 · gemma3:27b ×4.8 |
+| Embedding | nomic-embed-text ×0.2 · embeddinggemma ×0.24 · bge-m3 ×0.32 |
+
+Example: the Free tier's 2M allowance tokens/day = 2.5M real tokens on
+llama3.2:3b, 2M on llama3.1:8b, 200K on llama3.3:70b.
+
 **How plan money reaches workers (per token, transparent)** — a plan's daily
 price (`price ÷ 30`) buys its daily token cap, so every plan-covered token is
-worth `price ÷ 30 ÷ daily tokens`, and the worker that served it earns **90%**
+worth `price ÷ 30 ÷ daily tokens` (weighted tokens, so serving a 70B pays 10x an 8B), and the worker that served it earns **90%**
 of that, credited on the message itself. Unused allowance stays with the
 platform, so total payouts can never exceed what the subscription brought in.
 

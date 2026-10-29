@@ -2,7 +2,7 @@ const pool = require('../database/pool');
 const { chargeFreeTokens } = require('./freeAllowance');
 const { chargeWorkerCredit } = require('./workerCredit');
 const { chargeTokenPot } = require('./tokenBundles');
-const { getActivePlan, WORKER_REVENUE_SHARE, potTokensFor, PLANS, planWorkerEarning } = require('./plans');
+const { getActivePlan, WORKER_REVENUE_SHARE, weightedTokensFor, PLANS, planWorkerEarning } = require('./plans');
 const { invalidateCache } = require('../cache');
 const { logger } = require('../logger');
 
@@ -44,12 +44,15 @@ async function settleMessage({ userId, guestKey, tokensUsed, cost, workerId, ser
   };
 
   if (cost > 0) {
+    // Every token-denominated leg (daily allowance, plan share, pot) counts
+    // model-weighted tokens: bigger models burn proportionally more.
+    const weighted = weightedTokensFor(cost);
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
         const freeCharge = await chargeFreeTokens({
-          userId: bucket, guestKey, tokens: tokensUsed, cap: freeCap, client,
+          userId: bucket, guestKey, tokens: weighted, cap: freeCap, client,
         });
       freeRemaining = freeCharge.remaining;
 
@@ -62,7 +65,7 @@ async function settleMessage({ userId, guestKey, tokensUsed, cost, workerId, ser
           if (bucketPlan && PLANS[bucketPlan.plan_type]) {
             paymentStatus = 'plan';
             if (workerId && servedByWorker) {
-              const earning = planWorkerEarning(bucketPlan.plan_type, tokensUsed);
+              const earning = planWorkerEarning(bucketPlan.plan_type, weighted);
               if (earning > 0) await creditWorkerEarning(client, earning, 'plan', bucketPlan.plan_type);
             }
           }
@@ -80,7 +83,7 @@ async function settleMessage({ userId, guestKey, tokensUsed, cost, workerId, ser
         } else {
           // Pot tokens are default-model tokens: a pricier model drains
           // proportionally more, so the pot is worth exactly its USD price.
-          const potCharge = await chargeTokenPot({ userId, tokens: potTokensFor(cost), client });
+          const potCharge = await chargeTokenPot({ userId, tokens: weighted, client });
 
           if (potCharge.charged) {
             tokenBalanceRemaining = potCharge.remaining;

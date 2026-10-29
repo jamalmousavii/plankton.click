@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../database/pool');
 const MODELS = require('../models');
 const { logger } = require('../logger');
+const { modelTokenWeight } = require('../services/plans');
 
 // GET /api/models
 router.get('/', async (req, res) => {
@@ -72,6 +73,8 @@ router.get('/', async (req, res) => {
     // Merge model data with worker counts
     const modelsWithWorkers = models.map(m => ({
       ...m,
+      // Allowance tokens one token of this model burns (llama3.1:8b = 1).
+      token_weight: modelTokenWeight(m.id),
       workers_online: workerCounts[m.id] || 0,
     }));
 

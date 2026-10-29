@@ -83,6 +83,15 @@ describe('settleMessage plan leg', () => {
     expect(amount).toBeCloseTo((2.99 / 30 / 10) * 0.9, 12);
   });
 
+  it('burns and pays by model weight: 100K tokens of a 70B = 1M allowance tokens', async () => {
+    activePlan = 'plus';
+    const { chargeFreeTokens } = require('../src/services/freeAllowance');
+    chargeFreeTokens.mockClear();
+    await settleMessage({ ...base, tokensUsed: 100000, cost: (100000 * 0.25) / 1e6, freeCap: 10000000 });
+    expect(chargeFreeTokens).toHaveBeenCalledWith(expect.objectContaining({ tokens: 1000000 }));
+    expect(earningsRows()[0].params[2]).toBeCloseTo((2.99 / 30 / 10) * 0.9, 12);
+  });
+
   it('pays the worker nothing for a Free-tier user', async () => {
     activePlan = null;
     const out = await settleMessage({ ...base, freeCap: 2000000 });

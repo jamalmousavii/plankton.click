@@ -19,7 +19,7 @@ const MODELS = [
   { id: 'gemma3:27b', name: 'Gemma 3', size: '27B', ram: '18 GB', category: 'vision', desc: 'Google multimodal workhorse', inputPrice: 0.04, outputPrice: 0.12, vision: true, audio: false },
   { id: 'mistral-small3.2:24b', name: 'Mistral Small 3.2', size: '24B', ram: '15 GB', category: 'vision', desc: 'Fast vision + tools (EU-made)', inputPrice: 0.04, outputPrice: 0.1, vision: true, audio: false },
   { id: 'qwen3-vl:8b', name: 'Qwen 3 VL', size: '8B', ram: '8 GB', category: 'vision', desc: 'Best vision model (tools + thinking)', inputPrice: 0.03, outputPrice: 0.08, vision: true, audio: false },
-  { id: 'gemma4:12b', name: 'Gemma 4', size: '12B', ram: '7 GB', category: 'vision', desc: 'Multimodal + tools + thinking', inputPrice: 0.03, outputPrice: 0.08, vision: true, audio: true },
+  { id: 'gemma4:12b', name: 'Gemma 4', size: '12B', ram: '7 GB', category: 'vision', desc: 'Multimodal + tools + thinking', inputPrice: 0.03, outputPrice: 0.09, vision: true, audio: true },
 
   // Embedding — Kamel-tarin
   { id: 'embeddinggemma', name: 'EmbeddingGemma', size: '300M', ram: '0.5 GB', category: 'embedding', desc: 'Newest (100+ languages, Matryoshka)', inputPrice: 0.006, outputPrice: 0.006, vision: false, audio: false },
