@@ -835,7 +835,10 @@ export default function Home() {
   };
 
   // ===== EMPTY STATE: centered hero =====
-  if (!hasStarted) {
+  // Only for guests and for signed-in users without an open session: New chat
+  // creates a session, so a signed-in user stays in the chat layout below
+  // (sidebar kept) instead of bouncing back to the homepage hero.
+  if (!hasStarted && !(isLoggedIn && activeSessionId)) {
     return (
       <div className="flex-1 page-surface flex flex-col">
         <Head>

@@ -3,6 +3,14 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.2] — 2026-11-01
+
+### Changed
+- **New chat keeps you in the chat.** For signed-in users, New chat no longer
+  jumps back to the homepage hero (which hid the history sidebar until the
+  first message): the chat layout and sidebar stay, and the empty chat shows
+  a small welcome. The hero is now only for guests and users without a chat.
+
 ## [1.1.1] — 2026-11-01
 
 ### Changed

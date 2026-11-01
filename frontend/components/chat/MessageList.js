@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { isRtl } from '../../i18n/translations';
 import UpgradeWall from './UpgradeWall';
+import { LogoMark } from '../Logo';
 
 // Chat transcript: bubbles, media chips, source/payment captions, typing
 // indicator, scroll spacer. Extracted from pages/index.js in Phase 6 —
@@ -10,6 +11,16 @@ function MessageList({ messagesRef, chat, loading, lang, t, hasSubjectBar, purch
   const rtl = isRtl(lang);
   return (
     <div ref={messagesRef} className={`bg-white border border-gray-200/80 ${hasSubjectBar ? 'rounded-b-2xl' : 'rounded-2xl'} p-3 md:p-5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain mb-3 shadow-sm`}>
+      {/* A fresh chat (New chat while signed in) stays in this layout — the
+          history sidebar remains — with a quiet welcome instead of the hero. */}
+      {chat.length === 0 && !loading && (
+        <div className="h-full min-h-[200px] flex flex-col items-center justify-center text-center px-4 animate-rise">
+          <LogoMark size={44} className="mb-3 drop-shadow-[0_8px_24px_rgba(23,152,163,0.35)]" />
+          <div className="font-display text-2xl md:text-3xl font-bold text-bioluminescent mb-1">plankton</div>
+          <p className="text-gray-500 text-sm md:text-base max-w-md">{t('home.subtitle')}</p>
+          <p className="text-gray-400 text-xs md:text-sm mt-3">{t('chat.startTyping')}</p>
+        </div>
+      )}
       {chat.map((msg, i) => (
         <div key={i} className={`mb-4 ${msg.role === 'user' ? (rtl ? 'text-left' : 'text-right') : (rtl ? 'text-right' : 'text-left')}`}>
           <div className={`inline-block max-w-[85%] rounded-2xl text-sm md:text-base ${
