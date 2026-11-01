@@ -3,6 +3,13 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] — 2026-11-01
+
+### Changed
+- Homepage: the plan cards are no longer shown inline under the chat box —
+  they crowded the hero and pushed the footer out of the fixed chat frame.
+  Plans still open from the Navbar **⭐ Plans** link and `/#plans` (modal).
+
 ## [1.1.0] — 2026-11-01
 
 ### Added

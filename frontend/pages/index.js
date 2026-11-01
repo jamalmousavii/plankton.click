@@ -5,7 +5,6 @@ import Link from 'next/link';
 import Navbar from '../components/Navbar';
 import PlanktonField from '../components/PlanktonField';
 import { LogoMark } from '../components/Logo';
-import PlansContent from '../components/PlansContent';
 import PlansModal from '../components/PlansModal';
 import Sidebar from '../components/chat/Sidebar';
 import MessageList from '../components/chat/MessageList';
@@ -896,36 +895,9 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* v3.29.0 — public pricing inline (empty state only); v3.30.0 — cards
-              live in PlansContent and also open as a modal via #plans.
-              v3.42.1 — the inline section is desktop-only: inside the
-              non-scrolling chat frame it clips on phones, so mobile gets a
-              compact card that opens the (internally scrolling) modal. */}
-          {catalog?.plans?.length > 0 && (
-            <>
-              <section id="plans" className="hidden md:block w-full max-w-4xl mt-8 md:mt-10">
-                <PlansContent
-                  catalog={catalog}
-                  planHint={planHint}
-                  purchaseError={purchaseError}
-                  purchaseBusy={purchaseBusy}
-                  bundleAmount={bundleAmount}
-                  setBundleAmount={setBundleAmount}
-                  onBuyPlan={handlePlanBuy}
-                  onBuyBundle={handleBundleBuy}
-                />
-              </section>
-              <div className="md:hidden w-full max-w-4xl mt-6">
-                <button
-                  onClick={() => setPlansOpen(true)}
-                  className="w-full flex items-center justify-between gap-2 bg-white border border-violet-200 rounded-2xl px-4 py-3.5 shadow-sm active:bg-violet-50 transition min-h-[56px]"
-                >
-                  <span className="text-sm font-bold text-gray-800">⭐ {t('home.pricingTitle')}</span>
-                  <span className="text-violet-600 text-xs font-bold">{t('home.pricingOpen')} →</span>
-                </button>
-              </div>
-            </>
-          )}
+          {/* Plans are not shown inline any more (they crowded the hero and
+              pushed the footer out of the fixed chat frame): the Navbar
+              ⭐ Plans link and /#plans open the PlansModal below. */}
         </main>
 
         <PlansModal
