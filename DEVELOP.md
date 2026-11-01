@@ -64,7 +64,7 @@ docker run -d --name plankton-it-pg -e POSTGRES_USER=plankton -e POSTGRES_PASSWO
 DATABASE_URL='postgresql://plankton:plankton@localhost:5433/plankton_it' npm test
 docker rm -f plankton-it-pg
 
-# Frontend — jest (27 tests), lint (warning-only), i18n parity (33 × 483), production build
+# Frontend — jest (18 tests), lint (warning-only), i18n parity (33 × 483), production build
 cd frontend
 npm run lint && npm run i18n:check && npm test && npm run build
 
@@ -90,7 +90,6 @@ frontend/
 │   ├── workers.js          # Worker mgmt + Quick Install copy + history
 │   ├── settings.js         # Settings (USD wallet, 33-lang dropdown, password)
 │   ├── worker.js           # Worker docs: install/connect/delete + GitHub
-│   ├── leaderboard.js     # Top workers/users
 │   ├── support.js         # Support tickets: list/new/thread
 │   └── admin.js           # Admin panel: 8 tabs + management actions
 ├── components/
@@ -103,8 +102,6 @@ frontend/
 │   ├── ErrorBoundary.js   # Error boundary
 │   ├── LanguageSwitcher.js # Dropdown: flag + language name (33 langs)
 │   └── chat/              # Chat UI split (Sidebar, MessageList, Composer, UpgradeWall)
-├── hooks/
-│   └── useApi.js          # Abort-aware fetch hook (leaderboard)
 ├── i18n/
 │   ├── translations.js    # Code-split registry: en static + 32 lazy loaders, LANGUAGES, RTL_LANGS, isRtl, hasLocale, loadLocale, detectLanguage
 │   ├── translations/      # One file per language (33 files: en, fa, ar, ...)
@@ -139,7 +136,6 @@ backend/
 │       ├── token.js       # Balance snapshot
 │       ├── tickets.js     # User support tickets
 │       ├── admin.js       # Admin panel API: views + audited actions
-│       └── leaderboard.js # Top workers
 └── package.json
 ```
 

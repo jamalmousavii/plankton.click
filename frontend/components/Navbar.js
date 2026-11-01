@@ -188,7 +188,6 @@ export default function Navbar() {
           <LanguageSwitcher />
           <Link href="/worker" className="px-3 py-1.5 rounded-full text-sm font-medium text-gray-600 hover:text-sky-800 hover:bg-sky-50 transition">{t('nav.worker')}</Link>
           <Link href="/#plans" onClick={() => window.dispatchEvent(new CustomEvent('plankton:show-plans'))} className="px-3 py-1.5 rounded-full text-sm font-medium text-gray-600 hover:text-sky-800 hover:bg-sky-50 transition">⭐ {t('nav.plans')}</Link>
-          <Link href="/leaderboard" className="px-3 py-1.5 rounded-full text-sm font-medium text-gray-600 hover:text-sky-800 hover:bg-sky-50 transition">🏆</Link>
           {user?.role === 'admin' && (
             <Link href="/admin" className="px-3 py-1.5 rounded-full text-sm font-medium text-gray-600 hover:text-sky-800 hover:bg-sky-50 transition">🛡️ {t('nav.admin')}</Link>
           )}
@@ -384,7 +383,6 @@ export default function Navbar() {
               <LanguageSwitcher />
               <Link href="/worker" onClick={closeMenu} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">{t('nav.worker')}</Link>
               <Link href="/#plans" onClick={() => { closeMenu(); window.dispatchEvent(new CustomEvent('plankton:show-plans')); }} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">⭐ {t('nav.plans')}</Link>
-              <Link href="/leaderboard" onClick={closeMenu} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">🏆 {t('nav.leaderboard')}</Link>
 
             {user ? (
               <>

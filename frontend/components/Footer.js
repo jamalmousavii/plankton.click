@@ -30,7 +30,6 @@ export default function Footer() {
         </div>
         <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-gray-500">
           <Link href="/worker" className="hover:text-sky-700 transition">{t('nav.worker')}</Link>
-          <Link href="/leaderboard" className="hover:text-sky-700 transition">{t('leaderboard.title')}</Link>
           <a href="https://github.com/jamalmousavii/plankton.click" target="_blank" rel="noopener noreferrer" className="hover:text-sky-700 transition">GitHub</a>
         </nav>
         <p className="text-gray-400 text-xs text-center md:text-right">{sentence}</p>

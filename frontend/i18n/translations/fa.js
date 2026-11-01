@@ -421,6 +421,10 @@ const fa = {
     cat_worker: 'ورکر',
   },
   admin: {
+    sortLabel: 'مرتب‌سازی',
+    sortRecent: 'جدیدترین',
+    sortUsage: 'بیشترین مصرف (۳۰ روز)',
+    sortSpend: 'بیشترین هزینه (۳۰ روز)',
     changePlan: 'تغییر پلن',
     planFreeOption: 'رایگان (حذف پلن)',
     planDays: 'روز',

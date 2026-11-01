@@ -89,42 +89,8 @@ router.get('/mine', authenticate, async (req, res) => {
   }
 });
 
-// GET /api/leaderboard/workers
-router.get('/workers', async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT id, wallet_address, gpu_model, total_tasks, earnings, status, current_model
-       FROM workers
-       WHERE total_tasks > 0
-       ORDER BY earnings DESC
-       LIMIT 50`
-    );
-    res.json({ success: true, workers: result.rows });
-  } catch (err) {
-    logger.error({ err }, 'Leaderboard route failed');
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// GET /api/leaderboard/users
-router.get('/users', async (req, res) => {
-  try {
-    // B10: earnings live in user_coin_balances (all money flows write there);
-    // the legacy user_balances.total_earned column nobody updates made the
-    // users leaderboard permanently empty.
-    const result = await pool.query(
-      `SELECT u.id, u.name, u.avatar, COALESCE(c.total_earned, 0) as earned, COALESCE(c.total_spent, 0) as spent
-       FROM users u
-       LEFT JOIN user_coin_balances c ON u.id = c.user_id AND c.coin = 'USD'
-       WHERE COALESCE(c.total_earned, 0) > 0
-       ORDER BY c.total_earned DESC
-       LIMIT 50`
-    );
-    res.json({ success: true, users: result.rows });
-  } catch (err) {
-    logger.error({ err }, 'Leaderboard route failed');
-    res.status(500).json({ error: 'Server error' });
-  }
-});
+// The public /workers and /users lists were removed in favour of the admin
+// panel (workers sorted by earnings, users sortable by usage/spend): they
+// exposed every worker's earnings and had nothing useful for regular users.
 
 module.exports = router;

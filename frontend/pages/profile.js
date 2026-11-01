@@ -363,9 +363,6 @@ export default function Profile() {
           <div className="bg-white rounded-xl border border-sky-100 shadow-sm p-5 md:p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-800">🏆 {t('profile.myRank')}</h2>
-              <Link href="/leaderboard" className="text-sm font-semibold text-sky-600 hover:text-sky-700 transition">
-                {t('profile.viewLeaderboard')} →
-              </Link>
             </div>
             {myRank.rank ? (
               <>

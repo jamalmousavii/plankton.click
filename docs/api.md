@@ -424,8 +424,6 @@ curl https://plankton.click/v1/embeddings \
 |------|-------|
 | `GET /api/models` | کاتالوگ مدل‌ها + تعداد ورکر آنلاین هر مدل (`unknown_models` برای مدل‌های خارج از کاتالوگ) — کش ۱۵ ثانیه |
 | `GET /api/models/categories` | دسته‌بندی‌ها |
-| `GET /api/leaderboard/workers` | ۵۰ ورکر برتر |
-| `GET /api/leaderboard/users` | ۵۰ کاربر برتر |
 | `GET /api/leaderboard/mine` | رتبه خودِ کاربر بین ورکرها (نیازمند JWT؛ `RANK()` روی درآمد + `breakdown: {tokens, wallet, plus, pro, max}` از `worker_coin_earnings`، v3.28.0) |
 
 ---
@@ -453,7 +451,7 @@ curl https://plankton.click/v1/embeddings \
 | مسیر | توضیح |
 |------|-------|
 | `GET /api/admin/dashboard` | شمارنده‌ها + درآمد پلتفرم + تیکت‌های کل/باز |
-| `GET /api/admin/users?q=&type=` | ۱۰۰ کاربر اخیر + موجودی دلار/توکن + پلن فعال + `banned` + `worker_count` + مصرف (`tokens_today` وزن‌دار، `tokens_30d`، `spend_30d`، `messages_30d`). `q`: ایمیل/نام/`#id`؛ `type`: `all`\|`worker` (مالک ورکر فعال)\|`user`\|`admin`\|`banned` |
+| `GET /api/admin/users?q=&type=&sort=` | ۱۰۰ کاربر اخیر + موجودی دلار/توکن + پلن فعال + `banned` + `worker_count` + مصرف (`tokens_today` وزن‌دار، `tokens_30d`، `spend_30d`، `messages_30d`). `q`: ایمیل/نام/`#id`؛ `type`: `all`\|`worker` (مالک ورکر فعال)\|`user`\|`admin`\|`banned`؛ `sort`: `recent`\|`usage`\|`spend` (برترین‌ها در ۳۰ روز — جایگزین لیدربورد عمومی که حذف شد) |
 | `GET /api/admin/users/:id/usage` | مصرف ۳۰ روز اخیر: `by_day`، `by_model` (با `token_weight`)، `today {used, cap}` |
 | `GET /api/admin/workers?q=&status=` | ۱۰۰ ورکر + ایمیل مالک + درآمد به تفکیک منبع (`earned_plan`، `earned_wallet`، `earned_tokens`) و `earned_30d`؛ `summary {total, last_30d, plan, wallet, tokens}`. `status`: `all`\|`online`\|`offline`\|`removed` |
 | `GET /api/admin/tasks` | ۱۰۰ تسک اخیر + ایمیل کاربر |

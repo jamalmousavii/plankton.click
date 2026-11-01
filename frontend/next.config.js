@@ -11,6 +11,8 @@ const nextConfig = {
     return [
       { source: '/miner', destination: '/worker', permanent: true },
       { source: '/miners', destination: '/workers', permanent: true },
+      // The public leaderboard was removed (admin panel only).
+      { source: '/leaderboard', destination: '/', permanent: true },
     ];
   },
   async rewrites() {

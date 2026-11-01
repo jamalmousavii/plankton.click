@@ -73,6 +73,17 @@ describe('GET /api/admin/users search + filter', () => {
     expect(res.body.type).toBe('all');
   });
 
+  it('sorts by 30-day usage or spend (admin-only leaderboard)', async () => {
+    db();
+    await request(app()).get('/api/admin/users?sort=usage').set('Authorization', `Bearer ${ADMIN}`);
+    expect(last(/FROM users u/).sql).toMatch(/ORDER BY tokens_30d DESC/);
+    await request(app()).get('/api/admin/users?sort=spend').set('Authorization', `Bearer ${ADMIN}`);
+    expect(last(/FROM users u/).sql).toMatch(/ORDER BY spend_30d DESC/);
+    const res = await request(app()).get('/api/admin/users?sort=;DROP').set('Authorization', `Bearer ${ADMIN}`);
+    expect(res.body.sort).toBe('recent');
+    expect(last(/FROM users u/).sql).toMatch(/ORDER BY u\.created_at DESC/);
+  });
+
   it('returns usage columns', async () => {
     db(async (sql) => (/FROM users u/.test(sql)
       ? { rows: [{ id: 5, email: 'a@b.c', worker_count: 2, tokens_today: '1200', tokens_30d: '9000', spend_30d: '0.01', messages_30d: 4 }] }

@@ -276,21 +276,14 @@ describe('B6: disconnect rejects in-flight tasks', () => {
 });
 
 // ---------------------------------------------------------------------------
-// B10 — the users leaderboard reads the table money is actually written to.
+// The public leaderboard lists are gone (admin panel only); /mine stays.
 // ---------------------------------------------------------------------------
-describe('B10: users leaderboard reads user_coin_balances', () => {
-  it('queries user_coin_balances, not the frozen legacy balance table', async () => {
+describe('public leaderboard lists removed', () => {
+  it('no longer serves /workers or /users', async () => {
     const app = express();
     app.use('/api/leaderboard', require('../src/routes/leaderboard'));
-    pool.__state.queryImpl = async () => ({ rows: [{ id: 1, name: 'a', earned: 5, spent: 1 }] });
-
-    const res = await request(app).get('/api/leaderboard/users');
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    const joined = pool.__state.statements.join('\n');
-    expect(joined).toContain('user_coin_balances');
-    expect(joined).not.toMatch(/LEFT JOIN user_balances/);
+    expect((await request(app).get('/api/leaderboard/users')).status).toBe(404);
+    expect((await request(app).get('/api/leaderboard/workers')).status).toBe(404);
   });
 });
 

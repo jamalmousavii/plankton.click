@@ -23,6 +23,14 @@ All notable changes to Plankton are documented here. The project follows
 - **Worker protocol 3** (`embed` / `embed_result`); `bge-m3` is installed on
   every worker automatically and cannot be removed from the manager menu.
 
+### Removed
+- **Public leaderboard** (`/leaderboard`, `GET /api/leaderboard/workers`
+  and `/users`, the `useApi` hook it used): it exposed every worker's
+  earnings and gave regular users nothing. `/leaderboard` redirects home; the
+  authenticated `GET /api/leaderboard/mine` (worker rank + earnings breakdown
+  on the profile) stays. Admins get the same view in the panel: workers sorted
+  by earnings, users sortable by 30-day usage or spend.
+
 ### Changed
 - **Model-weighted token usage.** One token of a model now burns
   `model price ÷ llama3.1:8b price` allowance tokens (`token_weight` in

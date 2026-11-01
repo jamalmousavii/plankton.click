@@ -294,11 +294,10 @@ plankton.click/
 │   │   ├── workers.js          # Worker management + Quick Install copy + history
 │   │   ├── settings.js        # Settings (USD wallet, 33-lang dropdown, password)
 │   │   ├── worker.js           # Worker docs: install/connect/delete + GitHub
-│   │   ├── leaderboard.js     # Top workers/users
 │   │   ├── support.js         # Support tickets: list/new/thread
 │   │   └── admin.js           # Admin panel: 8 tabs + management actions
 │   ├── components/
-│   │   ├── Navbar.js          # Nav (Worker, ⭐ Plans, Leaderboard; 🎫 Support in avatar dropdown + mobile menu, 🛡️ Admin) + auth + lang dropdown
+│   │   ├── Navbar.js          # Nav (Worker, ⭐ Plans; 🎫 Support in avatar dropdown + mobile menu, 🛡️ Admin) + auth + lang dropdown
 │   │   ├── EarningsBreakdown.js # 5-way worker earnings breakdown (profile, /workers, /worker)
 │   │   ├── PlansContent.js    # Pricing cards shared by inline section + modal
 │   │   ├── PlansModal.js      # Pricing overlay for /#plans deep links + Navbar
@@ -307,8 +306,6 @@ plankton.click/
 │   │   ├── ErrorBoundary.js   # Error boundary
 │   │   ├── LanguageSwitcher.js # 33-lang dropdown with flags
 │   │   └── chat/              # Chat UI split (Sidebar, MessageList, Composer, UpgradeWall)
-│   ├── hooks/
-│   │   └── useApi.js          # Abort-aware fetch hook (leaderboard)
 │   ├── i18n/
 │   │   ├── translations.js    # Code-split registry (en static + 32 lazy) + LANGUAGES + detectLanguage
 │   │   ├── translations/      # One file per language (33 files)

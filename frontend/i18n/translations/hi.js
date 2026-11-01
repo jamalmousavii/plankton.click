@@ -421,6 +421,10 @@ const hi = {
     cat_worker: 'Worker',
   },
   admin: {
+    sortLabel: 'Sort',
+    sortRecent: 'Newest',
+    sortUsage: 'Top usage (30d)',
+    sortSpend: 'Top spend (30d)',
     changePlan: 'Change plan',
     planFreeOption: 'Free (remove plan)',
     planDays: 'Days',

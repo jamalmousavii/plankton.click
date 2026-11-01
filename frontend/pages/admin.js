@@ -54,6 +54,7 @@ export default function Admin() {
   const [usage, setUsage] = useState(null); // { user, today, by_day, by_model }
   const [userQuery, setUserQuery] = useState('');
   const [userType, setUserType] = useState('all');
+  const [userSort, setUserSort] = useState('recent');
   const [workerQuery, setWorkerQuery] = useState('');
   const [workerFilter, setWorkerFilter] = useState('all');
   const [workerSummary, setWorkerSummary] = useState(null);
@@ -83,15 +84,16 @@ export default function Admin() {
     const data = await apiFetch('/api/admin/dashboard');
     if (data.success) setDashboard(data.dashboard);
   });
-  const listQuery = (q, filterKey, filter) => {
+  const listQuery = (q, filterKey, filter, sort) => {
     const params = new URLSearchParams();
     if (q && q.trim()) params.set('q', q.trim());
     if (filter && filter !== 'all') params.set(filterKey, filter);
+    if (sort && sort !== 'recent') params.set('sort', sort);
     const qs = params.toString();
     return qs ? `?${qs}` : '';
   };
-  const fetchUsers = (q = userQuery, type = userType) => wrap(async () => {
-    const data = await apiFetch(`/api/admin/users${listQuery(q, 'type', type)}`);
+  const fetchUsers = (q = userQuery, type = userType, sort = userSort) => wrap(async () => {
+    const data = await apiFetch(`/api/admin/users${listQuery(q, 'type', type, sort)}`);
     if (data.success) setUsers(data.users);
   });
   const fetchWorkers = (q = workerQuery, status = workerFilter) => wrap(async () => {
@@ -587,6 +589,13 @@ export default function Admin() {
                 <option value="user">{t('admin.filterUsers')}</option>
                 <option value="admin">{t('admin.filterAdmins')}</option>
                 <option value="banned">{t('admin.filterBanned')}</option>
+              </select>
+              <select value={userSort} onChange={(e) => { setUserSort(e.target.value); fetchUsers(userQuery, userType, e.target.value); }}
+                aria-label={t('admin.sortLabel')}
+                className="border border-sky-200 rounded-lg px-2 py-2 text-sm bg-white">
+                <option value="recent">{t('admin.sortRecent')}</option>
+                <option value="usage">{t('admin.sortUsage')}</option>
+                <option value="spend">{t('admin.sortSpend')}</option>
               </select>
               <button onClick={() => fetchUsers()}
                 className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg text-sm font-bold">

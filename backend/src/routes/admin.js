@@ -71,6 +71,13 @@ router.get('/dashboard', authenticate, requireAdmin, async (req, res) => {
 
 // GET /api/admin/users — list with balances + active plan for the action dialogs
 const USER_TYPES = ['all', 'worker', 'user', 'admin', 'banned'];
+// recent = newest accounts; usage / spend = top users over the last 30 days
+// (the admin-only replacement for the old public users leaderboard).
+const USER_SORTS = {
+  recent: 'u.created_at DESC',
+  usage: 'tokens_30d DESC, u.created_at DESC',
+  spend: 'spend_30d DESC, u.created_at DESC',
+};
 
 // Shared filter for the user list: free-text q (email / name / #id) and a
 // type: worker = owns at least one non-removed worker, user = owns none and
@@ -97,12 +104,13 @@ function userFilter(q, type) {
   return { where: where.length ? `WHERE ${where.join(' AND ')}` : '', params };
 }
 
-// GET /api/admin/users?q=&type=all|worker|user|admin|banned
+// GET /api/admin/users?q=&type=all|worker|user|admin|banned&sort=recent|usage|spend
 // Balances + plan for the action dialog, plus usage at a glance: allowance
 // burned today (model-weighted), raw tokens / spend / messages last 30 days.
 router.get('/users', authenticate, requireAdmin, async (req, res) => {
   try {
     const type = USER_TYPES.includes(req.query.type) ? req.query.type : 'all';
+    const sort = Object.prototype.hasOwnProperty.call(USER_SORTS, req.query.sort) ? req.query.sort : 'recent';
     const { where, params } = userFilter(req.query.q, type);
     params.push(MAX_LIST);
     const result = await pool.query(
@@ -136,11 +144,11 @@ router.get('/users', authenticate, requireAdmin, async (req, res) => {
                  AND t.created_at >= now() - interval '30 days'
          ) us ON true
         ${where}
-        ORDER BY u.created_at DESC
+        ORDER BY ${USER_SORTS[sort]}
         LIMIT $${params.length}`,
       params
     );
-    res.json({ success: true, users: result.rows, type });
+    res.json({ success: true, users: result.rows, type, sort });
   } catch (err) {
     fail(res, err, 'Admin route failed');
   }
