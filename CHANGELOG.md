@@ -3,7 +3,7 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.0] — 2026-11-01
 
 ### Added
 - **Teams** (replace organizations): a team is a shared account with its
