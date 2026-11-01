@@ -178,10 +178,19 @@ export default function Navbar() {
     setForgotSent(false);
   };
 
+  // The logo always lands on the homepage hero: forget the chat this tab had
+  // open (so the next mount does not reopen it) and tell an already-mounted
+  // homepage to close its chat.
+  const goHome = () => {
+    try { sessionStorage.removeItem('plankton:activeSession'); } catch (e) { /* noop */ }
+    window.dispatchEvent(new CustomEvent('plankton:go-home'));
+  };
+
   return (
     <nav className="sticky top-0 z-40 w-full border-b border-white/60 bg-white/60 backdrop-blur-xl supports-[backdrop-filter]:bg-white/50">
       <div className="container mx-auto px-4 md:px-6 py-2.5 flex items-center justify-between">
-        <Link href="/" aria-label="Plankton home" className="rounded-xl"><Logo size={34} /></Link>
+        <Link href="/" aria-label="Plankton home" className="rounded-xl"
+          onClick={goHome}><Logo size={34} /></Link>
 
         {/* Desktop */}
         <div className="hidden md:flex items-center gap-4">
@@ -371,7 +380,7 @@ export default function Navbar() {
         <Portal>
         <div className="md:hidden fixed inset-0 z-[60] bg-white flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0">
-            <Link href="/" onClick={closeMenu} aria-label="Plankton home"><Logo size={32} /></Link>
+            <Link href="/" onClick={() => { closeMenu(); goHome(); }} aria-label="Plankton home"><Logo size={32} /></Link>
             <button
               onClick={closeMenu}
               aria-label="Close menu"

@@ -58,6 +58,9 @@ function fileToBase64(file) {
   });
 }
 
+
+// sessionStorage key for the chat open in this tab (survives refresh only).
+const ACTIVE_SESSION_KEY = 'plankton:activeSession';
 export default function Home() {
   const { t, lang } = useLanguage();
   const [message, setMessage] = useState('');
@@ -83,11 +86,24 @@ export default function Home() {
   const setActiveSession = useCallback((sid) => {
     activeSessionRef.current = sid;
     setActiveSessionId(sid);
+    // Remember the open chat for THIS tab only, so a refresh mid-chat comes
+    // back to it — while a fresh visit or login starts on the homepage.
+    try {
+      if (sid) sessionStorage.setItem(ACTIVE_SESSION_KEY, String(sid));
+      else sessionStorage.removeItem(ACTIVE_SESSION_KEY);
+    } catch (e) { /* storage unavailable — fine */ }
     loadSeqRef.current += 1;
     // Switching threads kills the answer bound for the old one: it is already
     // stored server-side and reappears when the user comes back.
     if (sendAbortRef.current) { sendAbortRef.current.abort(); sendAbortRef.current = null; }
   }, []);
+  // Back to the homepage hero: no open chat. History stays on the server.
+  const goHome = () => {
+    setActiveSession(null);
+    setSubject('');
+    setChat([]);
+    setSidebarOpen(false);
+  };
   const [subject, setSubject] = useState('');
   const [editingSubject, setEditingSubject] = useState(false);
   const [subjectInput, setSubjectInput] = useState('');
@@ -170,9 +186,21 @@ export default function Home() {
       const tk = localStorage.getItem('token');
       setToken(tk);
       setIsLoggedIn(!!tk);
+      if (tk) {
+        fetchSessions(tk); // recent chats for the homepage; stays on the homepage
+      } else {
+        setSessions([]);
+        goHome();
+      }
     };
+    // The logo (Navbar) always returns to the homepage, even mid-chat.
+    const onGoHome = () => goHome();
     window.addEventListener('plankton:auth-changed', onAuthChanged);
-    return () => window.removeEventListener('plankton:auth-changed', onAuthChanged);
+    window.addEventListener('plankton:go-home', onGoHome);
+    return () => {
+      window.removeEventListener('plankton:auth-changed', onAuthChanged);
+      window.removeEventListener('plankton:go-home', onGoHome);
+    };
   }, []);
 
   // v3.40.0 — keep worker counts fresh so the dropdown sort stays truthful.
@@ -422,8 +450,13 @@ export default function Home() {
       const data = await apiFetch('/api/chat/sessions');
       if (data.success) {
         setSessions(data.sessions);
-        if (data.sessions.length > 0 && !activeSessionId) {
-          loadSession(data.sessions[0].id, tkn);
+        // Start on the homepage; only a refresh of an open chat (same tab)
+        // reopens it. Users enter the chat by sending a message or picking
+        // one of their recent chats.
+        let saved = null;
+        try { saved = parseInt(sessionStorage.getItem(ACTIVE_SESSION_KEY), 10); } catch (e) {}
+        if (saved && !activeSessionRef.current && data.sessions.some((s) => s.id === saved)) {
+          loadSession(saved, tkn);
         }
       }
     } catch (err) {
@@ -897,6 +930,20 @@ export default function Home() {
               🖥️ {t('home.becomeWorker')} →
             </Link>
           </div>
+
+          {isLoggedIn && sessions.length > 0 && (
+            <div className="relative mt-5 w-full max-w-2xl">
+              <div className="text-xs text-gray-400 mb-2 text-center">🕘 {t('chat.history')}</div>
+              <div className="flex flex-wrap justify-center gap-2">
+                {sessions.slice(0, 4).map((s) => (
+                  <button key={s.id} onClick={() => loadSession(s.id)}
+                    className="chip max-w-[14rem] hover:border-sky-400 hover:text-sky-900 transition">
+                    <span className="truncate">{s.subject || t('chat.untitled')}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Plans are not shown inline any more (they crowded the hero and
               pushed the footer out of the fixed chat frame): the Navbar

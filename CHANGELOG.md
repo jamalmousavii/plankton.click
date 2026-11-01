@@ -3,6 +3,15 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.3] — 2026-11-01
+
+### Changed
+- **Homepage first.** Opening the site or signing in now lands on the
+  homepage instead of jumping into the latest chat; the chat opens when you
+  send a message or pick one of your **recent chats** (shown under the input).
+- **The logo always goes home**, even mid-chat or from another page.
+- A refresh in the middle of a chat reopens that chat (per tab).
+
 ## [1.1.2] — 2026-11-01
 
 ### Changed
