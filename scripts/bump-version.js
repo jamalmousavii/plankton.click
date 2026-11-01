@@ -50,10 +50,17 @@ for (const rel of ['backend/package.json', 'frontend/package.json', 'worker-app/
   changed.push(rel);
 }
 
-// Lockfiles: the root package version appears twice per lock ("version" at the
-// top and inside packages[""]); dependency versions are never x.y.z of ours.
+// Lockfiles: only OUR version — top-level "version" and packages[""].version.
+// A text replace of `"version": "<current>"` also rewrote every dependency
+// that happened to share our version number (e.g. delayed-stream 1.0.0 at
+// the 1.1.0 bump), which broke `npm ci` integrity checks.
 for (const rel of ['backend/package-lock.json', 'frontend/package-lock.json', 'worker-app/package-lock.json']) {
-  replaceIn(rel, `"version": "${current}"`, `"version": "${next}"`);
+  const file = p(rel);
+  const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+  doc.version = next;
+  if (doc.packages && doc.packages['']) doc.packages[''].version = next;
+  fs.writeFileSync(file, JSON.stringify(doc, null, 2) + '\n');
+  changed.push(rel);
 }
 
 // Worker installers/uninstallers — one PLANKTON_VERSION constant each.
