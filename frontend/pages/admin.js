@@ -1,5 +1,5 @@
 import Head from 'next/head';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLanguage } from '../i18n/LanguageContext';
 import Navbar from '../components/Navbar';
 import { useAuth, apiFetch, ApiError } from '../utils/api';
@@ -57,6 +57,7 @@ export default function Admin() {
   const [workerQuery, setWorkerQuery] = useState('');
   const [workerFilter, setWorkerFilter] = useState('all');
   const [workerSummary, setWorkerSummary] = useState(null);
+  const actionPanelRef = useRef(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionMsg, setActionMsg] = useState(''); // { ok, text }
 
@@ -158,6 +159,15 @@ export default function Admin() {
   };
 
   useEffect(() => { if (isAdmin) fetchDashboard(); }, [isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The Manage panel renders above the list: bring it into view when a user
+  // is opened from further down the table, otherwise it opens off-screen.
+  const actionUserId = actionUser ? actionUser.id : null;
+  useEffect(() => {
+    if (actionUserId && actionPanelRef.current) {
+      actionPanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [actionUserId]);
 
   const switchTab = (tb) => {
     if (!isAdmin) return;
@@ -416,7 +426,7 @@ export default function Admin() {
         {isAdmin && !loading && !loadError && tab === 'users' && (
           <>
             {actionUser && (
-              <div className="bg-white border border-violet-200 shadow-sm rounded-xl p-4 md:p-5 mb-4">
+              <div ref={actionPanelRef} className="bg-white border border-violet-200 shadow-sm rounded-xl p-4 md:p-5 mb-4 scroll-mt-20">
                 <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
                   <div className="min-w-0">
                     <div className="font-bold text-gray-800 truncate">#{actionUser.id} · {actionUser.email}</div>
