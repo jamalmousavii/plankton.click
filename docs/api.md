@@ -453,8 +453,9 @@ curl https://plankton.click/v1/embeddings \
 | مسیر | توضیح |
 |------|-------|
 | `GET /api/admin/dashboard` | شمارنده‌ها + درآمد پلتفرم + تیکت‌های کل/باز |
-| `GET /api/admin/users` | ۱۰۰ کاربر اخیر + موجودی دلار/توکن + پلن فعال + `banned` |
-| `GET /api/admin/workers` | ۱۰۰ ورکر + ایمیل کاربر |
+| `GET /api/admin/users?q=&type=` | ۱۰۰ کاربر اخیر + موجودی دلار/توکن + پلن فعال + `banned` + `worker_count` + مصرف (`tokens_today` وزن‌دار، `tokens_30d`، `spend_30d`، `messages_30d`). `q`: ایمیل/نام/`#id`؛ `type`: `all`\|`worker` (مالک ورکر فعال)\|`user`\|`admin`\|`banned` |
+| `GET /api/admin/users/:id/usage` | مصرف ۳۰ روز اخیر: `by_day`، `by_model` (با `token_weight`)، `today {used, cap}` |
+| `GET /api/admin/workers?q=&status=` | ۱۰۰ ورکر + ایمیل مالک + درآمد به تفکیک منبع (`earned_plan`، `earned_wallet`، `earned_tokens`) و `earned_30d`؛ `summary {total, last_30d, plan, wallet, tokens}`. `status`: `all`\|`online`\|`offline`\|`removed` |
 | `GET /api/admin/tasks` | ۱۰۰ تسک اخیر + ایمیل کاربر |
 | `GET /api/admin/tickets?status=&q=` | لیست تیکت‌ها با ایمیل کاربر (فیلتر وضعیت + جستجو در موضوع/ایمیل) |
 | `GET /api/admin/tickets/:id` | تیکت + ایمیل مالک + رشته پیام‌ها |
@@ -472,7 +473,7 @@ curl https://plankton.click/v1/embeddings \
 | `PUT /api/admin/users/:id/ban` | `{banned: true\|false}` — مسدودی خود → `409`؛ کش نشست‌ها باطل می‌شود |
 | `POST /api/admin/users/:id/balance` | `{delta_usd, reason}` — دلار ± (سقف ±۱M، `reason` ≥۳ حرف، موجودی منفی → `400`) |
 | `POST /api/admin/users/:id/tokens` | `{delta_tokens, reason}` — توکن پات ± (عدد صحیح، کف صفر) |
-| `PUT /api/admin/users/:id/plan` | `{plan: "plus"\|"pro"\|"max"}` — فعال‌سازی/تمدید ۳۰ روزه از `plans.activatePlan` |
+| `PUT /api/admin/users/:id/plan` | `{plan: "free"\|"plus"\|"pro"\|"max", days?: 1-365}` — **تنظیم** پلن: بقیهٔ پلن‌های فعال لغو و پلن انتخابی از الان برای `days` روز (پیش‌فرض ۳۰) فعال می‌شود؛ `free` همه را لغو می‌کند (downgrade ممکن است) |
 | `PUT /api/admin/workers/:id/status` | `{status: "removed"\|"offline"}` — حذف/بازگردانی ورکر |
 | `POST /api/admin/orgs` | `{name, leader_email}` — ساخت سازمان + ردیف لیدر (v3.44.0، تراکنش + audit) |
 | `POST /api/admin/orgs/:id/members` | `{email}` — افزودن کاربر ثبت‌نام‌شده (v3.44.0) |

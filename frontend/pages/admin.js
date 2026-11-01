@@ -50,6 +50,13 @@ export default function Admin() {
   const [deltaTokens, setDeltaTokens] = useState('');
   const [reason, setReason] = useState('');
   const [planSel, setPlanSel] = useState('plus');
+  const [planDays, setPlanDays] = useState('30');
+  const [usage, setUsage] = useState(null); // { user, today, by_day, by_model }
+  const [userQuery, setUserQuery] = useState('');
+  const [userType, setUserType] = useState('all');
+  const [workerQuery, setWorkerQuery] = useState('');
+  const [workerFilter, setWorkerFilter] = useState('all');
+  const [workerSummary, setWorkerSummary] = useState(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionMsg, setActionMsg] = useState(''); // { ok, text }
 
@@ -75,14 +82,35 @@ export default function Admin() {
     const data = await apiFetch('/api/admin/dashboard');
     if (data.success) setDashboard(data.dashboard);
   });
-  const fetchUsers = () => wrap(async () => {
-    const data = await apiFetch('/api/admin/users');
+  const listQuery = (q, filterKey, filter) => {
+    const params = new URLSearchParams();
+    if (q && q.trim()) params.set('q', q.trim());
+    if (filter && filter !== 'all') params.set(filterKey, filter);
+    const qs = params.toString();
+    return qs ? `?${qs}` : '';
+  };
+  const fetchUsers = (q = userQuery, type = userType) => wrap(async () => {
+    const data = await apiFetch(`/api/admin/users${listQuery(q, 'type', type)}`);
     if (data.success) setUsers(data.users);
   });
-  const fetchWorkers = () => wrap(async () => {
-    const data = await apiFetch('/api/admin/workers');
-    if (data.success) setWorkers(data.workers);
+  const fetchWorkers = (q = workerQuery, status = workerFilter) => wrap(async () => {
+    const data = await apiFetch(`/api/admin/workers${listQuery(q, 'status', status)}`);
+    if (data.success) {
+      setWorkers(data.workers);
+      setWorkerSummary(data.summary || null);
+    }
   });
+  const loadUsage = async (u) => {
+    setUsage({ loading: true, user: u });
+    try {
+      const data = await apiFetch(`/api/admin/users/${u.id}/usage`);
+      if (data.success) setUsage(data);
+      else setUsage(null);
+    } catch (err) {
+      setUsage(null);
+      handle(err);
+    }
+  };
   const fetchTasks = () => wrap(async () => {
     const data = await apiFetch('/api/admin/tasks');
     if (data.success) setTasks(data.tasks);
@@ -198,7 +226,9 @@ export default function Admin() {
   const openActions = (u) => {
     setActionUser(u);
     setRoleSel(u.role);
-    setPlanSel('plus');
+    setPlanSel(u.active_plan || 'plus');
+    setPlanDays('30');
+    setUsage(null);
     setDeltaUsd('');
     setDeltaTokens('');
     setReason('');
@@ -264,11 +294,20 @@ export default function Admin() {
       'admin.saved'
     );
   };
-  const applyPlan = () => callAction(
-    `/api/admin/users/${actionUser.id}/plan`,
-    { method: 'PUT', body: JSON.stringify({ plan: planSel }) },
-    'admin.saved'
-  );
+  const applyPlan = () => {
+    const days = parseInt(planDays, 10);
+    if (planSel !== 'free' && (!Number.isInteger(days) || days < 1 || days > 365)) {
+      setActionMsg({ ok: false, text: t('admin.checkFields') });
+      return;
+    }
+    callAction(
+      `/api/admin/users/${actionUser.id}/plan`,
+      { method: 'PUT', body: JSON.stringify(planSel === 'free' ? { plan: 'free' } : { plan: planSel, days }) },
+      'admin.saved'
+    );
+  };
+  const usd = (v, digits = 4) => `$${Number(v || 0).toFixed(digits)}`;
+  const num = (v) => Number(v || 0).toLocaleString('en-US');
 
   // ---- Worker actions ----
   const setWorkerStatus = async (m, status) => {
@@ -412,20 +451,26 @@ export default function Admin() {
                   </div>
 
                   <div className="bg-sky-50 border border-sky-100 rounded-xl p-3">
-                    <div className="text-sm font-bold text-gray-700 mb-2">{t('admin.grantPlan')}</div>
+                    <div className="text-sm font-bold text-gray-700 mb-2">{t('admin.changePlan')}</div>
                     <div className="flex gap-2">
                       <select value={planSel} onChange={(e) => setPlanSel(e.target.value)}
                         className="flex-1 border border-sky-200 rounded-lg px-2 py-2 text-sm bg-white">
+                        <option value="free">{t('admin.planFreeOption')}</option>
                         <option value="plus">Plus</option>
                         <option value="pro">Pro</option>
                         <option value="max">Max</option>
                       </select>
+                      {planSel !== 'free' && (
+                        <input value={planDays} onChange={(e) => setPlanDays(e.target.value.replace(/[^0-9]/g, ''))}
+                          inputMode="numeric" aria-label={t('admin.planDays')} title={t('admin.planDays')}
+                          className="w-16 border border-sky-200 rounded-lg px-2 py-2 text-sm text-center bg-white" />
+                      )}
                       <button onClick={applyPlan} disabled={actionBusy}
                         className="bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 rounded-lg text-sm font-bold disabled:opacity-50">
-                        {t('admin.grant')}
+                        {t('admin.apply')}
                       </button>
                     </div>
-                    <p className="text-[10px] text-gray-400 mt-1">{t('admin.grantHint')}</p>
+                    <p className="text-[10px] text-gray-400 mt-1">{t('admin.changePlanHint')}</p>
                   </div>
 
                   <div className="bg-sky-50 border border-sky-100 rounded-xl p-3">
@@ -460,8 +505,84 @@ export default function Admin() {
                     </button>
                   </div>
                 </div>
+
+                <div className="mt-4 border-t border-sky-100 pt-4">
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <div className="text-sm font-bold text-gray-700">📊 {t('admin.usageTitle')}</div>
+                    {!usage && (
+                      <button onClick={() => loadUsage(actionUser)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100">
+                        {t('admin.viewUsage')}
+                      </button>
+                    )}
+                  </div>
+                  {usage && usage.loading && <p className="text-xs text-gray-400">{t('common.loading')}</p>}
+                  {usage && !usage.loading && (
+                    <div className="space-y-3">
+                      <div className="text-xs text-gray-600">
+                        {t('admin.usageToday')}: <b>{num(usage.today?.used)}</b>
+                        {usage.today?.cap ? ` / ${num(usage.today.cap)}` : ''}
+                        {usage.today?.cap ? (
+                          <div className="h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden">
+                            <div className="h-full bg-sky-500" style={{ width: `${Math.min(100, (100 * (usage.today.used || 0)) / usage.today.cap)}%` }} />
+                          </div>
+                        ) : null}
+                      </div>
+                      {usage.by_model.length === 0 ? (
+                        <p className="text-xs text-gray-400">{t('admin.noUsage')}</p>
+                      ) : (
+                        <div className="grid md:grid-cols-2 gap-3">
+                          <table className="w-full text-xs">
+                            <thead><tr className="text-gray-400 text-left">
+                              <th className="py-1">{t('admin.colModel')}</th><th>{t('admin.colMessages')}</th><th>{t('admin.colTokens')}</th><th>{t('admin.colCost')}</th>
+                            </tr></thead>
+                            <tbody>
+                              {usage.by_model.map((r) => (
+                                <tr key={r.model} className="border-t border-gray-100">
+                                  <td className="py-1">{r.model} <span className="text-gray-400">×{r.token_weight}</span></td>
+                                  <td>{r.messages}</td><td>{num(r.tokens)}</td><td>{usd(r.cost)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          <table className="w-full text-xs">
+                            <thead><tr className="text-gray-400 text-left">
+                              <th className="py-1">{t('admin.colDay')}</th><th>{t('admin.colMessages')}</th><th>{t('admin.colTokens')}</th><th>{t('admin.colCost')}</th>
+                            </tr></thead>
+                            <tbody>
+                              {usage.by_day.map((r) => (
+                                <tr key={r.day} className="border-t border-gray-100">
+                                  <td className="py-1">{r.day}</td><td>{r.messages}</td><td>{num(r.tokens)}</td><td>{usd(r.cost)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
+
+            <div className="flex flex-wrap gap-2 mb-3">
+              <input value={userQuery} onChange={(e) => setUserQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && fetchUsers()}
+                placeholder={t('admin.searchUsers')} maxLength={100}
+                className="flex-1 min-w-[200px] border border-sky-200 rounded-lg px-3 py-2 text-sm bg-white" />
+              <select value={userType} onChange={(e) => { setUserType(e.target.value); fetchUsers(userQuery, e.target.value); }}
+                className="border border-sky-200 rounded-lg px-2 py-2 text-sm bg-white">
+                <option value="all">{t('admin.filterAll')}</option>
+                <option value="worker">{t('admin.filterWorkers')}</option>
+                <option value="user">{t('admin.filterUsers')}</option>
+                <option value="admin">{t('admin.filterAdmins')}</option>
+                <option value="banned">{t('admin.filterBanned')}</option>
+              </select>
+              <button onClick={() => fetchUsers()}
+                className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg text-sm font-bold">
+                {t('admin.search')}
+              </button>
+            </div>
 
             <div className="bg-white border border-sky-100 shadow-sm rounded-xl overflow-x-auto">
               <table className="w-full text-gray-700 text-sm">
@@ -472,10 +593,17 @@ export default function Admin() {
                   <th className="px-4 py-3 text-left">{t('admin.balanceLabel')}</th>
                   <th className="px-4 py-3 text-left">{t('admin.tokensLabel')}</th>
                   <th className="px-4 py-3 text-left">{t('admin.colPlan')}</th>
+                  <th className="px-4 py-3 text-left">{t('admin.colType')}</th>
+                  <th className="px-4 py-3 text-left">{t('admin.colTokensToday')}</th>
+                  <th className="px-4 py-3 text-left">{t('admin.colTokens30d')}</th>
+                  <th className="px-4 py-3 text-left">{t('admin.colSpend30d')}</th>
                   <th className="px-4 py-3 text-left">{t('admin.colJoined')}</th>
                   <th className="px-4 py-3 text-left"></th>
                 </tr></thead>
                 <tbody>
+                  {users.length === 0 && (
+                    <tr><td colSpan={12} className="px-4 py-8 text-center text-gray-400">{t('admin.noUsersFound')}</td></tr>
+                  )}
                   {users.map((u) => (
                     <tr key={u.id} className={`border-b border-sky-50 hover:bg-sky-50/50 ${actionUser?.id === u.id ? 'bg-violet-50/60' : ''}`}>
                       <td className="px-4 py-2">#{u.id}</td>
@@ -487,6 +615,14 @@ export default function Admin() {
                       <td className="px-4 py-2">${parseFloat(u.usd_balance || 0).toFixed(2)}</td>
                       <td className="px-4 py-2">{Number(u.token_balance || 0).toLocaleString('en-US')}</td>
                       <td className="px-4 py-2 text-xs">{u.active_plan || t('admin.planFree')}</td>
+                      <td className="px-4 py-2 text-xs whitespace-nowrap">
+                        {u.worker_count > 0
+                          ? <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">🖥️ {t('admin.typeWorker').replace('{n}', u.worker_count)}</span>
+                          : <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-600">👤 {t('admin.typeUser')}</span>}
+                      </td>
+                      <td className="px-4 py-2 text-xs">{num(u.tokens_today)}</td>
+                      <td className="px-4 py-2 text-xs">{num(u.tokens_30d)} <span className="text-gray-400">({u.messages_30d || 0})</span></td>
+                      <td className="px-4 py-2 text-xs">{usd(u.spend_30d)}</td>
                       <td className="px-4 py-2 text-xs text-gray-400">{new Date(u.created_at).toLocaleDateString()}</td>
                       <td className="px-4 py-2">
                         <button onClick={() => openActions(u)}
@@ -503,6 +639,40 @@ export default function Admin() {
         )}
 
         {isAdmin && !loading && !loadError && tab === 'workers' && (
+          <>
+          <div className="flex flex-wrap gap-2 mb-3">
+            <input value={workerQuery} onChange={(e) => setWorkerQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && fetchWorkers()}
+              placeholder={t('admin.searchWorkers')} maxLength={100}
+              className="flex-1 min-w-[200px] border border-sky-200 rounded-lg px-3 py-2 text-sm bg-white" />
+            <select value={workerFilter} onChange={(e) => { setWorkerFilter(e.target.value); fetchWorkers(workerQuery, e.target.value); }}
+              className="border border-sky-200 rounded-lg px-2 py-2 text-sm bg-white">
+              <option value="all">{t('admin.filterAll')}</option>
+              <option value="online">online</option>
+              <option value="offline">offline</option>
+              <option value="removed">removed</option>
+            </select>
+            <button onClick={() => fetchWorkers()}
+              className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg text-sm font-bold">
+              {t('admin.search')}
+            </button>
+          </div>
+          {workerSummary && (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+              {[
+                ['paidToWorkers', workerSummary.total],
+                ['earned30d', workerSummary.last_30d],
+                ['srcPlan', workerSummary.plan],
+                ['srcWallet', workerSummary.wallet],
+                ['srcTokens', workerSummary.tokens],
+              ].map(([key, val]) => (
+                <div key={key} className="bg-white border border-sky-100 shadow-sm rounded-xl p-3 text-center">
+                  <div className="text-lg font-bold text-emerald-600">{usd(val)}</div>
+                  <div className="text-gray-500 text-xs">{t(`admin.${key}`)}</div>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="grid md:grid-cols-2 gap-4">
             {workers.length === 0 && <p className="text-gray-400 text-center col-span-2 py-10">{t('admin.noWorkers')}</p>}
             {workers.map((m) => (
@@ -513,7 +683,11 @@ export default function Admin() {
                 </div>
                 <div className="text-gray-600 text-xs space-y-1 mb-3">
                   <p>{t('admin.gpuLabel')}: {m.gpu_model || 'Unknown'}</p>
-                  <p>{t('admin.tasksLabel')}: {m.total_tasks} | {t('admin.earnedLabel')}: {Number(m.earnings || 0).toFixed(2)}</p>
+                  <p>{t('admin.tasksLabel')}: {m.total_tasks} | {t('admin.earnedLabel')}: {usd(m.earnings)} | {t('admin.earned30d')}: {usd(m.earned_30d)}</p>
+                  <p className="text-gray-500">
+                    {t('admin.srcPlan')}: {usd(m.earned_plan)} · {t('admin.srcWallet')}: {usd(m.earned_wallet)} · {t('admin.srcTokens')}: {usd(m.earned_tokens)}
+                  </p>
+                  {m.name && <p>{m.name}{m.current_model ? ` · ${m.current_model}` : ''}</p>}
                   <p className="font-mono text-gray-400">{m.wallet_address?.slice(0, 16)}...</p>
                 </div>
                 <div className="flex gap-2">
@@ -532,6 +706,7 @@ export default function Admin() {
               </div>
             ))}
           </div>
+          </>
         )}
 
         {isAdmin && !loading && !loadError && tab === 'tasks' && (

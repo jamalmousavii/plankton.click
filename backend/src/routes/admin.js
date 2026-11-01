@@ -70,26 +70,124 @@ router.get('/dashboard', authenticate, requireAdmin, async (req, res) => {
 // ===========================================================================
 
 // GET /api/admin/users — list with balances + active plan for the action dialogs
+const USER_TYPES = ['all', 'worker', 'user', 'admin', 'banned'];
+
+// Shared filter for the user list: free-text q (email / name / #id) and a
+// type: worker = owns at least one non-removed worker, user = owns none and
+// is not an admin, admin, banned.
+function userFilter(q, type) {
+  const where = [];
+  const params = [];
+  const text = String(q || '').trim().slice(0, 100);
+  if (text) {
+    const asId = parseId(text.replace(/^#/, ''));
+    params.push(`%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+    const like = `$${params.length}`;
+    if (asId) {
+      params.push(asId);
+      where.push(`(u.email ILIKE ${like} OR u.name ILIKE ${like} OR u.id = $${params.length})`);
+    } else {
+      where.push(`(u.email ILIKE ${like} OR u.name ILIKE ${like})`);
+    }
+  }
+  if (type === 'worker') where.push('COALESCE(w.worker_count, 0) > 0');
+  else if (type === 'user') where.push("COALESCE(w.worker_count, 0) = 0 AND u.role <> 'admin'");
+  else if (type === 'admin') where.push("u.role = 'admin'");
+  else if (type === 'banned') where.push('u.banned');
+  return { where: where.length ? `WHERE ${where.join(' AND ')}` : '', params };
+}
+
+// GET /api/admin/users?q=&type=all|worker|user|admin|banned
+// Balances + plan for the action dialog, plus usage at a glance: allowance
+// burned today (model-weighted), raw tokens / spend / messages last 30 days.
 router.get('/users', authenticate, requireAdmin, async (req, res) => {
   try {
+    const type = USER_TYPES.includes(req.query.type) ? req.query.type : 'all';
+    const { where, params } = userFilter(req.query.q, type);
+    params.push(MAX_LIST);
     const result = await pool.query(
       `SELECT u.id, u.email, u.name, u.role, u.banned, u.created_at,
               COALESCE(cb.available, 0) AS usd_balance,
               COALESCE(tb.tokens, 0) AS token_balance,
-              up.plan_type AS active_plan, up.expires_at AS plan_expires_at
+              up.plan_type AS active_plan, up.expires_at AS plan_expires_at,
+              COALESCE(w.worker_count, 0)::int AS worker_count,
+              CASE WHEN dt.last_reset_date = (now() AT TIME ZONE 'utc')::date
+                   THEN COALESCE(dt.tokens_used_today, 0) ELSE 0 END AS tokens_today,
+              COALESCE(us.tokens_30d, 0)::bigint AS tokens_30d,
+              COALESCE(us.spend_30d, 0) AS spend_30d,
+              COALESCE(us.messages_30d, 0)::int AS messages_30d
          FROM users u
          LEFT JOIN user_coin_balances cb ON cb.user_id = u.id AND cb.coin = 'USD'
          LEFT JOIN user_token_balances tb ON tb.user_id = u.id
+         LEFT JOIN daily_tokens dt ON dt.user_id = u.id
          LEFT JOIN LATERAL (
               SELECT plan_type, expires_at FROM user_plans p
                WHERE p.user_id = u.id AND p.status = 'active' AND p.expires_at > now()
                ORDER BY p.expires_at DESC LIMIT 1
          ) up ON true
+         LEFT JOIN LATERAL (
+              SELECT COUNT(*) AS worker_count FROM workers wk
+               WHERE wk.user_id = u.id AND (wk.status IS NULL OR wk.status <> 'removed')
+         ) w ON true
+         LEFT JOIN LATERAL (
+              SELECT SUM(t.tokens_used) AS tokens_30d, SUM(t.cost) AS spend_30d, COUNT(*) AS messages_30d
+                FROM tasks t
+               WHERE t.user_id = u.id AND t.status = 'completed'
+                 AND t.created_at >= now() - interval '30 days'
+         ) us ON true
+        ${where}
         ORDER BY u.created_at DESC
-        LIMIT $1`,
-      [MAX_LIST]
+        LIMIT $${params.length}`,
+      params
     );
-    res.json({ success: true, users: result.rows });
+    res.json({ success: true, users: result.rows, type });
+  } catch (err) {
+    fail(res, err, 'Admin route failed');
+  }
+});
+
+// GET /api/admin/users/:id/usage — last 30 days of token usage for one user:
+// per-day and per-model totals plus today's allowance (used vs cap).
+router.get('/users/:id/usage', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(404).json({ error: 'Not found' });
+    const user = await pool.query('SELECT id, email FROM users WHERE id = $1', [id]);
+    if (user.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+
+    const byDay = await pool.query(
+      `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
+              COUNT(*)::int AS messages, COALESCE(SUM(tokens_used), 0)::bigint AS tokens,
+              COALESCE(SUM(cost), 0) AS cost
+         FROM tasks
+        WHERE user_id = $1 AND status = 'completed' AND created_at >= now() - interval '30 days'
+        GROUP BY 1 ORDER BY 1 DESC`,
+      [id]
+    );
+    const byModel = await pool.query(
+      `SELECT model, COUNT(*)::int AS messages, COALESCE(SUM(tokens_used), 0)::bigint AS tokens,
+              COALESCE(SUM(cost), 0) AS cost
+         FROM tasks
+        WHERE user_id = $1 AND status = 'completed' AND created_at >= now() - interval '30 days'
+        GROUP BY model ORDER BY tokens DESC`,
+      [id]
+    );
+    const today = await pool.query(
+      `SELECT CASE WHEN last_reset_date = (now() AT TIME ZONE 'utc')::date
+                   THEN tokens_used_today ELSE 0 END AS used
+         FROM daily_tokens WHERE user_id = $1`,
+      [id]
+    );
+    const { resolveCap } = require('../services/org');
+    const { modelTokenWeight } = require('../services/plans');
+    const cap = await resolveCap(id, null).then((r) => r.cap).catch(() => null);
+    res.json({
+      success: true,
+      user: user.rows[0],
+      today: { used: Number(today.rows[0]?.used || 0), cap },
+      by_day: byDay.rows,
+      by_model: byModel.rows.map((r) => ({ ...r, token_weight: modelTokenWeight(r.model) })),
+    });
   } catch (err) {
     fail(res, err, 'Admin route failed');
   }
@@ -244,31 +342,62 @@ router.post('/users/:id/tokens', authenticate, requireAdmin, async (req, res) =>
   }
 });
 
-// PUT /api/admin/users/:id/plan — { plan: plus|pro|max } — grant/extend 30 days
+// PUT /api/admin/users/:id/plan — { plan: free|plus|pro|max, days?: 1-365 }
+// SETS the user's plan: every other active tier is cancelled first (the
+// biggest active cap always wins, so a grant alone could never downgrade),
+// then the chosen tier runs `days` from now (default: the tier's interval).
+// plan 'free' just cancels — the user drops back to the Free allowance.
 router.put('/users/:id/plan', authenticate, requireAdmin, async (req, res) => {
   try {
     const id = parseId(req.params.id);
     if (!id) return res.status(404).json({ error: 'Not found' });
     const plan = String(req.body.plan || '');
-    if (!PLANS[plan]) return res.status(400).json({ error: 'Invalid plan tier' });
+    if (plan !== 'free' && !PLANS[plan]) return res.status(400).json({ error: 'Invalid plan tier' });
+    const days = req.body.days === undefined || req.body.days === null || req.body.days === ''
+      ? (PLANS[plan] ? PLANS[plan].interval_days : 0)
+      : Number(req.body.days);
+    if (plan !== 'free' && (!Number.isInteger(days) || days < 1 || days > 365)) {
+      return res.status(400).json({ error: 'days must be a whole number between 1 and 365' });
+    }
 
     const updated = await withTransaction(async (client) => {
       const user = await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [id]);
       if (user.rows.length === 0) return null;
-      await activatePlan(id, plan, client);
-      const after = await client.query(
+      const before = await client.query(
         `SELECT plan_type, expires_at FROM user_plans
-          WHERE user_id = $1 AND plan_type = $2 AND status = 'active'`,
+          WHERE user_id = $1 AND status = 'active' AND expires_at > now()`,
+        [id]
+      );
+      await client.query(
+        `UPDATE user_plans SET status = 'cancelled'
+          WHERE user_id = $1 AND status = 'active' AND plan_type <> $2`,
         [id, plan]
       );
+      let row = null;
+      if (plan !== 'free') {
+        await client.query(
+          `INSERT INTO user_plans (user_id, plan_type, status, started_at, expires_at)
+                VALUES ($1, $2, 'active', now(), now() + ($3::int * interval '1 day'))
+           ON CONFLICT (user_id, plan_type) DO UPDATE
+              SET status = 'active', started_at = now(),
+                  expires_at = now() + ($3::int * interval '1 day')`,
+          [id, plan, days]
+        );
+        const after = await client.query(
+          `SELECT plan_type, expires_at FROM user_plans
+            WHERE user_id = $1 AND plan_type = $2 AND status = 'active'`,
+          [id, plan]
+        );
+        row = after.rows[0] || null;
+      }
       await logAdminAction(client, {
         adminId: req.user.id, action: 'user.plan', targetType: 'user', targetId: id,
-        payload: { plan, interval_days: PLANS[plan].interval_days },
+        payload: { plan, days: plan === 'free' ? 0 : days, before: before.rows },
       });
-      return after.rows[0];
+      return { row };
     });
     if (!updated) return res.status(404).json({ error: 'Not found' });
-    res.json({ success: true, plan: updated });
+    res.json({ success: true, plan: updated.row });
   } catch (err) {
     fail(res, err, 'Admin route failed');
   }
@@ -384,15 +513,63 @@ router.post('/tickets/:id/status', authenticate, requireAdmin, async (req, res) 
 // ===========================================================================
 
 // GET /api/admin/workers
+const WORKER_FILTERS = ['all', 'online', 'offline', 'removed'];
+
+// GET /api/admin/workers?q=&status=all|online|offline|removed
+// Each worker with its owner and what it earned, split by source (plan
+// share / wallet / token bundle), all-time and last 30 days, plus totals
+// across the whole (filtered) list.
 router.get('/workers', authenticate, requireAdmin, async (req, res) => {
   try {
+    const status = WORKER_FILTERS.includes(req.query.status) ? req.query.status : 'all';
+    const where = [];
+    const params = [];
+    const text = String(req.query.q || '').trim().slice(0, 100);
+    if (text) {
+      const asId = parseId(text.replace(/^#/, ''));
+      params.push(`%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+      const like = `$${params.length}`;
+      if (asId) {
+        params.push(asId);
+        where.push(`(u.email ILIKE ${like} OR m.name ILIKE ${like} OR m.id = $${params.length})`);
+      } else {
+        where.push(`(u.email ILIKE ${like} OR m.name ILIKE ${like})`);
+      }
+    }
+    if (status === 'online') where.push("m.status IN ('online', 'busy')");
+    else if (status === 'offline') where.push("(m.status IS NULL OR m.status = 'offline')");
+    else if (status === 'removed') where.push("m.status = 'removed'");
+    params.push(MAX_LIST);
     const result = await pool.query(
-      `SELECT m.*, u.email FROM workers m
+      `SELECT m.id, m.name, m.user_id, m.status, m.gpu_model, m.ram, m.current_model, m.models,
+              m.total_tasks, m.earnings, m.last_seen, m.created_at, m.app_version, m.wallet_address,
+              u.email,
+              COALESCE(e.plan_all, 0) AS earned_plan, COALESCE(e.wallet_all, 0) AS earned_wallet,
+              COALESCE(e.tokens_all, 0) AS earned_tokens, COALESCE(e.total_30d, 0) AS earned_30d
+         FROM workers m
          LEFT JOIN users u ON u.id = m.user_id
-        ORDER BY m.earnings DESC LIMIT $1`,
-      [MAX_LIST]
+         LEFT JOIN LATERAL (
+              SELECT SUM(amount) FILTER (WHERE source = 'plan') AS plan_all,
+                     SUM(amount) FILTER (WHERE source = 'wallet') AS wallet_all,
+                     SUM(amount) FILTER (WHERE source = 'tokens') AS tokens_all,
+                     SUM(amount) FILTER (WHERE created_at >= now() - interval '30 days') AS total_30d
+                FROM worker_coin_earnings ce
+               WHERE ce.worker_id = m.id AND ce.coin = 'USD'
+         ) e ON true
+        ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+        ORDER BY m.earnings DESC NULLS LAST, m.id DESC
+        LIMIT $${params.length}`,
+      params
     );
-    res.json({ success: true, workers: result.rows });
+    const n = (v) => Number(v) || 0;
+    const summary = result.rows.reduce((acc, r) => ({
+      total: acc.total + n(r.earnings),
+      last_30d: acc.last_30d + n(r.earned_30d),
+      plan: acc.plan + n(r.earned_plan),
+      wallet: acc.wallet + n(r.earned_wallet),
+      tokens: acc.tokens + n(r.earned_tokens),
+    }), { total: 0, last_30d: 0, plan: 0, wallet: 0, tokens: 0 });
+    res.json({ success: true, workers: result.rows, summary, status });
   } catch (err) {
     fail(res, err, 'Admin route failed');
   }

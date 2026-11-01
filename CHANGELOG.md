@@ -6,6 +6,14 @@ All notable changes to Plankton are documented here. The project follows
 ## [Unreleased]
 
 ### Added
+- **Admin panel upgrades:** user search (email / name / `#id`) and a type
+  filter (workers = owners of an active worker / plain users / admins /
+  banned); per-user usage at a glance (allowance burned today, tokens /
+  spend / messages over 30 days) plus a 30-day usage view by day and by model;
+  **plan change** to any tier or back to Free for a chosen number of days
+  (replaces active plans, so downgrades work — grants alone never could);
+  worker list with search, status filter and earnings split by source (plan /
+  wallet / bundle), all-time and 30 days, with totals.
 - **`POST /v1/embeddings`** — OpenAI-compatible embeddings (`bge-m3`,
   `embeddinggemma`, `nomic-embed-text`), served by workers and billed on
   input tokens at the catalog input price; listed in `GET /v1/models`.
