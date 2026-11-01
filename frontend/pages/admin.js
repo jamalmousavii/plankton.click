@@ -17,7 +17,7 @@ const TABS = [
   { id: 'tickets', icon: '🎫', key: 'admin.tabTickets' },
   { id: 'payments', icon: '💰', key: 'admin.tabPayments' },
   { id: 'purchases', icon: '🛒', key: 'admin.tabPurchases' },
-  { id: 'orgs', icon: '🏢', key: 'admin.tabOrgs' },
+  { id: 'teams', icon: '👥', key: 'admin.tabTeams' },
 ];
 
 const TICKET_FILTERS = ['all', 'open', 'answered', 'closed'];
@@ -32,11 +32,13 @@ export default function Admin() {
   const [payments, setPayments] = useState(null);
   const [purchases, setPurchases] = useState([]);
   const [tab, setTab] = useState('dashboard');
-  // v3.44.0 — orgs: create + member management (audited server-side).
-  const [orgs, setOrgs] = useState([]);
-  const [orgName, setOrgName] = useState('');
-  const [orgLeader, setOrgLeader] = useState('');
-  const [orgAddEmail, setOrgAddEmail] = useState({}); // orgId -> email draft
+  // Teams: create, members, and the team's own plan + token pot (audited).
+  const [teams, setTeams] = useState([]);
+  const [teamName, setTeamName] = useState('');
+  const [teamOwner, setTeamOwner] = useState('');
+  const [teamAddEmail, setTeamAddEmail] = useState({}); // teamId -> email draft
+  const [teamPlanSel, setTeamPlanSel] = useState({}); // teamId -> { plan, days }
+  const [teamTokens, setTeamTokens] = useState({}); // teamId -> { delta, reason }
 
   // Tickets thread
   const [ticketQuery, setTicketQuery] = useState('');
@@ -135,30 +137,54 @@ export default function Admin() {
     const data = await apiFetch('/api/admin/purchases');
     if (data.success) setPurchases(data.purchases);
   });
-  const fetchOrgs = () => wrap(async () => {
-    const data = await apiFetch('/api/admin/orgs');
-    if (data.success) setOrgs(data.orgs);
+  const fetchTeams = () => wrap(async () => {
+    const data = await apiFetch('/api/admin/teams');
+    if (data.success) setTeams(data.teams);
   });
-  const orgAct = async (path, opts, okKey) => {
+  const teamAct = async (path, opts, okKey) => {
     setActionBusy(true);
     setActionMsg('');
     try {
       const data = await apiFetch(path, opts);
       if (data.success) {
         setActionMsg({ ok: true, text: t(okKey) });
-        await fetchOrgs();
+        await fetchTeams();
       } else setActionMsg({ ok: false, text: data.error || t('common.loadFailed') });
     } catch (err) {
       setActionMsg({ ok: false, text: err instanceof ApiError ? err.message : t('common.loadFailed') });
     }
     setActionBusy(false);
   };
-  const createOrg = () => {
-    if (!orgName.trim() || !orgLeader.trim()) return;
-    orgAct('/api/admin/orgs', {
+  const createTeam = () => {
+    if (!teamName.trim() || !teamOwner.trim()) return;
+    teamAct('/api/admin/teams', {
       method: 'POST',
-      body: JSON.stringify({ name: orgName.trim(), leader_email: orgLeader.trim() }),
-    }, 'admin.orgCreated').then(() => { setOrgName(''); setOrgLeader(''); });
+      body: JSON.stringify({ name: teamName.trim(), owner_email: teamOwner.trim() }),
+    }, 'admin.teamCreated').then(() => { setTeamName(''); setTeamOwner(''); });
+  };
+  const applyTeamPlan = (tm) => {
+    const sel = teamPlanSel[tm.id] || { plan: 'plus', days: '30' };
+    const days = parseInt(sel.days, 10);
+    if (sel.plan !== 'free' && (!Number.isInteger(days) || days < 1 || days > 365)) {
+      setActionMsg({ ok: false, text: t('admin.checkFields') });
+      return;
+    }
+    teamAct(`/api/admin/teams/${tm.id}/plan`, {
+      method: 'PUT',
+      body: JSON.stringify(sel.plan === 'free' ? { plan: 'free' } : { plan: sel.plan, days }),
+    }, 'admin.saved');
+  };
+  const applyTeamTokens = (tm) => {
+    const sel = teamTokens[tm.id] || {};
+    const delta = parseInt(sel.delta, 10);
+    if (!Number.isInteger(delta) || delta === 0 || String(sel.reason || '').trim().length < 3) {
+      setActionMsg({ ok: false, text: t('admin.checkFields') });
+      return;
+    }
+    teamAct(`/api/admin/teams/${tm.id}/tokens`, {
+      method: 'POST',
+      body: JSON.stringify({ delta_tokens: delta, reason: sel.reason.trim() }),
+    }, 'admin.saved').then(() => setTeamTokens((p) => ({ ...p, [tm.id]: { delta: '', reason: '' } })));
   };
 
   const router = useRouter();
@@ -191,7 +217,7 @@ export default function Admin() {
     else if (tb === 'tickets') wrap(() => fetchTickets(ticketFilter, ticketQuery));
     else if (tb === 'payments') fetchPayments();
     else if (tb === 'purchases') fetchPurchases();
-    else if (tb === 'orgs') fetchOrgs();
+    else if (tb === 'teams') fetchTeams();
     else fetchDashboard();
   };
 
@@ -932,75 +958,144 @@ export default function Admin() {
           )
         )}
 
-        {isAdmin && !loading && !loadError && tab === 'orgs' && (
+        {isAdmin && !loading && !loadError && tab === 'teams' && (
           <div className="space-y-4">
             <div className="bg-white border border-sky-100 shadow-sm rounded-xl p-4 md:p-5">
-              <h3 className="text-gray-800 font-bold text-sm md:text-base mb-3">＋ {t('admin.orgCreateTitle')}</h3>
+              <h3 className="text-gray-800 font-bold text-sm md:text-base mb-3">＋ {t('admin.teamCreateTitle')}</h3>
               <div className="flex flex-col sm:flex-row gap-2">
-                <input value={orgName} onChange={(e) => setOrgName(e.target.value)} maxLength={100}
-                  placeholder={t('admin.orgNamePh')}
-                  className="flex-1 bg-white text-gray-800 placeholder-gray-400 border border-sky-200 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-sky-400 min-h-[40px]" />
-                <input value={orgLeader} onChange={(e) => setOrgLeader(e.target.value)}
-                  placeholder={t('admin.orgLeaderPh')} type="email"
-                  className="flex-1 bg-white text-gray-800 placeholder-gray-400 border border-sky-200 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-sky-400 min-h-[40px]" />
-                <button onClick={createOrg} disabled={actionBusy || !orgName.trim() || !orgLeader.trim()}
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg transition text-sm font-bold disabled:opacity-50 min-h-[40px]">
-                  {t('admin.orgCreateBtn')}
+                <input value={teamName} onChange={(e) => setTeamName(e.target.value)} maxLength={100}
+                  placeholder={t('admin.teamNamePh')}
+                  className="flex-1 border border-sky-200 px-3 py-2 rounded-lg text-sm bg-white min-h-[40px]" />
+                <input value={teamOwner} onChange={(e) => setTeamOwner(e.target.value)}
+                  placeholder={t('admin.teamOwnerPh')} type="email"
+                  className="flex-1 border border-sky-200 px-3 py-2 rounded-lg text-sm bg-white min-h-[40px]" />
+                <button onClick={createTeam} disabled={actionBusy || !teamName.trim() || !teamOwner.trim()}
+                  className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-50 min-h-[40px]">
+                  {t('admin.teamCreateBtn')}
                 </button>
               </div>
             </div>
-            {orgs.length === 0 ? (
-              <p className="text-gray-400 text-center py-10">{t('admin.noOrgs')}</p>
-            ) : orgs.map((o) => (
-              <div key={o.id} className="bg-white border border-sky-100 shadow-sm rounded-xl p-4 md:p-5">
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <div className="min-w-0">
-                    <span className="text-gray-800 font-bold text-sm md:text-base">🏢 {o.name}</span>
-                    <span className="text-gray-400 text-xs ml-2">#{o.id} · {t('admin.orgLeader')}: {o.leader_email || `#${o.leader_user_id}`}</span>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${o.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>{o.status}</span>
-                    {o.status === 'active' && (
-                      <button onClick={() => orgAct(`/api/admin/orgs/${o.id}/disband`, { method: 'POST' }, 'admin.orgDisbanded')}
-                        disabled={actionBusy}
-                        className="text-red-400 hover:text-red-600 text-xs font-bold transition disabled:opacity-50">
-                        {t('admin.orgDisband')}
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-1 mb-3">
-                  {(o.members || []).map((m) => (
-                    <div key={m.user_id} className="flex items-center justify-between gap-2 text-sm bg-sky-50/50 rounded-lg px-3 py-1.5">
-                      <span className="text-gray-700 truncate">{m.email} {m.role === 'leader' && <span className="text-amber-600 font-bold">👑</span>}</span>
-                      {o.status === 'active' && m.role !== 'leader' && (
-                        <button onClick={() => orgAct(`/api/admin/orgs/${o.id}/members/${m.user_id}`, { method: 'DELETE' }, 'admin.orgMemberRemoved')}
-                          disabled={actionBusy}
-                          className="text-red-400 hover:text-red-600 text-xs font-bold transition disabled:opacity-50">
-                          {t('admin.orgRemove')}
+            {teams.length === 0 ? (
+              <p className="text-gray-400 text-center py-10">{t('admin.noTeams')}</p>
+            ) : teams.map((tm) => {
+              const sel = teamPlanSel[tm.id] || { plan: tm.plan ? tm.plan.plan_type : 'plus', days: '30' };
+              const tok = teamTokens[tm.id] || { delta: '', reason: '' };
+              const active = tm.status === 'active';
+              return (
+                <div key={tm.id} className="bg-white border border-sky-100 shadow-sm rounded-xl p-4 md:p-5">
+                  <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                    <div className="min-w-0">
+                      <span className="text-gray-800 font-bold text-sm md:text-base">👥 {tm.name}</span>
+                      <span className="text-gray-400 text-xs ml-2">#{tm.id} · {t('admin.teamOwner')}: {tm.owner_email || `#${tm.owner_user_id}`}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${active ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>{tm.status}</span>
+                      {active && (
+                        <button onClick={() => window.confirm(t('admin.confirmDisbandTeam')) && teamAct(`/api/admin/teams/${tm.id}/disband`, { method: 'POST' }, 'admin.teamDisbanded')}
+                          disabled={actionBusy} className="text-red-400 hover:text-red-600 text-xs font-bold disabled:opacity-50">
+                          {t('admin.teamDisband')}
                         </button>
                       )}
                     </div>
-                  ))}
-                </div>
-                {o.status === 'active' && (
-                  <div className="flex gap-2">
-                    <input value={orgAddEmail[o.id] || ''} onChange={(e) => setOrgAddEmail((prev) => ({ ...prev, [o.id]: e.target.value }))}
-                      placeholder={t('admin.orgAddPh')} type="email"
-                      className="flex-1 bg-white text-gray-800 placeholder-gray-400 border border-sky-200 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-sky-400 min-h-[40px]" />
-                    <button onClick={() => {
-                      const email = (orgAddEmail[o.id] || '').trim();
-                      if (!email) return;
-                      orgAct(`/api/admin/orgs/${o.id}/members`, { method: 'POST', body: JSON.stringify({ email }) }, 'admin.orgMemberAdded')
-                        .then(() => setOrgAddEmail((prev) => ({ ...prev, [o.id]: '' })));
-                    }} disabled={actionBusy}
-                      className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-lg transition text-sm font-bold disabled:opacity-50 min-h-[40px]">
-                      ＋ {t('admin.orgAddBtn')}
-                    </button>
                   </div>
-                )}
-              </div>
-            ))}
+
+                  {active && (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs mb-3">
+                        <div className="rounded-lg bg-sky-50 border border-sky-100 p-2">
+                          <div className="text-gray-500">{t('admin.colPlan')}</div>
+                          <div className="font-bold text-gray-800">
+                            {tm.plan ? `${tm.plan.plan_type.toUpperCase()} · ${new Date(tm.plan.expires_at).toLocaleDateString()}` : t('admin.planFree')}
+                          </div>
+                        </div>
+                        <div className="rounded-lg bg-sky-50 border border-sky-100 p-2">
+                          <div className="text-gray-500">{t('admin.usageToday')}</div>
+                          <div className="font-bold text-gray-800">{tm.plan ? `${num(tm.used_today)} / ${num(tm.plan.daily_tokens)}` : '—'}</div>
+                        </div>
+                        <div className="rounded-lg bg-sky-50 border border-sky-100 p-2">
+                          <div className="text-gray-500">{t('admin.tokensLabel')}</div>
+                          <div className="font-bold text-gray-800">{num(tm.tokens)}</div>
+                        </div>
+                      </div>
+
+                      <div className="grid md:grid-cols-2 gap-3 mb-3">
+                        <div className="bg-sky-50 border border-sky-100 rounded-xl p-3">
+                          <div className="text-sm font-bold text-gray-700 mb-2">{t('admin.changePlan')}</div>
+                          <div className="flex gap-2">
+                            <select value={sel.plan} onChange={(e) => setTeamPlanSel((p) => ({ ...p, [tm.id]: { ...sel, plan: e.target.value } }))}
+                              className="flex-1 border border-sky-200 rounded-lg px-2 py-2 text-sm bg-white">
+                              <option value="free">{t('admin.planFreeOption')}</option>
+                              <option value="plus">Plus</option>
+                              <option value="pro">Pro</option>
+                              <option value="max">Max</option>
+                            </select>
+                            {sel.plan !== 'free' && (
+                              <input value={sel.days} onChange={(e) => setTeamPlanSel((p) => ({ ...p, [tm.id]: { ...sel, days: e.target.value.replace(/[^0-9]/g, '') } }))}
+                                inputMode="numeric" title={t('admin.planDays')} aria-label={t('admin.planDays')}
+                                className="w-16 border border-sky-200 rounded-lg px-2 py-2 text-sm text-center bg-white" />
+                            )}
+                            <button onClick={() => applyTeamPlan(tm)} disabled={actionBusy}
+                              className="bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 rounded-lg text-sm font-bold disabled:opacity-50">
+                              {t('admin.apply')}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="bg-sky-50 border border-sky-100 rounded-xl p-3">
+                          <div className="text-sm font-bold text-gray-700 mb-2">{t('admin.adjustTokens')}</div>
+                          <div className="flex gap-2">
+                            <input value={tok.delta} onChange={(e) => setTeamTokens((p) => ({ ...p, [tm.id]: { ...tok, delta: e.target.value.replace(/[^0-9-]/g, '') } }))}
+                              placeholder={t('admin.deltaTokens')} inputMode="numeric"
+                              className="w-28 border border-sky-200 rounded-lg px-2 py-2 text-sm text-center bg-white" />
+                            <input value={tok.reason} onChange={(e) => setTeamTokens((p) => ({ ...p, [tm.id]: { ...tok, reason: e.target.value } }))}
+                              placeholder={t('admin.reason')} maxLength={500}
+                              className="flex-1 border border-sky-200 rounded-lg px-2 py-2 text-sm bg-white" />
+                            <button onClick={() => applyTeamTokens(tm)} disabled={actionBusy}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-bold disabled:opacity-50">
+                              {t('admin.apply')}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1 mb-3">
+                        {(tm.members || []).map((m) => (
+                          <div key={m.id} className="flex items-center justify-between gap-2 text-sm bg-sky-50/50 rounded-lg px-3 py-1.5">
+                            <span className="text-gray-700 truncate">
+                              {m.email} {m.role === 'owner' && <span className="text-amber-600 font-bold">👑</span>}
+                              <span className="text-gray-400 text-xs ml-2">
+                                {t('admin.usageToday')}: {num(m.used_today)}
+                                {m.daily_limit !== null && m.daily_limit !== undefined ? ` / ${num(m.daily_limit)}` : ''}
+                                {' · '}{t('admin.colTokens30d')}: {num(m.tokens_30d)}
+                              </span>
+                            </span>
+                            {m.role !== 'owner' && (
+                              <button onClick={() => teamAct(`/api/admin/teams/${tm.id}/members/${m.id}`, { method: 'DELETE' }, 'admin.teamMemberRemoved')}
+                                disabled={actionBusy} className="text-red-400 hover:text-red-600 text-xs font-bold disabled:opacity-50">
+                                {t('admin.removeWorker')}
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input value={teamAddEmail[tm.id] || ''} onChange={(e) => setTeamAddEmail((prev) => ({ ...prev, [tm.id]: e.target.value }))}
+                          placeholder={t('admin.teamAddPh')} type="email"
+                          className="flex-1 border border-sky-200 px-3 py-2 rounded-lg text-sm bg-white min-h-[40px]" />
+                        <button onClick={() => {
+                          const email = (teamAddEmail[tm.id] || '').trim();
+                          if (!email) return;
+                          teamAct(`/api/admin/teams/${tm.id}/members`, { method: 'POST', body: JSON.stringify({ email }) }, 'admin.teamMemberAdded')
+                            .then(() => setTeamAddEmail((prev) => ({ ...prev, [tm.id]: '' })));
+                        }} disabled={actionBusy}
+                          className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-50 min-h-[40px]">
+                          ＋ {t('admin.teamAddBtn')}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 

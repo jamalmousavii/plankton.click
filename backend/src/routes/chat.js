@@ -22,7 +22,7 @@ const { getFreeStatus } = require('../services/freeAllowance');
 const { FREE_DAILY_TOKENS, TOKEN_BUNDLE, listPlans, modelOutputPrice, MAX_TASK_TOKENS } = require('../services/plans');
 const { getTokenBalance } = require('../services/tokenBundles');
 const { settleMessage, WORKER_REVENUE_SHARE } = require('../services/billing');
-const { resolveCap } = require('../services/org');
+const { resolveCap, teamHasCoverage } = require('../services/team');
 const { withTransaction } = require('../database/tx');
 const { embed, cosine, DEFAULT_EMBED_MODEL } = require('../services/embeddings');
 
@@ -349,8 +349,8 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
     // exactly as before. Failures here never block chat (availability first).
     const guestKey = userId ? null : (req.ip || null);
     let freeCap = FREE_DAILY_TOKENS;
-    // v3.44.0 org shared bucket: members drain the leader's row when the
-    // org plan wins (max rule); everything else stays per-user.
+    // The personal allowance row (team members pay from their team first —
+    // billing leg 0 — so the pre-flight below also counts team coverage).
     let bucketUserId = userId || null;
     let preFlightFree = null;
     try {
@@ -366,8 +366,12 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
       let covered = false;
       if (userId) {
         try {
-          const credit = await getWorkerCreditStatus(userId);
-          covered = credit.eligible && credit.remaining > 0;
+          // A team member is covered while the team's plan or pot can pay.
+          covered = await teamHasCoverage(userId);
+          if (!covered) {
+            const credit = await getWorkerCreditStatus(userId);
+            covered = credit.eligible && credit.remaining > 0;
+          }
           if (!covered) {
             const pot = await getTokenBalance(userId);
             covered = pot > 0;

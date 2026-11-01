@@ -13,6 +13,8 @@ const nextConfig = {
       { source: '/miners', destination: '/workers', permanent: true },
       // The public leaderboard was removed (admin panel only).
       { source: '/leaderboard', destination: '/', permanent: true },
+      // Organizations became teams.
+      { source: '/org', destination: '/team', permanent: true },
     ];
   },
   async rewrites() {

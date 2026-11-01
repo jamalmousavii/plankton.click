@@ -6,6 +6,13 @@ All notable changes to Plankton are documented here. The project follows
 ## [Unreleased]
 
 ### Added
+- **Teams** (replace organizations): a team is a shared account with its
+  **own plan and token pot**. Members pay from the team's daily plan
+  allowance, then its tokens, then their personal coverage; owners can cap
+  each member per day. Anyone can create a team; admins give teams plans and
+  tokens from the new **Teams** tab. Workers earn from team money like from
+  personal money. `/org` → `/team`, `/api/orgs` → `/api/teams`; the schema is
+  renamed in place (`orgs` → `teams`, `org_members` → `team_members`).
 - **Admin panel upgrades:** user search (email / name / `#id`) and a type
   filter (workers = owners of an active worker / plain users / admins /
   banned); per-user usage at a glance (allowance burned today, tokens /

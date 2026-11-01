@@ -9,6 +9,7 @@ const { authenticate, requireAdmin, invalidateTokenVersion } = require('../middl
 const { logger } = require('../logger');
 const { activatePlan, PLANS } = require('../services/plans');
 const { withTransaction } = require('../database/tx');
+const { getTeamStatus, getTeamMembers, setTeamPlan, adjustTeamTokens, addMember } = require('../services/team');
 
 const ROLES = ['user', 'worker', 'admin'];
 const TICKET_STATUSES = ['open', 'answered', 'closed'];
@@ -186,7 +187,7 @@ router.get('/users/:id/usage', authenticate, requireAdmin, async (req, res) => {
          FROM daily_tokens WHERE user_id = $1`,
       [id]
     );
-    const { resolveCap } = require('../services/org');
+    const { resolveCap } = require('../services/team');
     const { modelTokenWeight } = require('../services/plans');
     const cap = await resolveCap(id, null).then((r) => r.cap).catch(() => null);
     res.json({
@@ -675,151 +676,193 @@ router.get('/tasks', authenticate, requireAdmin, async (req, res) => {
 });
 
 // ===========================================================================
-// Orgs (v3.44.0) — admin creates orgs (name + leader), manages members,
-// disbands. Every mutation writes admin_audit_log in the same transaction.
+// Teams — admin creates teams (name + owner), manages members, and gives a
+// team its own plan and tokens. Every mutation is audited.
 // ===========================================================================
 
-// GET /api/admin/orgs — list orgs with members + leader email.
-router.get('/orgs', authenticate, requireAdmin, async (req, res) => {
+async function lookupUserByEmail(client, email) {
+  const u = await client.query('SELECT id FROM users WHERE lower(email) = $1', [email]);
+  if (u.rows.length === 0) throw Object.assign(new Error('No registered user with that email'), { status: 404 });
+  return u.rows[0].id;
+}
+
+function teamFail(res, err) {
+  if (err && err.status) return res.status(err.status).json({ error: err.message });
+  return fail(res, err, 'Admin team route failed');
+}
+
+// GET /api/admin/teams — every team with owner, plan, pot, usage today and
+// members (with today's usage, limit and 30-day totals).
+router.get('/teams', authenticate, requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT o.id, o.name, o.status, o.created_at, o.leader_user_id,
-              u.email AS leader_email
-         FROM orgs o LEFT JOIN users u ON u.id = o.leader_user_id
-        ORDER BY o.created_at DESC LIMIT ${MAX_LIST}`
+      `SELECT t.id, t.name, t.status, t.created_at, t.owner_user_id, u.email AS owner_email
+         FROM teams t LEFT JOIN users u ON u.id = t.owner_user_id
+        ORDER BY (t.status = 'active') DESC, t.created_at DESC LIMIT ${MAX_LIST}`
     );
-    const members = await pool.query(
-      `SELECT m.org_id, m.user_id, u.email, m.role, m.joined_at
-         FROM org_members m JOIN users u ON u.id = m.user_id
-        WHERE m.status = 'active' AND m.org_id = ANY($1)
-        ORDER BY m.joined_at ASC`,
-      [result.rows.map((r) => r.id)]
-    );
-    const byOrg = {};
-    for (const m of members.rows) {
-      (byOrg[m.org_id] = byOrg[m.org_id] || []).push(m);
+    const teams = [];
+    for (const t of result.rows) {
+      const status = await getTeamStatus(t.id);
+      const members = t.status === 'active' ? await getTeamMembers(t.id) : [];
+      teams.push({ ...t, ...status, members });
     }
-    res.json({
-      success: true,
-      orgs: result.rows.map((o) => ({ ...o, members: byOrg[o.id] || [] })),
-    });
+    res.json({ success: true, teams });
   } catch (err) {
     fail(res, err, 'Admin route failed');
   }
 });
 
-// POST /api/admin/orgs — { name, leader_email } — create org + leader row.
-router.post('/orgs', authenticate, requireAdmin, async (req, res) => {
+// POST /api/admin/teams — { name, owner_email }
+router.post('/teams', authenticate, requireAdmin, async (req, res) => {
   try {
     const name = typeof req.body.name === 'string' ? req.body.name.trim().slice(0, 100) : '';
-    const email = typeof req.body.leader_email === 'string' ? req.body.leader_email.trim().toLowerCase() : '';
-    if (!name) return res.status(400).json({ error: 'Org name required (max 100 chars)' });
-    if (!email) return res.status(400).json({ error: 'Leader email required' });
-    const out = await withTransaction(async (client) => {
-      const leader = await client.query('SELECT id FROM users WHERE email = $1', [email]);
-      if (leader.rows.length === 0) throw Object.assign(new Error('No registered user with that email'), { status: 404 });
-      const lid = leader.rows[0].id;
-      const busy = await client.query(`SELECT org_id FROM org_members WHERE user_id = $1 AND status = 'active'`, [lid]);
-      if (busy.rows.length > 0) throw Object.assign(new Error('Leader already belongs to an active org'), { status: 400 });
-      const org = await client.query(
-        `INSERT INTO orgs (name, leader_user_id, status) VALUES ($1, $2, 'active') RETURNING id, name`,
-        [name, lid]
+    const email = typeof req.body.owner_email === 'string' ? req.body.owner_email.trim().toLowerCase() : '';
+    if (!name) return res.status(400).json({ error: 'Team name required (max 100 chars)' });
+    if (!email) return res.status(400).json({ error: 'Owner email required' });
+    const team = await withTransaction(async (client) => {
+      const ownerId = await lookupUserByEmail(client, email);
+      const t = await client.query(
+        `INSERT INTO teams (name, owner_user_id, status) VALUES ($1, $2, 'active') RETURNING id, name`,
+        [name, ownerId]
       );
-      await client.query(
-        `INSERT INTO org_members (org_id, user_id, role, status) VALUES ($1, $2, 'leader', 'active')`,
-        [org.rows[0].id, lid]
-      );
+      await addMember(t.rows[0].id, ownerId, 'owner', client);
       await logAdminAction(client, {
-        adminId: req.user.id, action: 'org.create', targetType: 'org', targetId: org.rows[0].id,
-        reason: req.body.reason, payload: { name, leader_email: email },
+        adminId: req.user.id, action: 'team.create', targetType: 'team', targetId: t.rows[0].id,
+        reason: req.body.reason, payload: { name, owner_email: email },
       });
-      return org.rows[0];
+      return t.rows[0];
     });
-    res.status(201).json({ success: true, org: out });
+    res.status(201).json({ success: true, team });
   } catch (err) {
-    if (err.status) return res.status(err.status).json({ error: err.message });
-    fail(res, err, 'Admin route failed');
+    teamFail(res, err);
   }
 });
 
-// POST /api/admin/orgs/:id/members — { email } — add a registered user.
-router.post('/orgs/:id/members', authenticate, requireAdmin, async (req, res) => {
+// POST /api/admin/teams/:id/members — { email }
+router.post('/teams/:id/members', authenticate, requireAdmin, async (req, res) => {
   try {
-    const orgId = parseId(req.params.id);
+    const teamId = parseId(req.params.id);
     const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
-    if (!orgId) return res.status(400).json({ error: 'Org id is required' });
+    if (!teamId) return res.status(400).json({ error: 'Team id is required' });
     if (!email) return res.status(400).json({ error: 'Email required' });
     const out = await withTransaction(async (client) => {
-      const org = await client.query(`SELECT id, status FROM orgs WHERE id = $1`, [orgId]);
-      if (org.rows.length === 0 || org.rows[0].status !== 'active') {
-        throw Object.assign(new Error('Org not found'), { status: 404 });
-      }
-      const user = await client.query('SELECT id FROM users WHERE email = $1', [email]);
-      if (user.rows.length === 0) throw Object.assign(new Error('No registered user with that email'), { status: 404 });
-      const busy = await client.query(`SELECT org_id FROM org_members WHERE user_id = $1 AND status = 'active'`, [user.rows[0].id]);
-      if (busy.rows.length > 0) throw Object.assign(new Error('User already belongs to an active org'), { status: 400 });
-      await client.query(
-        `INSERT INTO org_members (org_id, user_id, role, status) VALUES ($1, $2, 'member', 'active')
-         ON CONFLICT (org_id, user_id) DO UPDATE SET status = 'active', role = 'member'`,
-        [orgId, user.rows[0].id]
-      );
+      const t = await client.query('SELECT status FROM teams WHERE id = $1', [teamId]);
+      if (t.rows.length === 0 || t.rows[0].status !== 'active') throw Object.assign(new Error('Team not found'), { status: 404 });
+      const uid = await lookupUserByEmail(client, email);
+      await addMember(teamId, uid, 'member', client);
       await logAdminAction(client, {
-        adminId: req.user.id, action: 'org.member.add', targetType: 'org', targetId: orgId,
+        adminId: req.user.id, action: 'team.member.add', targetType: 'team', targetId: teamId,
         reason: req.body.reason, payload: { email },
       });
-      return { added: user.rows[0].id };
+      return { added: uid };
     });
     res.status(201).json({ success: true, ...out });
   } catch (err) {
-    if (err.status) return res.status(err.status).json({ error: err.message });
-    fail(res, err, 'Admin route failed');
+    teamFail(res, err);
   }
 });
 
-// DELETE /api/admin/orgs/:id/members/:userId — remove a member (not the leader).
-router.delete('/orgs/:id/members/:userId', authenticate, requireAdmin, async (req, res) => {
+// DELETE /api/admin/teams/:id/members/:userId — remove a member (not the owner).
+router.delete('/teams/:id/members/:userId', authenticate, requireAdmin, async (req, res) => {
   try {
-    const orgId = parseId(req.params.id);
+    const teamId = parseId(req.params.id);
     const target = parseId(req.params.userId);
-    if (!orgId || !target) return res.status(400).json({ error: 'Org id and user id are required' });
+    if (!teamId || !target) return res.status(400).json({ error: 'Team id and user id are required' });
     const out = await withTransaction(async (client) => {
-      const org = await client.query(`SELECT leader_user_id FROM orgs WHERE id = $1`, [orgId]);
-      if (org.rows.length === 0) throw Object.assign(new Error('Org not found'), { status: 404 });
-      if (org.rows[0].leader_user_id === target) {
-        throw Object.assign(new Error('Transfer leadership first (or disband)'), { status: 400 });
+      const t = await client.query('SELECT owner_user_id FROM teams WHERE id = $1', [teamId]);
+      if (t.rows.length === 0) throw Object.assign(new Error('Team not found'), { status: 404 });
+      if (t.rows[0].owner_user_id === target) {
+        throw Object.assign(new Error('Transfer ownership first (or disband)'), { status: 400 });
       }
-      await client.query(`UPDATE org_members SET status = 'removed' WHERE org_id = $1 AND user_id = $2`, [orgId, target]);
+      await client.query(`UPDATE team_members SET status = 'removed' WHERE team_id = $1 AND user_id = $2`, [teamId, target]);
       await logAdminAction(client, {
-        adminId: req.user.id, action: 'org.member.remove', targetType: 'org', targetId: orgId,
+        adminId: req.user.id, action: 'team.member.remove', targetType: 'team', targetId: teamId,
         reason: req.body && req.body.reason, payload: { user_id: target },
       });
       return { removed: target };
     });
     res.json({ success: true, ...out });
   } catch (err) {
-    if (err.status) return res.status(err.status).json({ error: err.message });
-    fail(res, err, 'Admin route failed');
+    teamFail(res, err);
   }
 });
 
-// POST /api/admin/orgs/:id/disband — close the org (members fall back to own plans).
-router.post('/orgs/:id/disband', authenticate, requireAdmin, async (req, res) => {
+// PUT /api/admin/teams/:id/plan — { plan: free|plus|pro|max, days?: 1-365 }
+// Sets the TEAM's own plan (members draw its daily allowance first).
+router.put('/teams/:id/plan', authenticate, requireAdmin, async (req, res) => {
   try {
-    const orgId = parseId(req.params.id);
-    if (!orgId) return res.status(400).json({ error: 'Org id is required' });
-    await withTransaction(async (client) => {
-      const upd = await client.query(`UPDATE orgs SET status = 'disbanded' WHERE id = $1 AND status = 'active' RETURNING id`, [orgId]);
-      if (upd.rows.length === 0) throw Object.assign(new Error('Org not found'), { status: 404 });
-      await client.query(`UPDATE org_members SET status = 'removed' WHERE org_id = $1`, [orgId]);
+    const teamId = parseId(req.params.id);
+    if (!teamId) return res.status(404).json({ error: 'Not found' });
+    const plan = String(req.body.plan || '');
+    if (plan !== 'free' && !PLANS[plan]) return res.status(400).json({ error: 'Invalid plan tier' });
+    const days = req.body.days === undefined || req.body.days === null || req.body.days === ''
+      ? (PLANS[plan] ? PLANS[plan].interval_days : 0)
+      : Number(req.body.days);
+    if (plan !== 'free' && (!Number.isInteger(days) || days < 1 || days > 365)) {
+      return res.status(400).json({ error: 'days must be a whole number between 1 and 365' });
+    }
+    const row = await withTransaction(async (client) => {
+      const t = await client.query('SELECT status FROM teams WHERE id = $1 FOR UPDATE', [teamId]);
+      if (t.rows.length === 0 || t.rows[0].status !== 'active') throw Object.assign(new Error('Team not found'), { status: 404 });
+      const r = await setTeamPlan(teamId, plan, days, client);
       await logAdminAction(client, {
-        adminId: req.user.id, action: 'org.disband', targetType: 'org', targetId: orgId,
+        adminId: req.user.id, action: 'team.plan', targetType: 'team', targetId: teamId,
+        payload: { plan, days: plan === 'free' ? 0 : days },
+      });
+      return r;
+    });
+    res.json({ success: true, plan: row });
+  } catch (err) {
+    teamFail(res, err);
+  }
+});
+
+// POST /api/admin/teams/:id/tokens — { delta_tokens, reason } — team pot ±
+router.post('/teams/:id/tokens', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const teamId = parseId(req.params.id);
+    if (!teamId) return res.status(404).json({ error: 'Not found' });
+    const delta = Number(req.body.delta_tokens);
+    const reason = String(req.body.reason || '').trim();
+    if (!Number.isInteger(delta) || delta === 0) return res.status(400).json({ error: 'delta_tokens must be a non-zero integer' });
+    if (Math.abs(delta) > 1000000000000) return res.status(400).json({ error: 'delta_tokens out of range' });
+    if (reason.length < 3 || reason.length > MAX_REASON) {
+      return res.status(400).json({ error: `reason required (3-${MAX_REASON} chars)` });
+    }
+    const out = await withTransaction(async (client) => {
+      const t = await client.query('SELECT status FROM teams WHERE id = $1 FOR UPDATE', [teamId]);
+      if (t.rows.length === 0 || t.rows[0].status !== 'active') throw Object.assign(new Error('Team not found'), { status: 404 });
+      const r = await adjustTeamTokens(teamId, delta, client);
+      await logAdminAction(client, {
+        adminId: req.user.id, action: 'team.tokens', targetType: 'team', targetId: teamId,
+        reason, payload: { delta_tokens: delta, before: r.before, after: r.after },
+      });
+      return r;
+    });
+    res.json({ success: true, tokens: out.after });
+  } catch (err) {
+    teamFail(res, err);
+  }
+});
+
+// POST /api/admin/teams/:id/disband — close the team (members fall back to
+// their personal coverage; its plan and pot stop being usable).
+router.post('/teams/:id/disband', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const teamId = parseId(req.params.id);
+    if (!teamId) return res.status(400).json({ error: 'Team id is required' });
+    await withTransaction(async (client) => {
+      const upd = await client.query(`UPDATE teams SET status = 'disbanded' WHERE id = $1 AND status = 'active' RETURNING id`, [teamId]);
+      if (upd.rows.length === 0) throw Object.assign(new Error('Team not found'), { status: 404 });
+      await client.query(`UPDATE team_members SET status = 'removed' WHERE team_id = $1`, [teamId]);
+      await logAdminAction(client, {
+        adminId: req.user.id, action: 'team.disband', targetType: 'team', targetId: teamId,
         reason: req.body.reason, payload: null,
       });
     });
-    res.json({ success: true, disbanded: orgId });
+    res.json({ success: true, disbanded: teamId });
   } catch (err) {
-    if (err.status) return res.status(err.status).json({ error: err.message });
-    fail(res, err, 'Admin route failed');
+    teamFail(res, err);
   }
 });
 

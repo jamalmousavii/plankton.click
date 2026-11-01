@@ -217,8 +217,8 @@ export default function Navbar() {
                     <Link href="/workers" className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition">
                       🖥️ {t('nav.workers')}
                     </Link>
-                    <Link href="/org" className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition">
-                      🏢 {t('nav.org')}
+                    <Link href="/team" className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition">
+                      👥 {t('nav.team')}
                     </Link>
                     <Link href="/support" className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition">
                       🎫 {t('nav.support')}
@@ -388,7 +388,7 @@ export default function Navbar() {
               <>
                 <Link href="/profile" onClick={closeMenu} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">📊 {t('nav.dashboard')}</Link>
                 <Link href="/workers" onClick={closeMenu} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">🖥️ {t('nav.workers')}</Link>
-                <Link href="/org" onClick={closeMenu} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">🏢 {t('nav.org')}</Link>
+                <Link href="/team" onClick={closeMenu} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">👥 {t('nav.team')}</Link>
                 <Link href="/support" onClick={closeMenu} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">🎫 {t('nav.support')}</Link>
                 <Link href="/settings" onClick={closeMenu} className="text-gray-600 hover:text-sky-700 transition py-2.5 text-base">⚙️ {t('nav.settings')}</Link>
                 {user?.role === 'admin' && (

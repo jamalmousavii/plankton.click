@@ -3,11 +3,15 @@ const { chargeFreeTokens } = require('./freeAllowance');
 const { chargeWorkerCredit } = require('./workerCredit');
 const { chargeTokenPot } = require('./tokenBundles');
 const { getActivePlan, WORKER_REVENUE_SHARE, weightedTokensFor, PLANS, planWorkerEarning } = require('./plans');
+const { chargeTeam } = require('./team');
 const { invalidateCache } = require('../cache');
 const { logger } = require('../logger');
 
 // Single money mutation point (extracted verbatim from routes/chat.js).
 // Chain, in order, inside ONE row-locked transaction:
+//   0. team members only: the team's daily plan allowance, then the team's
+//      token pot (services/team.js; per-member daily limit applies) — the
+//      worker earns the plan share / 90% of catalog value as below;
 //   1. daily free allowance (platform-funded, no worker share);
 //   2. worker $1/day credit (platform-funded, no worker share);
 //   3. prepaid token pot (worker earns 90% of catalog value from revenue);
@@ -16,8 +20,8 @@ const { logger } = require('../logger');
 // Guests (no userId) only ever reach legs 1 and 5.
 // Returns the settlement snapshot; throws on DB errors (caller 500s).
 async function settleMessage({ userId, guestKey, tokensUsed, cost, workerId, servedByWorker, freeCap, freeRemainingInit = null, bucketUserId = null, paymentCoin = 'USD', taskId = null }) {
-  // v3.44.0 org shared bucket: the free leg drains the bucket owner's row
-  // (the org leader when the org plan wins); every other leg stays per-user.
+  // Whose personal allowance row the free leg drains (the user's own; a
+  // guest's IP row). Teams pay from their own plan/pot in leg 0 instead.
   const bucket = bucketUserId || userId;
   let paymentStatus = 'free';
   let workerCreditRemaining = null;
@@ -51,75 +55,90 @@ async function settleMessage({ userId, guestKey, tokensUsed, cost, workerId, ser
     try {
       await client.query('BEGIN');
 
-        const freeCharge = await chargeFreeTokens({
-          userId: bucket, guestKey, tokens: weighted, cap: freeCap, client,
-        });
-      freeRemaining = freeCharge.remaining;
+      // 0. Team legs (members only).
+      const teamCharge = userId ? await chargeTeam({ userId, weighted, client }) : { charged: null };
+      if (teamCharge.charged === 'plan') {
+        paymentStatus = 'team_plan';
+        if (workerId && servedByWorker) {
+          const earning = planWorkerEarning(teamCharge.planType, weighted);
+          if (earning > 0) await creditWorkerEarning(client, earning, 'plan', teamCharge.planType);
+        }
+      } else if (teamCharge.charged === 'tokens') {
+        paymentStatus = 'team_tokens';
+        if (workerId && servedByWorker) {
+          await creditWorkerEarning(client, cost * WORKER_REVENUE_SHARE, 'tokens');
+        }
+      } else {
+          const freeCharge = await chargeFreeTokens({
+            userId: bucket, guestKey, tokens: weighted, cap: freeCap, client,
+          });
+        freeRemaining = freeCharge.remaining;
 
-        if (freeCharge.charged) {
-          paymentStatus = 'free';
-          // Covered by a PAID plan (the bucket owner's tier — the org leader's
-          // for org members): the serving worker earns its per-token share of
-          // that plan's daily price. The Free tier pays workers nothing.
-          const bucketPlan = bucket ? await getActivePlan(bucket, client) : null;
-          if (bucketPlan && PLANS[bucketPlan.plan_type]) {
-            paymentStatus = 'plan';
-            if (workerId && servedByWorker) {
-              const earning = planWorkerEarning(bucketPlan.plan_type, weighted);
-              if (earning > 0) await creditWorkerEarning(client, earning, 'plan', bucketPlan.plan_type);
-            }
-          }
-          if (freeRemaining <= 0) {
-            freeExhausted = true;
-          } else if (freeCap > 0 && freeRemaining <= freeCap * 0.1) {
-            freeLow = true;
-          }
-        } else if (userId) {
-        const creditCharge = await chargeWorkerCredit(userId, cost, client);
-        workerCreditRemaining = creditCharge.remaining;
-
-        if (creditCharge.charged) {
-          paymentStatus = 'free_worker';
-        } else {
-          // Pot tokens are default-model tokens: a pricier model drains
-          // proportionally more, so the pot is worth exactly its USD price.
-          const potCharge = await chargeTokenPot({ userId, tokens: weighted, client });
-
-          if (potCharge.charged) {
-            tokenBalanceRemaining = potCharge.remaining;
-            paymentStatus = 'tokens';
-            // Flat 90% of the message's catalog value — same rate as the
-            // wallet leg, paid from the platform's bundle revenue.
-            if (workerId && servedByWorker) {
-              await creditWorkerEarning(client, cost * WORKER_REVENUE_SHARE, 'tokens');
-            }
-          } else {
-            const balanceResult = await client.query(
-              'SELECT available FROM user_coin_balances WHERE user_id = $1 AND coin = $2 FOR UPDATE',
-              [userId, paymentCoin]
-            );
-            const userBalance = parseFloat(balanceResult.rows[0]?.available || 0);
-
-            if (userBalance > 0) {
-              // Drain dust: a sub-cost balance is taken in full, so the wallet
-              // reaches exactly 0 instead of parking at $0.0000x forever.
-              const debit = Math.min(cost, userBalance);
-              await client.query(
-                `UPDATE user_coin_balances
-                    SET available = available - $1, total_spent = total_spent + $1
-                  WHERE user_id = $2 AND coin = $3`,
-                [debit, userId, paymentCoin]
-              );
-
-              // Only a worker that actually served the task earns.
-              // Flat 90% for every payer (Free/Plus/Pro/Max alike).
+          if (freeCharge.charged) {
+            paymentStatus = 'free';
+            // Covered by the user's own PAID plan: the serving worker earns its
+            // per-token share of that plan's daily price. The Free tier pays
+            // workers nothing.
+            const bucketPlan = bucket ? await getActivePlan(bucket, client) : null;
+            if (bucketPlan && PLANS[bucketPlan.plan_type]) {
+              paymentStatus = 'plan';
               if (workerId && servedByWorker) {
-                await creditWorkerEarning(client, debit * WORKER_REVENUE_SHARE, 'wallet');
+                const earning = planWorkerEarning(bucketPlan.plan_type, weighted);
+                if (earning > 0) await creditWorkerEarning(client, earning, 'plan', bucketPlan.plan_type);
               }
-              paymentStatus = 'paid';
-              upgradeNotice = true;
             }
-            // else: race after pre-flight — serve free (step 5).
+            if (freeRemaining <= 0) {
+              freeExhausted = true;
+            } else if (freeCap > 0 && freeRemaining <= freeCap * 0.1) {
+              freeLow = true;
+            }
+          } else if (userId) {
+          const creditCharge = await chargeWorkerCredit(userId, cost, client);
+          workerCreditRemaining = creditCharge.remaining;
+
+          if (creditCharge.charged) {
+            paymentStatus = 'free_worker';
+          } else {
+            // Pot tokens are default-model tokens: a pricier model drains
+            // proportionally more, so the pot is worth exactly its USD price.
+            const potCharge = await chargeTokenPot({ userId, tokens: weighted, client });
+
+            if (potCharge.charged) {
+              tokenBalanceRemaining = potCharge.remaining;
+              paymentStatus = 'tokens';
+              // Flat 90% of the message's catalog value — same rate as the
+              // wallet leg, paid from the platform's bundle revenue.
+              if (workerId && servedByWorker) {
+                await creditWorkerEarning(client, cost * WORKER_REVENUE_SHARE, 'tokens');
+              }
+            } else {
+              const balanceResult = await client.query(
+                'SELECT available FROM user_coin_balances WHERE user_id = $1 AND coin = $2 FOR UPDATE',
+                [userId, paymentCoin]
+              );
+              const userBalance = parseFloat(balanceResult.rows[0]?.available || 0);
+
+              if (userBalance > 0) {
+                // Drain dust: a sub-cost balance is taken in full, so the wallet
+                // reaches exactly 0 instead of parking at $0.0000x forever.
+                const debit = Math.min(cost, userBalance);
+                await client.query(
+                  `UPDATE user_coin_balances
+                      SET available = available - $1, total_spent = total_spent + $1
+                    WHERE user_id = $2 AND coin = $3`,
+                  [debit, userId, paymentCoin]
+                );
+
+                // Only a worker that actually served the task earns.
+                // Flat 90% for every payer (Free/Plus/Pro/Max alike).
+                if (workerId && servedByWorker) {
+                  await creditWorkerEarning(client, debit * WORKER_REVENUE_SHARE, 'wallet');
+                }
+                paymentStatus = 'paid';
+                upgradeNotice = true;
+              }
+              // else: race after pre-flight — serve free (step 5).
+            }
           }
         }
       }

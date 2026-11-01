@@ -26,7 +26,7 @@ const leaderboardRoutes = require('./routes/leaderboard');
 const ticketRoutes = require('./routes/tickets');
 const apiKeyRoutes = require('./routes/apikeys');
 const v1Routes = require('./routes/v1');
-const orgRoutes = require('./routes/orgs');
+const teamRoutes = require('./routes/teams');
 
 const app = express();
 const server = http.createServer(app);
@@ -236,7 +236,7 @@ const apiLimiter = makeLimiter({
 app.use('/v1/', apiLimiter);
 
 app.use('/api/keys', apiKeyRoutes);
-app.use('/api/orgs', orgRoutes);
+app.use('/api/teams', teamRoutes);
 app.use('/v1', v1Routes);
 app.use('/api/auth', authRoutes);
 // /api/workers responses are per-user (they contain worker_token) — never cache them.

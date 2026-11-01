@@ -401,22 +401,21 @@ curl https://plankton.click/v1/embeddings \
 
 ---
 
-## سازمان‌ها (v3.44.0 — نیازمند JWT؛ ساخت سازمان فقط توسط ادمین)
+## تیم‌ها (نیازمند JWT)
 
-سازمان = یک سطل مشترک از سقف پلنِ لیدر. کاربرها خودشان ثبت‌نام می‌کنند و لیدر با ایمیل اضافه‌شان می‌کند. سقف مؤثر هر عضو = `max(سقف خودِ عضو, سقف لیدر)`؛ پات توکن، کیف پول و اعتبار ورکر هر عضو جداست. یک عضویت فعال برای هر کاربر (v3.45.0: با ایندکس unique در دیتابیس تضمین می‌شود).
+تیم = یک حساب مشترک با **پلن و توکن مخصوص خودش**. پیام عضو به این ترتیب پرداخت می‌شود: سهمیهٔ روزانهٔ پلن تیم ← توکن‌های تیم ← پوشش شخصی (سهمیهٔ رایگان/پلن، اعتبار ورکر، توکن شخصی، کیف‌پول). مقدارها توکن وزن‌دار (`token_weight` مدل) است. مالک می‌تواند برای هر عضو سقف روزانه بگذارد. هر کاربر فقط عضو **یک** تیم فعال است. پلن و توکن را ادمین به تیم می‌دهد.
 
 | متد و مسیر | توضیح |
 |------|-------|
-| `GET /api/orgs/mine` | سازمان + اعضای فعال + snapshot سطل مشترک |
-| `GET /api/orgs/usage` | مصرف ۳۰ روز: لیدر همه را می‌بیند، عضو فقط ردیف خودش |
-| `POST /api/orgs/members` | بدنه `{email}` — افزودن کاربر ثبت‌نام‌شده (فقط لیدر). ایمیل ناشناس → `404`؛ عضو فعالِ سازمان دیگر → `400`. v3.45.0: سقف ۲۰ افزودن در ۱۵ دقیقه برای هر لیدر؛ کل عملیات در یک تراکنش |
-| `DELETE /api/orgs/members/:userId` | حذف عضو (فقط لیدر؛ خودش → `400`؛ عضو ناموجود → `404`) |
-| `POST /api/orgs/transfer` | بدنه `{user_id}` — انتقال لیدری به عضو فعال (تراکنش + قفل ردیف سازمان) |
-| `POST /api/orgs/leave` | خروج از سازمان؛ لیدرِ رفته → قدیمی‌ترین عضو لیدر می‌شود؛ خروج آخرین عضو → `disbanded` |
+| `GET /api/teams/mine` | تیم من + `status {plan, used_today, remaining_today, tokens}` + `me {daily_limit, used_today}` + اعضا (مالک مصرف و سقف همه را می‌بیند؛ عضو فقط خودش) |
+| `POST /api/teams` | `{name}` — ساخت تیم؛ سازنده مالک می‌شود (اگر عضو تیم دیگری باشد → `400`) |
+| `POST /api/teams/members` | `{email}` — افزودن کاربر ثبت‌نام‌شده (فقط مالک؛ سقف ۲۰ افزودن در ۱۵ دقیقه) |
+| `PUT /api/teams/members/:userId/limit` | `{daily_limit: number\|null}` — سقف روزانهٔ عضو (فقط مالک؛ `null` = بدون سقف) |
+| `DELETE /api/teams/members/:userId` | حذف عضو (فقط مالک؛ خودش → `400`) |
+| `POST /api/teams/transfer` | `{user_id}` — انتقال مالکیت به عضو فعال |
+| `POST /api/teams/leave` | خروج؛ مالکِ رفته → قدیمی‌ترین عضو مالک می‌شود؛ آخرین عضو → `disbanded` |
 
-ادمین (با audit، جزئیات در بخش ادمین): `GET/POST /api/admin/orgs`، `POST /api/admin/orgs/:id/members`، `DELETE /api/admin/orgs/:id/members/:userId`، `POST /api/admin/orgs/:id/disband`.
-
----
+ادمین (با audit): `GET/POST /api/admin/teams`، `POST/DELETE /api/admin/teams/:id/members[/:userId]`، `PUT /api/admin/teams/:id/plan`، `POST /api/admin/teams/:id/tokens`، `POST /api/admin/teams/:id/disband`.
 
 ## مدل‌ها، رتبه‌بندی
 
@@ -459,7 +458,7 @@ curl https://plankton.click/v1/embeddings \
 | `GET /api/admin/tickets/:id` | تیکت + ایمیل مالک + رشته پیام‌ها |
 | `GET /api/admin/payments` | ۱۰۰ واریز + ۱۰۰ برداشت اخیر + ایمیل کاربر |
 | `GET /api/admin/purchases` | ۱۰۰ خرید پلن/بسته اخیر + ایمیل کاربر |
-| `GET /api/admin/orgs` | سازمان‌ها + اعضا + ایمیل لیدر (v3.44.0) |
+| `GET /api/admin/teams` | تیم‌ها + ایمیل مالک + پلن/توکن/مصرف امروز + اعضا (مصرف امروز، سقف، ۳۰ روز) |
 
 ### تغییرات (همگی `PUT`/`POST` با `body` JSON)
 
@@ -473,10 +472,12 @@ curl https://plankton.click/v1/embeddings \
 | `POST /api/admin/users/:id/tokens` | `{delta_tokens, reason}` — توکن پات ± (عدد صحیح، کف صفر) |
 | `PUT /api/admin/users/:id/plan` | `{plan: "free"\|"plus"\|"pro"\|"max", days?: 1-365}` — **تنظیم** پلن: بقیهٔ پلن‌های فعال لغو و پلن انتخابی از الان برای `days` روز (پیش‌فرض ۳۰) فعال می‌شود؛ `free` همه را لغو می‌کند (downgrade ممکن است) |
 | `PUT /api/admin/workers/:id/status` | `{status: "removed"\|"offline"}` — حذف/بازگردانی ورکر |
-| `POST /api/admin/orgs` | `{name, leader_email}` — ساخت سازمان + ردیف لیدر (v3.44.0، تراکنش + audit) |
-| `POST /api/admin/orgs/:id/members` | `{email}` — افزودن کاربر ثبت‌نام‌شده (v3.44.0) |
-| `DELETE /api/admin/orgs/:id/members/:userId` | حذف عضو (لیدر حذف نمی‌شود؛ v3.44.0) |
-| `POST /api/admin/orgs/:id/disband` | بستن سازمان؛ اعضا به پلن خودشان برمی‌گردند (v3.44.0) |
+| `POST /api/admin/teams` | `{name, owner_email}` — ساخت تیم + ردیف مالک |
+| `PUT /api/admin/teams/:id/plan` | `{plan: free\|plus\|pro\|max, days?}` — تنظیم پلن **خود تیم** (بقیه لغو؛ `free` حذف) |
+| `POST /api/admin/teams/:id/tokens` | `{delta_tokens, reason}` — توکن تیم ± (کف صفر) |
+| `POST /api/admin/teams/:id/members` | `{email}` — افزودن کاربر ثبت‌نام‌شده |
+| `DELETE /api/admin/teams/:id/members/:userId` | حذف عضو (مالک حذف نمی‌شود) |
+| `POST /api/admin/teams/:id/disband` | بستن تیم؛ اعضا به پوشش شخصی برمی‌گردند |
 
 ---
 

@@ -2,7 +2,7 @@ const pool = require('../database/pool');
 const nowpayments = require('./nowpayments');
 const { applyPlanPurchase, applyDeposit } = require('./paymentClaims');
 const { settleMessage } = require('./billing');
-const { resolveCap } = require('./org');
+const { resolveCap } = require('./team');
 const { logger } = require('../logger');
 
 const RECONCILE_BATCH = 25;

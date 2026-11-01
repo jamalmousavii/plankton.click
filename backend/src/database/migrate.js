@@ -63,6 +63,50 @@ const migrate = async () => {
     }
     console.log('✅ 1.0.0: miner → worker schema rename checked');
 
+    // === org → team rename ===
+    // Organizations became teams that own their plan and tokens. Rename the
+    // tables/columns/indexes in place (guarded: no-op on fresh or migrated DBs).
+    await client.query(`
+      DO $$
+      DECLARE r RECORD;
+      BEGIN
+        IF to_regclass('public.orgs') IS NOT NULL AND to_regclass('public.teams') IS NULL THEN
+          ALTER TABLE orgs RENAME TO teams;
+        END IF;
+        IF to_regclass('public.org_members') IS NOT NULL AND to_regclass('public.team_members') IS NULL THEN
+          ALTER TABLE org_members RENAME TO team_members;
+        END IF;
+        IF EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = 'teams' AND column_name = 'leader_user_id') THEN
+          ALTER TABLE teams RENAME COLUMN leader_user_id TO owner_user_id;
+        END IF;
+        IF EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = 'team_members' AND column_name = 'org_id') THEN
+          ALTER TABLE team_members RENAME COLUMN org_id TO team_id;
+        END IF;
+        FOR r IN
+          SELECT c.relname, c.relkind FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+           WHERE n.nspname = 'public' AND c.relkind IN ('i', 'S')
+             AND c.relname IN ('orgs_pkey', 'orgs_id_seq', 'org_members_pkey',
+                               'idx_org_members_org', 'uniq_org_members_active_user')
+        LOOP
+          IF to_regclass('public.' || replace(replace(r.relname, 'org_members', 'team_members'), 'orgs', 'teams')) IS NULL THEN
+            EXECUTE format('ALTER %s %I RENAME TO %I',
+              CASE WHEN r.relkind = 'S' THEN 'SEQUENCE' ELSE 'INDEX' END,
+              r.relname, replace(replace(r.relname, 'org_members', 'team_members'), 'orgs', 'teams'));
+          END IF;
+        END LOOP;
+      END $$;
+    `);
+    if ((await client.query("SELECT to_regclass('public.team_members') AS t")).rows[0].t) {
+      await client.query("UPDATE team_members SET role = 'owner' WHERE role = 'leader'");
+    }
+    if ((await client.query("SELECT to_regclass('public.admin_audit_log') AS t")).rows[0].t) {
+      await client.query("UPDATE admin_audit_log SET target_type = 'team' WHERE target_type = 'org'");
+      await client.query("UPDATE admin_audit_log SET action = 'team' || substr(action, 4) WHERE action LIKE 'org.%'");
+    }
+    console.log('✅ org → team schema rename checked');
+
     // جدول کاربران
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -759,47 +803,81 @@ const migrate = async () => {
     `);
     console.log('✅ ستون banned اضافه شد');
 
-    // ---- v3.44.0: organization plans (shared daily bucket) ----
-    // An org shares its LEADER's plan cap: members drain one bucket (the
-    // leader's daily_tokens row). Per-member attribution comes from tasks
-    // (user_id, tokens_used, cost) — no separate tracking table. One active
-    // membership per user (v1). No member cap (locked decision).
+    // ---- Teams: a shared account that owns its plan and token pot ----
+    // Members spend the team's daily plan allowance first, then its token
+    // pot, then their personal coverage. One ACTIVE team per user (unique
+    // index below). Owners may cap each member per UTC day (daily_limit).
     await client.query(`
-      CREATE TABLE IF NOT EXISTS orgs (
+      CREATE TABLE IF NOT EXISTS teams (
         id SERIAL PRIMARY KEY,
         name VARCHAR(100) NOT NULL,
-        leader_user_id INTEGER NOT NULL REFERENCES users(id),
+        owner_user_id INTEGER NOT NULL REFERENCES users(id),
         status VARCHAR(16) NOT NULL DEFAULT 'active',
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await client.query(`
-      CREATE TABLE IF NOT EXISTS org_members (
-        org_id INTEGER NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+      CREATE TABLE IF NOT EXISTS team_members (
+        team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
         user_id INTEGER NOT NULL REFERENCES users(id),
         role VARCHAR(16) NOT NULL DEFAULT 'member',
         status VARCHAR(16) NOT NULL DEFAULT 'active',
         joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (org_id, user_id)
+        PRIMARY KEY (team_id, user_id)
       )
     `);
-    // NOTE: the plain (user_id) index moved to the v3.45.0 block below, where
-    // it is superseded by the partial-unique idx on active memberships.
-    await client.query('CREATE INDEX IF NOT EXISTS idx_org_members_org ON org_members(org_id)');
-    console.log('✅ جدول orgs/org_members ایجاد شد');
+    await client.query('ALTER TABLE team_members ADD COLUMN IF NOT EXISTS daily_limit BIGINT');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members(team_id)');
+    // The team's own plan (same shape as user_plans) and token pot.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS team_plans (
+        team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+        plan_type VARCHAR(32) NOT NULL,
+        status VARCHAR(16) NOT NULL DEFAULT 'active',
+        started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP NOT NULL,
+        PRIMARY KEY (team_id, plan_type)
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS team_token_balances (
+        team_id INTEGER PRIMARY KEY REFERENCES teams(id) ON DELETE CASCADE,
+        tokens BIGINT NOT NULL DEFAULT 0,
+        total_added BIGINT NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    // Per-UTC-day usage: the whole team (against the plan cap) and each
+    // member (against their daily_limit). Model-weighted tokens.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS team_daily_usage (
+        team_id INTEGER PRIMARY KEY REFERENCES teams(id) ON DELETE CASCADE,
+        tokens_used_today BIGINT NOT NULL DEFAULT 0,
+        last_reset_date DATE
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS team_member_daily (
+        team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        tokens_used_today BIGINT NOT NULL DEFAULT 0,
+        last_reset_date DATE,
+        PRIMARY KEY (team_id, user_id)
+      )
+    `);
+    console.log('✅ جدول‌های team ایجاد شد');
 
     // ---- v3.45.0: hot-path indexes + billing reconciliation columns ----
     // /v1 auth looks api_keys up by key_hash on every call — without this it
     // was a sequential scan. Unique because all keys are sha256 sk_ tokens.
     await client.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id)');
-    // One ACTIVE org membership per user, enforced by the database — the app
-    // check alone was check-then-insert (two concurrent adds could both land).
-    // Replaces the plain user index: active lookups are the only ones served.
+    // One ACTIVE team membership per user, enforced by the database — an app
+    // check alone is check-then-insert (two concurrent adds could both land).
     await client.query('DROP INDEX IF EXISTS idx_org_members_user');
     await client.query(
-      `CREATE UNIQUE INDEX IF NOT EXISTS uniq_org_members_active_user
-         ON org_members(user_id) WHERE status = 'active'`
+      `CREATE UNIQUE INDEX IF NOT EXISTS uniq_team_members_active_user
+         ON team_members(user_id) WHERE status = 'active'`
     );
     // Billing reconciliation (v3.45.0): chat/v1 mark a task 'pending' when it
     // was served but settleMessage threw (nothing charged — it is one

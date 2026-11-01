@@ -28,13 +28,13 @@ jest.mock('../src/services/billing', () => ({
   settleMessage: jest.fn(async () => ({ paymentStatus: 'free' })),
 }));
 
-jest.mock('../src/services/org', () => ({
-  resolveCap: jest.fn(async () => ({ cap: 2000000, bucketUserId: 7, org: null })),
+jest.mock('../src/services/team', () => ({
+  resolveCap: jest.fn(async () => ({ cap: 2000000, bucketUserId: 7 })),
 }));
 
 const pool = require('../src/database/pool');
 const { settleMessage } = require('../src/services/billing');
-const { resolveCap } = require('../src/services/org');
+const { resolveCap } = require('../src/services/team');
 const { reconcileBilling } = require('../src/services/maintenance');
 
 beforeEach(() => {

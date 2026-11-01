@@ -45,12 +45,12 @@ Workers are paid a flat **90%** of every paid message they serve.
 - **End-to-end encrypted tasks** between server and worker (key derived from the worker token).
 - **Attachments & voice** — images (vision models), PDFs/text files (parsed server-side), ≤60s voice notes.
 - **Conversation context** — a sliding window of recent turns rides every dispatch.
-- **Payments** — USD wallet via NowPayments (BTC, ETH, BNB, USDT, TRX, DOGE, XRP), USDT-TRC20 withdrawals, daily free allowance, Plus/Pro/Max plans, never-expiring token bundles, organization plans with a shared bucket.
+- **Payments** — USD wallet via NowPayments (BTC, ETH, BNB, USDT, TRX, DOGE, XRP), USDT-TRC20 withdrawals, daily free allowance, Plus/Pro/Max plans, never-expiring token bundles, teams with their own plan and tokens.
 - **Worker free credit** — an online worker earns its owner $1/day of free chat.
 - **Coder API** — OpenAI-compatible `/v1` for coding agents (opencode, Continue, Aider…).
 - **Embeddings** — `POST /v1/embeddings` (OpenAI shape, `bge-m3` / `embeddinggemma` / `nomic-embed-text`), billed on input tokens; every worker installs `bge-m3` automatically.
 - **Chat over large files (RAG)** — a big attached file is split into excerpts, embedded with `bge-m3`, and only the passages most relevant to the question reach the chat model.
-- **Support tickets + full admin panel** (users, workers, tasks, tickets, payments, purchases, orgs) with an audit log.
+- **Support tickets + full admin panel** (users, workers, tasks, tickets, payments, purchases, teams) with an audit log.
 - **33 languages** with browser detection and RTL for FA/AR/HE/UR.
 - **Modern UI** — ocean-ink + bioluminescent palette, animated hero, mobile-first chat frame (keyboard-safe on iOS/Android, safe-area aware).
 - **Ops** — encrypted nightly DB backups with restore drill, billing reconciliation, graceful shutdown, health/readiness endpoints.
@@ -257,9 +257,9 @@ also published as `worker_usd_per_million` in `GET /api/plans`.
 
 **Worker earnings breakdown** — 5 buckets on the profile and `/workers`: 🎟️ Tokens / 👛 Wallet (pay-as-you-go, whatever tier the payer is on) / ⭐ Plus / 🚀 Pro / 👑 Max (subscription revenue share, source `plan`). Free-tier messages pay workers nothing.
 
-**Organization plans** — a company/leader shares their plan cap as one bucket: admin creates the org, the leader adds registered users by email, everyone drains the shared allowance with per-member usage reporting on `/org`. No member cap; one active org per user.
+**Teams** — a shared account with its own plan and token pot: members spend the team's daily plan allowance first, then its tokens, then their own coverage. Anyone can create a team (and own it); owners add registered users by email and can cap each member per day; admins give teams plans and tokens. One active team per user. Page: `/team`.
 
-**Data safety + correctness** — encrypted nightly DB backups (14-day retention, rclone-ready offsite, restore-drill script) with a systemd timer; billing reconciliation for settlement failures (`billing_pending` → retried by maintenance); race-proof orgs (transactions + DB-enforced single active membership); one shared pricing source; purchase double-click guard (client lock + server `409`).
+**Data safety + correctness** — encrypted nightly DB backups (14-day retention, rclone-ready offsite, restore-drill script) with a systemd timer; billing reconciliation for settlement failures (`billing_pending` → retried by maintenance); race-proof teams (transactions + DB-enforced single active membership); one shared pricing source; purchase double-click guard (client lock + server `409`).
 
 ## Project Structure
 
@@ -341,8 +341,10 @@ plankton.click/
 | tickets | Support tickets — subject/category/status |
 | ticket_messages | Ticket thread messages, user + admin replies |
 | admin_audit_log | Admin action trail — who/action/target/reason/payload |
-| orgs | Organization plans — admin-created, leader-owned shared bucket |
-| org_members | Active memberships — one ACTIVE org per user (partial unique) |
+| teams | Teams — shared accounts with their own plan/tokens (owner + members) |
+| team_members | Memberships — one ACTIVE team per user (partial unique), optional per-member daily limit |
+| team_plans / team_token_balances | A team's own plan and token pot |
+| team_daily_usage / team_member_daily | Per-UTC-day usage: whole team vs plan cap, each member vs their limit |
 | schema_migrations | Migration bookkeeping |
 
 ## Tech Stack

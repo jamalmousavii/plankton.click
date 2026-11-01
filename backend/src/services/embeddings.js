@@ -10,7 +10,7 @@ const pool = require('../database/pool');
 const MODELS = require('../models');
 const { modelInputPrice } = require('./plans');
 const { settleMessage } = require('./billing');
-const { resolveCap } = require('./org');
+const { resolveCap } = require('./team');
 const { logger } = require('../logger');
 
 // The model every worker installs by default (multilingual, incl. Persian).

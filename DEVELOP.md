@@ -245,8 +245,8 @@ Models defined in `backend/src/models.js` with per-model pricing:
 ## Daily Free Allowance & Plans
 
 **Plan revenue share (`services/plans.js` → `planWorkerEarning`).** A
-message covered by a paid plan's allowance (the bucket owner's tier — the org
-leader's for org members) credits the serving worker
+message covered by a paid plan's allowance (the user's own tier, or the
+team's tier for team-plan messages) credits the serving worker
 `tokens × price ÷ interval_days ÷ daily_tokens × WORKER_REVENUE_SHARE`
 inside the same settlement transaction (`worker_coin_earnings.source =
 'plan'`, `plan_type` = the funding tier; `payment_status: "plan"`). The
@@ -421,7 +421,7 @@ Both wallets use the same EIP-1193 standard. The only difference is the detectio
 ### UI
 
 - `/support`: list + new-ticket form + thread with replies/close; `🎫 Support` entry in the Navbar avatar dropdown + mobile menu for everyone (desktop top-bar link removed; quick-nav chip on dashboard pages), `🛡️ Admin` only when `role === 'admin'`.
-- `/admin`: 8 tabs — dashboard (6 cards), users (manage drawer: role, ban/unban, ±USD, ±tokens with mandatory reason, grant plan), workers (remove/restore), tasks, tickets (search/filter + thread reply/close/reopen), payments (deposits + withdrawals), purchases, orgs. Strings i18n'd (`admin.*`, `support.*` — 33 × 483 keys).
+- `/admin`: 8 tabs — dashboard (6 cards), users (manage drawer: role, ban/unban, ±USD, ±tokens with mandatory reason, grant plan), workers (remove/restore), teams (plan, tokens, members), tasks, tickets (search/filter + thread reply/close/reopen), payments (deposits + withdrawals), purchases. Strings i18n'd (`admin.*`, `support.*` — 33 × 483 keys).
 - `/profile`: read-only **Transactions** card merging `/api/payments/history` deposits + withdrawals (newest first, status badges, link to `/settings`).
 
 ### Tests
@@ -583,15 +583,22 @@ explicitly — no workers → `503 WORKER_OFFLINE` (retryable wait), model missi
 (`GET /api/tags` → family match → first available) and the server Ollama
 itself were removed.
 
-## Organization Plans
+## Teams
 
-- Tables `orgs` + `org_members` (one active membership per user, no cap).
-  The org shares the leader's plan cap as one `daily_tokens` bucket
-  (`services/org.js` resolveCap = max(own, org)); worker credit/pot/wallet
-  stay per-user; attribution aggregates `tasks` per member (30d).
-- Routes: `/api/orgs` (mine/usage/members/transfer/leave) + `/api/admin/orgs`
-  (create/add/remove/disband, audited). Leader leaves → oldest promoted.
-- UI: `/org` page + 8th admin tab + Navbar link.
+- A team is a shared account with its **own plan and token pot**: tables
+  `teams`, `team_members` (role owner/member, optional per-member
+  `daily_limit`, one ACTIVE team per user via `uniq_team_members_active_user`),
+  `team_plans`, `team_token_balances`, `team_daily_usage`, `team_member_daily`.
+  Renamed in place from the old `orgs`/`org_members` by `migrate.js`.
+- Billing leg 0 (`services/team.js` → `chargeTeam`, called from
+  `settleMessage`): team daily plan allowance, then team pot, in model-weighted
+  tokens; the member's daily limit applies to both; otherwise the personal
+  chain runs. Workers earn the team tier's plan share (`source 'plan'`) or
+  90% of catalog cost (`source 'tokens'`). Pre-flight walls (`chat.js`,
+  `v1.js`) count `teamHasCoverage`. `payment_status`: `team_plan` / `team_tokens`.
+- Routes: `/api/teams` (mine, create, members, limit, transfer, leave) and
+  `/api/admin/teams` (create, members, plan, tokens, disband — audited).
+- UI: `/team` (`/org` redirects) + the admin **Teams** tab + Navbar link.
 
 ## Worker Routing
 
