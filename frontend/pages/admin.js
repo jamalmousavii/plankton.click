@@ -616,9 +616,13 @@ export default function Admin() {
                       <td className="px-4 py-2">{Number(u.token_balance || 0).toLocaleString('en-US')}</td>
                       <td className="px-4 py-2 text-xs">{u.active_plan || t('admin.planFree')}</td>
                       <td className="px-4 py-2 text-xs whitespace-nowrap">
-                        {u.worker_count > 0
-                          ? <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">🖥️ {t('admin.typeWorker').replace('{n}', u.worker_count)}</span>
-                          : <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-600">👤 {t('admin.typeUser')}</span>}
+                        {/* Admin is a role, worker is ownership: an admin who also runs
+                            workers shows both badges; "User" only when neither applies. */}
+                        <span className="inline-flex gap-1">
+                          {u.role === 'admin' && <span className="px-2 py-0.5 rounded bg-red-100 text-red-600">🛡️ {t('admin.roleAdmin')}</span>}
+                          {u.worker_count > 0 && <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">🖥️ {t('admin.typeWorker').replace('{n}', u.worker_count)}</span>}
+                          {u.role !== 'admin' && !(u.worker_count > 0) && <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-600">👤 {t('admin.typeUser')}</span>}
+                        </span>
                       </td>
                       <td className="px-4 py-2 text-xs">{num(u.tokens_today)}</td>
                       <td className="px-4 py-2 text-xs">{num(u.tokens_30d)} <span className="text-gray-400">({u.messages_30d || 0})</span></td>
