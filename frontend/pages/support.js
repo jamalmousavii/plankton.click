@@ -24,6 +24,16 @@ export default function Support() {
   const [reply, setReply] = useState('');
 
   const { user } = useAuth();
+  const isAdmin = !!user && user.role === 'admin';
+  const [openForAdmin, setOpenForAdmin] = useState(null);
+  // This page only lists the signed-in user's own tickets — admins answer
+  // everyone's from /admin, so point them there with the open count.
+  useEffect(() => {
+    if (!isAdmin) return;
+    apiFetch('/api/admin/dashboard')
+      .then((d) => { if (d.success) setOpenForAdmin(d.dashboard?.tickets?.open ?? 0); })
+      .catch(() => setOpenForAdmin(null));
+  }, [isAdmin]);
 
   const loadList = useCallback(async () => {
     try {
@@ -153,6 +163,14 @@ export default function Support() {
       <Navbar />
 
       <main className="container mx-auto px-4 md:px-6 py-6 md:py-12 max-w-2xl">
+        {isAdmin && (
+          <Link href="/admin?tab=tickets"
+            className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 hover:bg-red-100 transition">
+            <span>🛡️ {t('support.adminHint').replace('{n}', openForAdmin ?? '…')}</span>
+            <span className="font-bold whitespace-nowrap">{t('support.adminOpen')} →</span>
+          </Link>
+        )}
+
         <div className="flex items-center justify-between gap-3 flex-wrap mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-800">🎫 {t('support.pageTitle')}</h1>

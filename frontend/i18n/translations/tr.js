@@ -397,6 +397,8 @@ const tr = {
     noUsage: 'No usage yet.',
   },
   support: {
+    adminHint: 'You\'re an admin: this page only shows your own tickets. Users\' tickets ({n} open) are in the admin panel.',
+    adminOpen: 'Open tickets in admin',
     pageTitle: 'Support',
     pageDesc: 'Ask for help — we reply here',
     backToList: 'Back to list',

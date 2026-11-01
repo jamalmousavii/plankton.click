@@ -1,5 +1,6 @@
 import Head from 'next/head';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/router';
 import { useLanguage } from '../i18n/LanguageContext';
 import Navbar from '../components/Navbar';
 import { useAuth, apiFetch, ApiError } from '../utils/api';
@@ -160,7 +161,14 @@ export default function Admin() {
     }, 'admin.orgCreated').then(() => { setOrgName(''); setOrgLeader(''); });
   };
 
-  useEffect(() => { if (isAdmin) fetchDashboard(); }, [isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
+  const router = useRouter();
+  useEffect(() => {
+    if (!isAdmin || !router.isReady) return;
+    fetchDashboard();
+    // /admin?tab=tickets (linked from /support) opens that tab directly.
+    const wanted = String(router.query.tab || '');
+    if (wanted && wanted !== 'dashboard' && TABS.some((tb) => tb.id === wanted)) switchTab(wanted);
+  }, [isAdmin, router.isReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The Manage panel renders above the list: bring it into view when a user
   // is opened from further down the table, otherwise it opens off-screen.
@@ -362,6 +370,9 @@ export default function Admin() {
             <button key={tb.id} onClick={() => switchTab(tb.id)}
               className={`px-4 py-2 min-h-[40px] rounded-lg text-sm font-bold whitespace-nowrap ${tab === tb.id ? 'bg-sky-500 text-white' : 'bg-white text-gray-600 border border-sky-200 hover:bg-sky-50'}`}>
               {t(tb.key)}
+              {tb.id === 'tickets' && dashboard?.tickets?.open > 0 && (
+                <span className="ml-1.5 inline-flex min-w-[1.25rem] justify-center rounded-full bg-red-500 px-1.5 text-[11px] text-white">{dashboard.tickets.open}</span>
+              )}
             </button>
           ))}
         </div>
