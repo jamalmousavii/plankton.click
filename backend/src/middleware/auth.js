@@ -143,4 +143,4 @@ function requireAdmin(req, res, next) {
     .catch(() => res.status(500).json({ error: 'Server error' }));
 }
 
-module.exports = { authenticate, optionalAuth, strictIfHeader, requireAdmin, invalidateTokenVersion };
+module.exports = { authenticate, optionalAuth, strictIfHeader, requireAdmin, isAdmin, invalidateTokenVersion };

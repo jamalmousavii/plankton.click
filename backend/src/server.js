@@ -12,7 +12,8 @@ const pinoHttp = require('pino-http');
 const WSServer = require('./ws');
 const { cacheMiddleware, getCacheStats, closeCache } = require('./cache');
 const { logger } = require('./logger');
-const { authenticate } = require('./middleware/auth');
+const { authenticate, optionalAuth } = require('./middleware/auth');
+const healthHandler = require('./routes/health');
 
 const authRoutes = require('./routes/auth');
 const workerRoutes = require('./routes/workers');
@@ -251,54 +252,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/leaderboard', cacheMiddleware(60), leaderboardRoutes);
 
-// Readiness: fails when Postgres is down so nginx/load-balancer stop routing.
-// Redis is report-only — caching is an optimisation, never a hard dependency.
-app.get('/health', async (req, res) => {
-  const cache = getCacheStats();
-  let dbStatus = 'unknown';
-  let dbOk = false;
-  let dbLatencyMs = null;
-  try {
-    const pool = require('./database/pool');
-    const startedAt = Date.now();
-    await pool.query('SELECT 1');
-    dbLatencyMs = Date.now() - startedAt;
-    dbStatus = 'connected';
-    dbOk = true;
-  } catch (e) {
-    dbStatus = 'disconnected';
-    logger.error({ err: e }, 'Health check: Postgres unreachable');
-  }
-
-  // v3.40.0 worker-only inference: chat is usable iff at least one worker is
-  // online. There is no local Ollama anymore, so nothing probes it — the
-  // `ollama` field is gone (monitors: watch `online_workers` + `status`).
-  // Report degraded but keep HTTP 200 when Postgres is fine: pulling this
-  // box from rotation would take the whole API down, not just chat.
-  let onlineWorkers = null;
-  if (dbOk) {
-    try {
-      const pool = require('./database/pool');
-      const r = await pool.query("SELECT COUNT(*)::int AS n FROM workers WHERE status = 'online'");
-      onlineWorkers = r.rows[0].n;
-    } catch (e) {
-      logger.error({ err: e }, 'Health check: worker count failed');
-    }
-  }
-
-  const chatUsable = onlineWorkers !== null && onlineWorkers > 0;
-  res.status(dbOk ? 200 : 503).json({
-    status: !dbOk ? 'degraded' : (chatUsable ? 'ok' : 'degraded'),
-    version: require('../package.json').version,
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    redis: cache.connected ? 'connected' : 'disconnected',
-    postgres: dbStatus,
-    db_latency_ms: dbLatencyMs,
-    online_workers: onlineWorkers,
-    sentry: !!process.env.SENTRY_DSN,
-  });
-});
+app.get('/health', optionalAuth, healthHandler);
 
 // Liveness: process is up, regardless of dependencies.
 app.get('/health/live', (req, res) => {

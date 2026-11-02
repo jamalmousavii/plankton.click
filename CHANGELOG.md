@@ -3,6 +3,15 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.5] — 2026-11-02
+
+### Changed
+- **`/health` no longer exposes worker capacity publicly:** `online_workers`
+  (and the new `chat: ok | no_workers` field) are returned only when the
+  request carries an admin's Bearer JWT. The public `status` now reflects only
+  the API itself (Postgres): `ok`, or `degraded` + HTTP 503 when the database
+  is down. The handler moved to `backend/src/routes/health.js` with tests.
+
 ## [1.1.4] — 2026-11-02
 
 ### Fixed

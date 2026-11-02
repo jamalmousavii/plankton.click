@@ -1,6 +1,6 @@
 # مستندات API — Plankton Network
 
-نسخه بک‌اند: `1.1.4` — پایه: `https://plankton.click` (نمونه: `https://plankton.click/api/chat`)
+نسخه بک‌اند: `1.1.5` — پایه: `https://plankton.click` (نمونه: `https://plankton.click/api/chat`)
 
 همه پاسخ‌ها JSON هستند. در حالت موفقیت معمولاً `success: true` برمی‌گردد و در حالت خطا `error` (رشته) یا `details` (لیست خطاهای اعتبارسنجی).
 
@@ -485,7 +485,7 @@ curl https://plankton.click/v1/embeddings \
 
 | مسیر | رفتار |
 |------|-------|
-| `GET /health` | readiness: بدون Postgres → `503` + `status: "degraded"`؛ Redis فقط گزارشی است؛ `chatUsable = online_workers > 0` (فیلد `ollama` در v3.40.0 حذف شد) |
+| `GET /health` | readiness: بدون Postgres → `503` + `status: "degraded"`، وگرنه `status: "ok"`؛ Redis فقط گزارشی است. `online_workers` و `chat` (`ok` / `no_workers`) فقط برای ادمین (با Bearer JWT ادمین) برگردانده می‌شوند |
 | `GET /health/live` | liveness: همیشه `200` |
 
 ---

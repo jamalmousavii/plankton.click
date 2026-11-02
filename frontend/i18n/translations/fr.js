@@ -63,7 +63,7 @@ const fr = {
     freeNote: 'Offre gratuite : 2 000 000 de jetons par jour pour tous — sans carte bancaire.',
     pricingSub: 'Payez en crypto. Les offres durent 30 jours ; les packs de jetons n\'expirent jamais.',
     loginToBuy: 'Connectez-vous d\'abord pour acheter (connexion en haut).',
-    version: 'v1.1.4',
+    version: 'v1.1.5',
   },
   footer: {
     sentence: '© 2026 Plankton Network — plateforme d\'inférence LLM décentralisée, version {version}. Tous droits réservés.',
