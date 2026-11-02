@@ -13,7 +13,7 @@
   <a href="https://plankton.click">plankton.click</a> ·
   <a href="https://plankton.click/worker">Run a worker</a> ·
   <a href="docs/api.md">API</a> ·
-  <a href="CHANGELOG.md">Changelog</a> · <b>v1.1.3</b>
+  <a href="CHANGELOG.md">Changelog</a> · <b>v1.1.4</b>
 </p>
 
 ---
@@ -87,7 +87,7 @@ powershell -ExecutionPolicy Bypass -File .\install-windows.ps1
 ```
 
 The install script automatically sets up:
-- Node.js 20
+- Node.js 22 LTS
 - Ollama
 - Selected AI models (13 chat/code/vision models to pick from)
 - `bge-m3` (1.2 GB), always installed — it serves embeddings
@@ -352,7 +352,7 @@ plankton.click/
 | Layer | Technology |
 |-------|-----------|
 | Frontend | Next.js 14, React 18, Tailwind CSS |
-| Backend | Node.js 20, Express, PostgreSQL, Redis |
+| Backend | Node.js 22, Express, PostgreSQL, Redis |
 | LLM | Ollama (on workers), 16 models (Llama, Qwen, Gemma, DeepSeek, Phi, GPT-OSS, Mistral, BGE) |
 | Auth | Google OAuth 2.0, JWT |
 | Payments | NowPayments — USD wallet, 7 coins at checkout, USDT TRC-20 withdraw |

@@ -19,7 +19,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$PLANKTON_VERSION = "1.1.3"
+$PLANKTON_VERSION = "1.1.4"
 $INSTALL_DIR = "$HOME\plankton-worker"
 $EXISTING_CONFIG = "$INSTALL_DIR\worker-app\config.json"
 $TASK_NAME = "PlanktonWorker"
@@ -65,9 +65,17 @@ function Merge-ConfigModels([string]$op, [string[]]$list) {
   if ($next.Count -eq 0) { Write-Host "  refusing to empty the model list" -ForegroundColor Red; return $null }
   $cfg.models = ($next -join ",")
   if ($next -notcontains $cfg.default_model) { $cfg.default_model = $next[0] }
-  $cfg | ConvertTo-Json -Depth 5 | Set-Content $EXISTING_CONFIG -Encoding utf8
+  Write-ConfigJson $cfg $EXISTING_CONFIG
   Protect-Config
   return ($next -join " ")
+}
+
+# Windows PowerShell 5.1 writes UTF-8 *with* a BOM for -Encoding utf8, and
+# Node's JSON.parse rejects a BOM (the worker then exits: no worker_token).
+# Always write config.json as UTF-8 without BOM.
+function Write-ConfigJson($obj, [string]$path) {
+  $json = $obj | ConvertTo-Json -Depth 5
+  [System.IO.File]::WriteAllText($path, $json, (New-Object System.Text.UTF8Encoding $false))
 }
 
 function Protect-Config {
@@ -140,7 +148,7 @@ function Show-Manager {
           if ($nt -notmatch '^(pw|kz)_[0-9a-f]{32,64}$') { Step-Warn "Invalid token format."; break }
           $cfg = Get-Content $EXISTING_CONFIG -Raw | ConvertFrom-Json
           $cfg.worker_token = $nt
-          $cfg | ConvertTo-Json -Depth 5 | Set-Content $EXISTING_CONFIG -Encoding utf8
+          Write-ConfigJson $cfg $EXISTING_CONFIG
           Protect-Config
           Step-Done "Token updated"
         }
@@ -148,7 +156,7 @@ function Show-Manager {
         if ($nn) {
           $cfg = Get-Content $EXISTING_CONFIG -Raw | ConvertFrom-Json
           $cfg.name = $nn.Substring(0, [Math]::Min(100, $nn.Length))
-          $cfg | ConvertTo-Json -Depth 5 | Set-Content $EXISTING_CONFIG -Encoding utf8
+          Write-ConfigJson $cfg $EXISTING_CONFIG
           Step-Done "Name updated"
         }
         Restart-Worker
@@ -158,6 +166,11 @@ function Show-Manager {
         git -C $INSTALL_DIR pull
         Write-Host "  Installing npm dependencies..." -ForegroundColor Cyan
         npm --prefix "$INSTALL_DIR\worker-app" ci --omit=dev
+        # Pre-embeddings installs never pulled bge-m3 — make every update add it.
+        Ensure-Ollama
+        ollama pull bge-m3
+        if ($LASTEXITCODE -ne 0) { Step-Warn "could not pull bge-m3 (embeddings stay off until it is installed)" }
+        Merge-ConfigModels "add" @("bge-m3") | Out-Null
         Restart-Worker
       }
       "6" { Restart-Worker }
@@ -200,7 +213,7 @@ Write-Host "[2/8] Node.js..." -ForegroundColor Yellow
 $nodeOk = $false
 try {
   $v = (node -v) -replace '^v', '' -split '\.' | Select-Object -First 1
-  if ([int]$v -ge 18) { $nodeOk = $true; Step-Done "Node.js $(node -v) already installed" }
+  if ([int]$v -ge 20) { $nodeOk = $true; Step-Done "Node.js $(node -v) already installed" }
 } catch {}
 if (-not $nodeOk) {
   Install-WingetPackage "OpenJS.NodeJS.LTS" "Node.js LTS"
@@ -324,10 +337,10 @@ else { Step-Fail "Registration failed. Check email and token." }
 
 # --- Step 8: scheduled task + config ---
 Write-Host "[8/8] Saving config + starting service..." -ForegroundColor Yellow
-@{
+Write-ConfigJson @{
   models = ($SELECTED -join ","); default_model = $SELECTED[0]
   worker_token = $Token; name = $Name
-} | ConvertTo-Json -Depth 5 | Set-Content "$INSTALL_DIR\worker-app\config.json" -Encoding utf8
+} "$INSTALL_DIR\worker-app\config.json"
 Protect-Config
 Write-Host "  ✓ Configuration saved (user-only ACL)" -ForegroundColor Green
 

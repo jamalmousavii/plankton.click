@@ -201,8 +201,8 @@ describe('installer script contracts', () => {
       expect(script).toContain('PIN_OLLAMA_SHA256=');
       expect(script).not.toMatch(/curl -fsSL https:\/\/(ollama\.com\/install\.sh|.*nodesource.*setup[^"]*)\s*\|\s*(sh|.*bash)/);
     }
-    expect(ubuntu).toContain('2c4c6683a17b6f4128898a7b521e3c8bb725a99ffaf1b5e32ac97c6fa7d381be'); // deb pin
-    expect(redhat).toContain('23ae8de502785a06421a83736e519004e02ab85b2e61464a52a5259833a1c27d'); // rpm pin
+    expect(ubuntu).toContain('575583bbac2fccc0b5edd0dbc03e222d9f9dc8d724da996d22754d6411104fd1'); // deb pin
+    expect(redhat).toContain('5192f79bed2ba67a3d8f7c680b029b827efa1ef7332a84d08e9e31a94e599734'); // rpm pin
   });
 
   it('H4/M6: registration and config never place the token on an argv or break on quotes', () => {
@@ -316,5 +316,38 @@ describe('Windows installer contracts (v3.42.0)', () => {
     expect(winunps1).toContain('Plankton Worker Uninstaller (Windows)');
     expect(winunps1).toContain('Unregister-ScheduledTask');
     expect(winunps1).toContain('worker_token');
+  });
+});
+
+describe('installer regressions (1.1.4)', () => {
+  const linux = ['install-ubuntu.sh', 'install-redhat.sh', 'install-macos.sh'].map((f) => [f, read(`worker-app/${f}`)]);
+
+  it('Windows writes config.json as UTF-8 without BOM (PowerShell 5.1 adds one)', () => {
+    expect(winps1).not.toMatch(/Set-Content[^\n]*config\.json/);
+    expect(winps1).not.toMatch(/ConvertTo-Json[^\n]*\|\s*Set-Content/);
+    expect(winps1).toMatch(/WriteAllText\([^)]*UTF8Encoding \$false/);
+  });
+
+  it('the worker tolerates a BOM already written by older Windows installs', () => {
+    for (const f of ['worker-app/src/cli.js', 'worker-app/src/main.js']) {
+      expect(read(f)).toMatch(/readFileSync\(configPath, 'utf8'\)\.replace\(\/\^\\uFEFF\/, ''\)/);
+    }
+  });
+
+  it('every manager "update" pulls and serves bge-m3 (pre-embeddings installs)', () => {
+    for (const [f, s] of linux) {
+      const update = s.slice(s.indexOf('manage_update_app() {'), s.indexOf('manage_menu() {'));
+      expect([f, update.includes('ollama pull bge-m3')]).toEqual([f, true]);
+      expect([f, update.includes('manage_config_models add "bge-m3"')]).toEqual([f, true]);
+    }
+    expect(winps1).toMatch(/ollama pull bge-m3[\s\S]*Merge-ConfigModels "add" @\("bge-m3"\)/);
+  });
+
+  it('installs Node 22 LTS (Node 20 is end-of-life) with pinned NodeSource scripts', () => {
+    expect(read('worker-app/install-ubuntu.sh')).toContain('https://deb.nodesource.com/setup_22.x');
+    expect(read('worker-app/install-redhat.sh')).toContain('https://rpm.nodesource.com/setup_22.x');
+    expect(read('worker-app/install-macos.sh')).toContain('brew install node@22');
+    for (const [f, s] of linux) expect([f, /-lt 20 \]/.test(s)]).toEqual([f, true]);
+    expect(winps1).toContain('-ge 20');
   });
 });

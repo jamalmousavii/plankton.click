@@ -18,7 +18,9 @@ let config = { models: 'llama3.1:8b', default_model: 'llama3.1:8b', worker_token
 const configPath = path.join(__dirname, '../config.json');
 if (fs.existsSync(configPath)) {
   try {
-    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    // Strip a UTF-8 BOM: Windows PowerShell 5.1 installers wrote one, and
+    // JSON.parse rejects it (the worker then saw no worker_token).
+    config = JSON.parse(fs.readFileSync(configPath, 'utf8').replace(/^\uFEFF/, ''));
   } catch (e) {}
 }
 

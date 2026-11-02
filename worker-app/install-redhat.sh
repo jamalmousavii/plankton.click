@@ -11,7 +11,7 @@
 
 set -e
 
-PLANKTON_VERSION="1.1.3"
+PLANKTON_VERSION="1.1.4"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -72,10 +72,10 @@ step_fail() {
 }
 
 # H5: never pipe a remote script into a shell unpinned — download, verify the
-# SHA-256 below, then execute. Pins were captured 2026-10-04; if upstream
+# SHA-256 below, then execute. Pins were captured 2026-11-02 (Node 22 LTS); if upstream
 # rotates its installer the check fails loudly (update the pin after
 # re-verifying, or bypass deliberately with PLANKTON_ALLOW_UNVERIFIED=1).
-PIN_NODESOURCE_SHA256="23ae8de502785a06421a83736e519004e02ab85b2e61464a52a5259833a1c27d"
+PIN_NODESOURCE_SHA256="5192f79bed2ba67a3d8f7c680b029b827efa1ef7332a84d08e9e31a94e599734"
 PIN_OLLAMA_SHA256="25f64b810b947145095956533e1bdf56eacea2673c55a7e586be4515fc882c9f"
 
 fetch_verified() {
@@ -103,7 +103,7 @@ fetch_verified() {
 install_nodesource_repo() {
   local tmp rc
   tmp=$(mktemp)
-  fetch_verified "https://rpm.nodesource.com/setup_20.x" "$PIN_NODESOURCE_SHA256" "$tmp" || { rm -f "$tmp"; return 1; }
+  fetch_verified "https://rpm.nodesource.com/setup_22.x" "$PIN_NODESOURCE_SHA256" "$tmp" || { rm -f "$tmp"; return 1; }
   $SUDO bash "$tmp"
   rc=$?
   rm -f "$tmp"
@@ -285,6 +285,11 @@ manage_identity() {
 manage_update_app() {
   run_with_spinner "Updating repository..." bash -c "cd '$INSTALL_DIR' && git pull"
   run_with_spinner "Installing npm dependencies..." bash -c "cd '$INSTALL_DIR/worker-app' && npm ci --omit=dev"
+  # Workers installed before embeddings existed never pulled bge-m3: make
+  # sure every update leaves it installed and served (/v1/embeddings + RAG).
+  manage_ensure_ollama
+  ollama pull bge-m3 || echo -e "  ${YELLOW}  ⚠ could not pull bge-m3 (embeddings stay off until it is installed)${NC}"
+  manage_config_models add "bge-m3" > /dev/null || true
   manage_restart_worker
 }
 
@@ -337,7 +342,7 @@ step_done "Prerequisites installed ($((STEP_END - STEP_START))s)"
 # --- Step 2: Node.js ---
 step_start 2 "Installing Node.js..."
 STEP_START=$(date +%s)
-if ! command -v node &> /dev/null || [ "$(node -v | cut -d'.' -f1 | tr -d 'v')" -lt 18 ]; then
+if ! command -v node &> /dev/null || [ "$(node -v | cut -d'.' -f1 | tr -d 'v')" -lt 20 ]; then
   run_with_spinner "Setting up NodeSource repository (sha256-verified)..." install_nodesource_repo
   run_with_spinner "Installing Node.js..." $SUDO $PKG_MGR install -y -q nodejs
   NODE_VER=$(node -v)

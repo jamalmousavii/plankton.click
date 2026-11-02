@@ -3,6 +3,23 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.4] — 2026-11-02
+
+### Fixed
+- **Windows worker never started:** the installer wrote `config.json` with
+  `Set-Content -Encoding utf8`, which on Windows PowerShell 5.1 adds a BOM
+  that Node's `JSON.parse` rejects (the worker exited with "no worker_token").
+  Config is now written as UTF-8 without BOM, and the worker also strips a BOM
+  left by older installs.
+- **Updating a worker never added embeddings:** the manager menu's *Update*
+  (all four installers) now pulls `bge-m3` and adds it to the served models,
+  so workers installed before 1.1.0 start answering `/v1/embeddings` and RAG.
+
+### Changed
+- Installers set up **Node.js 22 LTS** (Node 20 is end-of-life): NodeSource
+  `setup_22.x` with refreshed SHA-256 pins on Ubuntu/Debian and
+  RedHat/Fedora, `node@22` on macOS; Node < 20 is upgraded.
+
 ## [1.1.3] — 2026-11-01
 
 ### Changed

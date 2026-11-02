@@ -25,7 +25,7 @@ fi
 
 set -e
 
-PLANKTON_VERSION="1.1.3"
+PLANKTON_VERSION="1.1.4"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -244,6 +244,11 @@ manage_identity() {
 manage_update_app() {
   run_with_spinner "Updating repository..." bash -c "cd '$INSTALL_DIR' && git pull"
   run_with_spinner "Installing npm dependencies..." bash -c "cd '$INSTALL_DIR/worker-app' && npm ci --omit=dev"
+  # Workers installed before embeddings existed never pulled bge-m3: make
+  # sure every update leaves it installed and served (/v1/embeddings + RAG).
+  manage_ensure_ollama
+  ollama pull bge-m3 || echo -e "  ${YELLOW}  ⚠ could not pull bge-m3 (embeddings stay off until it is installed)${NC}"
+  manage_config_models add "bge-m3" > /dev/null || true
   manage_restart_worker
 }
 
@@ -311,9 +316,9 @@ step_done "Prerequisites ready ($((STEP_END - STEP_START))s)"
 # --- Step 2: Node.js ---
 step_start 2 "Installing Node.js..."
 STEP_START=$(date +%s)
-if ! command -v node &> /dev/null || [ "$(node -v | cut -d'.' -f1 | tr -d 'v')" -lt 18 ]; then
-  run_with_spinner "Installing Node.js 20..." brew install node@20
-  brew link --overwrite node@20 2>/dev/null || true
+if ! command -v node &> /dev/null || [ "$(node -v | cut -d'.' -f1 | tr -d 'v')" -lt 20 ]; then
+  run_with_spinner "Installing Node.js 22..." brew install node@22
+  brew link --overwrite node@22 2>/dev/null || true
   NODE_VER=$(node -v)
   STEP_END=$(date +%s)
   step_done "Node.js ${NODE_VER} installed ($((STEP_END - STEP_START))s)"
