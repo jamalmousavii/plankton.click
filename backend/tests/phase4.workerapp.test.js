@@ -379,3 +379,25 @@ describe('installer regressions (1.1.6)', () => {
     }
   });
 });
+
+describe('installer regressions (1.1.7)', () => {
+  it('Linux installers fall back to GitHub when ollama.com is blocked (HTTP 403)', () => {
+    for (const f of ['install-ubuntu.sh', 'install-redhat.sh']) {
+      const s = read(`worker-app/${f}`);
+      expect([f, s.includes('https://raw.githubusercontent.com/ollama/ollama/main/scripts/install.sh')]).toEqual([f, true]);
+      expect([f, s.includes('https://github.com/ollama/ollama/releases/latest/download')]).toEqual([f, true]);
+      const body = s.slice(s.indexOf('install_ollama_binary() {'), s.indexOf('\n}\n', s.indexOf('install_ollama_binary() {')));
+      // every source is still checked against the same pinned SHA-256
+      expect([f, /fetch_verified "\$url" "\$PIN_OLLAMA_SHA256"/.test(body)]).toEqual([f, true]);
+      expect([f, body.includes('s#https://ollama.com/download#${OLLAMA_GITHUB_DOWNLOAD}#g')]).toEqual([f, true]);
+    }
+  });
+
+  it('install commands overwrite a stale script (plain wget saves install-ubuntu.sh.1)', () => {
+    for (const f of ['README.md', 'frontend/pages/worker.js', 'frontend/pages/workers.js']) {
+      const s = read(f);
+      expect([f, /wget https:\/\/raw\.githubusercontent\.com\/jamalmousavii\/plankton\.click/.test(s)]).toEqual([f, false]);
+      expect([f, s.includes('wget -O install-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh')]).toEqual([f, true]);
+    }
+  });
+});

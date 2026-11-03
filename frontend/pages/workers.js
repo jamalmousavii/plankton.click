@@ -204,8 +204,8 @@ export default function Workers() {
     setTimeout(() => setCopiedWorkerId(null), 2000);
   };
 
-  const ubuntuInstallCmd = 'wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token YOUR_TOKEN';
-  const redhatInstallCmd = 'wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-redhat.sh && bash install-redhat.sh --token YOUR_TOKEN';
+  const ubuntuInstallCmd = 'wget -O install-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token YOUR_TOKEN';
+  const redhatInstallCmd = 'wget -O install-redhat.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-redhat.sh && bash install-redhat.sh --token YOUR_TOKEN';
 
   const copyInstall = (cmd, id) => {
     navigator.clipboard.writeText(cmd);
@@ -293,7 +293,7 @@ export default function Workers() {
               <p>{t('profile.workerGuideStep1')}</p>
               <p>{t('profile.workerGuideStep2')}</p>
               <code className="block text-xs text-emerald-700 bg-sky-50 border border-sky-100 px-2 py-1 rounded break-all">
-                wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token YOUR_TOKEN
+                wget -O install-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token YOUR_TOKEN
               </code>
               <p>{t('profile.workerGuideStep3')}</p>
               <p className="text-gray-400">{t('profile.workerGuideStep4')}</p>
@@ -498,7 +498,7 @@ export default function Workers() {
                           {copiedWorkerId === m.id ? '✓' : '📋'}
                         </button>
                       </div>
-                      <code className="block text-gray-600 text-xs break-all bg-white border border-sky-100 px-2 py-1 rounded">wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token {regenTokenVal}</code>
+                      <code className="block text-gray-600 text-xs break-all bg-white border border-sky-100 px-2 py-1 rounded">wget -O install-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token {regenTokenVal}</code>
                     </div>
                   ) : (
                     <div className="flex items-center justify-between gap-2 pt-1">
@@ -534,7 +534,7 @@ export default function Workers() {
                           {copiedWorkerId === 'new' ? '✓' : '📋'}
                         </button>
                       </div>
-                      <code className="block text-gray-600 text-xs break-all bg-sky-50 border border-sky-100 px-2 py-1 rounded">wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token {newWorkerToken}</code>
+                      <code className="block text-gray-600 text-xs break-all bg-sky-50 border border-sky-100 px-2 py-1 rounded">wget -O install-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token {newWorkerToken}</code>
                     </div>
                   )}
                 </div>
@@ -565,7 +565,7 @@ export default function Workers() {
                           {copiedWorkerId === 'new' ? '✓' : '📋'}
                         </button>
                       </div>
-                      <code className="block text-gray-600 text-xs break-all bg-sky-50 border border-sky-100 px-2 py-1 rounded">wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token {newWorkerToken}</code>
+                      <code className="block text-gray-600 text-xs break-all bg-sky-50 border border-sky-100 px-2 py-1 rounded">wget -O install-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token {newWorkerToken}</code>
                     </div>
                   )}
                 </div>

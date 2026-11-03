@@ -3,7 +3,7 @@
 #   Plankton Network Worker - RedHat/CentOS/Fedora Install
 # ============================================
 # Usage:
-#   wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-redhat.sh && bash install-redhat.sh
+#   wget -O install-redhat.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-redhat.sh && bash install-redhat.sh
 #   bash install-redhat.sh --email user@email.com --token-file /path/to/token
 #   (--token still works, but a token on the command line is readable from
 #    `ps` by every user on the box — prefer --token-file or the prompt.)
@@ -11,7 +11,7 @@
 
 set -e
 
-PLANKTON_VERSION="1.1.6"
+PLANKTON_VERSION="1.1.7"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -112,14 +112,29 @@ install_nodesource_repo() {
   return $rc
 }
 
+# ollama.com answers HTTP 403 from some countries (e.g. Iran) while GitHub
+# serves the same files: the identical install.sh (same pinned SHA-256) from
+# the Ollama repo, and the same release archives from GitHub Releases.
+OLLAMA_SCRIPT_URLS="https://ollama.com/install.sh https://raw.githubusercontent.com/ollama/ollama/main/scripts/install.sh"
+OLLAMA_GITHUB_DOWNLOAD="https://github.com/ollama/ollama/releases/latest/download"
+
 install_ollama_binary() {
-  local tmp rc
+  local tmp rc url fetched=""
   tmp=$(mktemp)
   # Ollama's install.sh now ships .tar.zst archives and aborts without zstd.
   command -v zstd > /dev/null 2>&1 || $SUDO "${PKG_MGR:-dnf}" install -y -q zstd || { echo "zstd is required: install it and re-run"; return 1; }
-  fetch_verified "https://ollama.com/install.sh" "$PIN_OLLAMA_SHA256" "$tmp" || { rm -f "$tmp"; return 1; }
-  sh "$tmp"
-  rc=$?
+  for url in $OLLAMA_SCRIPT_URLS; do
+    if fetch_verified "$url" "$PIN_OLLAMA_SHA256" "$tmp"; then fetched=1; break; fi
+    echo "  -> trying the next source for the Ollama installer..."
+  done
+  [ -n "$fetched" ] || { rm -f "$tmp"; return 1; }
+  # Verified script, only its download base swapped when ollama.com is blocked.
+  if ! curl -fsSIL -m 20 -o /dev/null "https://ollama.com/download/ollama-linux-amd64.tar.zst"; then
+    echo "  -> ollama.com downloads are blocked from this network: using GitHub Releases"
+    sed -i "s#https://ollama.com/download#${OLLAMA_GITHUB_DOWNLOAD}#g" "$tmp"
+  fi
+  rc=0
+  sh "$tmp" || rc=$?
   rm -f "$tmp"
   return $rc
 }

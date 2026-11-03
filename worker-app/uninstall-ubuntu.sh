@@ -3,12 +3,12 @@
 #   Plankton Network Worker - Ubuntu/Debian Uninstall
 # ============================================
 # Usage:
-#   wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-ubuntu.sh && bash uninstall-ubuntu.sh
+#   wget -O uninstall-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-ubuntu.sh && bash uninstall-ubuntu.sh
 # ============================================
 
 set -e
 
-PLANKTON_VERSION="1.1.6"
+PLANKTON_VERSION="1.1.7"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -101,7 +101,7 @@ case $choice in
     echo ""
     echo -e "  Ollama and models are still installed."
     echo -e "  To remove them, re-download this script (it deletes itself once done) and choose option 2:"
-    echo -e " ${CYAN}wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-ubuntu.sh && bash uninstall-ubuntu.sh${NC}"
+    echo -e " ${CYAN}wget -O uninstall-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-ubuntu.sh && bash uninstall-ubuntu.sh${NC}"
     echo ""
     SUCCESS=1
     ;;

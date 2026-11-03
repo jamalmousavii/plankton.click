@@ -3,12 +3,12 @@
 #   Plankton Network Worker - RedHat/CentOS/Fedora Uninstall
 # ============================================
 # Usage:
-#   wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-redhat.sh && bash uninstall-redhat.sh
+#   wget -O uninstall-redhat.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-redhat.sh && bash uninstall-redhat.sh
 # ============================================
 
 set -e
 
-PLANKTON_VERSION="1.1.6"
+PLANKTON_VERSION="1.1.7"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -101,7 +101,7 @@ case $choice in
     echo ""
     echo -e "  Ollama and models are still installed."
     echo -e "  To remove them, re-download this script (it deletes itself once done) and choose option 2:"
-    echo -e " ${CYAN}wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-redhat.sh && bash uninstall-redhat.sh${NC}"
+    echo -e " ${CYAN}wget -O uninstall-redhat.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-redhat.sh && bash uninstall-redhat.sh${NC}"
     echo ""
     SUCCESS=1
     ;;

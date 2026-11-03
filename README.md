@@ -13,7 +13,7 @@
   <a href="https://plankton.click">plankton.click</a> ·
   <a href="https://plankton.click/worker">Run a worker</a> ·
   <a href="docs/api.md">API</a> ·
-  <a href="CHANGELOG.md">Changelog</a> · <b>v1.1.6</b>
+  <a href="CHANGELOG.md">Changelog</a> · <b>v1.1.7</b>
 </p>
 
 ---
@@ -60,13 +60,13 @@ Workers are paid a flat **90%** of every paid message they serve.
 ### Ubuntu / Debian
 
 ```bash
-wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh
+wget -O install-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh
 ```
 
 ### RedHat / Fedora / CentOS
 
 ```bash
-wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-redhat.sh && bash install-redhat.sh
+wget -O install-redhat.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-redhat.sh && bash install-redhat.sh
 ```
 
 ### macOS 13+ (Apple Silicon / Intel with AVX2)
@@ -107,7 +107,7 @@ Each server-worker gets its **own unique token** (the token IS the worker identi
 1. Profile → Worker Settings → **+ Add Worker** (optional name) → copy its token
 2. On the new machine, install with **that token**:
 ```bash
-wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token pw_... --name my-second-worker
+wget -O install-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token pw_... --name my-second-worker
 ```
 3. The new worker appears as its own card (status, model, earnings). Remove any
 worker anytime from profile (history is preserved, soft delete).
@@ -116,10 +116,10 @@ worker anytime from profile (history is preserved, soft delete).
 
 ```bash
 # Ubuntu/Debian
-wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-ubuntu.sh && bash uninstall-ubuntu.sh
+wget -O uninstall-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-ubuntu.sh && bash uninstall-ubuntu.sh
 
 # RedHat/Fedora
-wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-redhat.sh && bash uninstall-redhat.sh
+wget -O uninstall-redhat.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-redhat.sh && bash uninstall-redhat.sh
 
 # macOS
 curl -fsSL https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-macos.sh -o uninstall-macos.sh && bash uninstall-macos.sh

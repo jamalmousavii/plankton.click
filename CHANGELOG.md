@@ -3,6 +3,21 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.7] — 2026-11-03
+
+### Fixed
+- **Ubuntu/RHEL installer failed with `curl: (22) ... 403` at "Installing
+  Ollama":** ollama.com refuses some countries (e.g. Iran) with HTTP 403,
+  while GitHub, the Ollama model registry and its blob CDN stay reachable.
+  The installers now fetch Ollama's `install.sh` from the Ollama GitHub repo
+  when ollama.com is blocked (same pinned SHA-256), and point its downloads
+  at GitHub Releases (identical archives).
+- **Re-running the install command executed the old script:** plain
+  `wget URL && bash install-ubuntu.sh` saved the new file as
+  `install-ubuntu.sh.1` when a previous (failed) run had left
+  `install-ubuntu.sh` behind. Every install/uninstall command (README, site
+  pages, script headers) now uses `wget -O <file>`.
+
 ## [1.1.6] — 2026-11-03
 
 ### Fixed

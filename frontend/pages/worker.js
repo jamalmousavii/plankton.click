@@ -43,13 +43,13 @@ export default function Worker() {
     } catch (err) {}
   };
 
-  const ubuntuCmd = 'wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh';
-  const redhatCmd = 'wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-redhat.sh && bash install-redhat.sh';
+  const ubuntuCmd = 'wget -O install-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh';
+  const redhatCmd = 'wget -O install-redhat.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-redhat.sh && bash install-redhat.sh';
   const macosCmd = 'curl -fsSL https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-macos.sh -o install-macos.sh && bash install-macos.sh';
   const windowsCmd = 'Invoke-WebRequest -Uri https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-windows.ps1 -OutFile install-windows.ps1';
   const windowsUninstall = 'Invoke-WebRequest -Uri https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-windows.ps1 -OutFile uninstall-windows.ps1';
-  const ubuntuUninstall = 'wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-ubuntu.sh && bash uninstall-ubuntu.sh';
-  const redhatUninstall = 'wget https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-redhat.sh && bash uninstall-redhat.sh';
+  const ubuntuUninstall = 'wget -O uninstall-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-ubuntu.sh && bash uninstall-ubuntu.sh';
+  const redhatUninstall = 'wget -O uninstall-redhat.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-redhat.sh && bash uninstall-redhat.sh';
   const macosUninstall = 'curl -fsSL https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/uninstall-macos.sh -o uninstall-macos.sh && bash uninstall-macos.sh';
 
   const categories = [...new Set(models.map(m => m.category))];
