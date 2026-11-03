@@ -11,7 +11,7 @@
 
 set -e
 
-PLANKTON_VERSION="1.1.5"
+PLANKTON_VERSION="1.1.6"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -43,8 +43,10 @@ run_with_spinner() {
   "$@" > "$logfile" 2>&1 &
   local pid=$!
   spinner "$pid" "$msg"
-  wait "$pid" 2>/dev/null
-  local exit_code=$?
+  # `wait` returns the step's exit code; under `set -e` a bare failing
+  # `wait` killed the script right here, before the log below was shown.
+  local exit_code=0
+  wait "$pid" 2>/dev/null || exit_code=$?
   if [ "$exit_code" -ne 0 ]; then
     # M1: under `set -e` a failing step used to kill the script BEFORE the
     # captured log was ever shown — a silent half-install with no clue why.
@@ -113,6 +115,8 @@ install_nodesource_repo() {
 install_ollama_binary() {
   local tmp rc
   tmp=$(mktemp)
+  # Ollama's install.sh now ships .tar.zst archives and aborts without zstd.
+  command -v zstd > /dev/null 2>&1 || $SUDO "${PKG_MGR:-dnf}" install -y -q zstd || { echo "zstd is required: install it and re-run"; return 1; }
   fetch_verified "https://ollama.com/install.sh" "$PIN_OLLAMA_SHA256" "$tmp" || { rm -f "$tmp"; return 1; }
   sh "$tmp"
   rc=$?
@@ -335,7 +339,7 @@ fi
 # --- Step 1: Prerequisites ---
 step_start 1 "Installing prerequisites..."
 STEP_START=$(date +%s)
-run_with_spinner "Installing build tools..." $SUDO $PKG_MGR install -y -q curl git gcc-c++ make jq
+run_with_spinner "Installing build tools..." $SUDO $PKG_MGR install -y -q curl git gcc-c++ make jq zstd
 STEP_END=$(date +%s)
 step_done "Prerequisites installed ($((STEP_END - STEP_START))s)"
 

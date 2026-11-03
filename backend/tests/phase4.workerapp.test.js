@@ -351,3 +351,31 @@ describe('installer regressions (1.1.4)', () => {
     expect(winps1).toContain('-ge 20');
   });
 });
+
+describe('installer regressions (1.1.6)', () => {
+  const { execFileSync } = require('child_process');
+  const linux = ['install-ubuntu.sh', 'install-redhat.sh', 'install-macos.sh'].map((f) => [f, read(`worker-app/${f}`)]);
+
+  it('a failing step prints its error log instead of exiting silently under set -e', () => {
+    for (const [f, s] of linux) {
+      const fn = (name) => s.slice(s.indexOf(`${name}() {`), s.indexOf('\n}\n', s.indexOf(`${name}() {`)) + 3);
+      const script = `set -e\nRED=; NC=; CYAN=\n${fn('spinner')}${fn('run_with_spinner')}` +
+        'boom() { echo "zstd missing"; return 7; }\nrun_with_spinner "Installing Ollama" boom\necho unreachable\n';
+      let out = ''; let code = 0;
+      try { out = execFileSync('bash', ['-c', script], { encoding: 'utf8' }); } catch (e) { out = e.stdout; code = e.status; }
+      expect([f, code]).toEqual([f, 7]);
+      expect([f, out.includes('Installing Ollama failed (exit 7)'), out.includes('zstd missing')]).toEqual([f, true, true]);
+      expect([f, out.includes('unreachable')]).toEqual([f, false]);
+    }
+  });
+
+  it('Linux installers provide zstd, which Ollama install.sh now requires', () => {
+    expect(read('worker-app/install-ubuntu.sh')).toMatch(/apt-get install -y -qq curl git build-essential jq zstd/);
+    expect(read('worker-app/install-redhat.sh')).toMatch(/install -y -q curl git gcc-c\+\+ make jq zstd/);
+    for (const f of ['install-ubuntu.sh', 'install-redhat.sh']) {
+      const s = read(`worker-app/${f}`);
+      const body = s.slice(s.indexOf('install_ollama_binary() {'), s.indexOf('\n}\n', s.indexOf('install_ollama_binary() {')));
+      expect([f, body.includes('command -v zstd')]).toEqual([f, true]);
+    }
+  });
+});

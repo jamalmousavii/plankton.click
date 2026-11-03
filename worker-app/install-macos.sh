@@ -25,7 +25,7 @@ fi
 
 set -e
 
-PLANKTON_VERSION="1.1.5"
+PLANKTON_VERSION="1.1.6"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -78,10 +78,19 @@ run_with_spinner() {
   "$@" > "$logfile" 2>&1 &
   local pid=$!
   spinner "$pid" "$msg"
-  wait "$pid" 2>/dev/null
-  local exit_code=$?
+  # `wait` returns the step's exit code; under `set -e` a bare failing
+  # `wait` killed the script right here, before the log below was shown.
+  local exit_code=0
+  wait "$pid" 2>/dev/null || exit_code=$?
+  if [ "$exit_code" -ne 0 ]; then
+    printf "\r  \r"
+    echo -e "${RED}  ✗ ${msg} failed (exit ${exit_code})${NC}"
+    tail -n 20 "$logfile" 2>/dev/null | sed 's/^/      /'
+    rm -f "$logfile"
+    exit "$exit_code"
+  fi
   rm -f "$logfile"
-  return $exit_code
+  return 0
 }
 
 step_start() {

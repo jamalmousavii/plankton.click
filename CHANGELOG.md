@@ -3,6 +3,18 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.6] — 2026-11-03
+
+### Fixed
+- **Ubuntu/RHEL installer quit at "Installing Ollama":** Ollama's
+  `install.sh` now ships `.tar.zst` archives and aborts when `zstd` is
+  missing (it is not on minimal Ubuntu/RHEL images). The installers now
+  install `zstd` with the build tools and again right before Ollama.
+- **Installers exited silently when a step failed:** under `set -e` the bare
+  `wait` in `run_with_spinner` killed the script before the failing step's
+  log was printed, so the window just closed. The step's error and the last
+  20 log lines are now shown (Ubuntu, RHEL and macOS).
+
 ## [1.1.5] — 2026-11-02
 
 ### Changed
