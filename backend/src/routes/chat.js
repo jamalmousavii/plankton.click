@@ -25,6 +25,7 @@ const { settleMessage, WORKER_REVENUE_SHARE } = require('../services/billing');
 const { resolveCap, teamHasCoverage } = require('../services/team');
 const { withTransaction } = require('../database/tx');
 const { embed, cosine, DEFAULT_EMBED_MODEL } = require('../services/embeddings');
+const { startKeepAlive } = require('../services/keepAlive');
 
 // Single source of truth for the default model (was split between
 // 'llama3:8b' — which exists in no catalog — and 'llama3.1:8b').
@@ -283,6 +284,9 @@ router.delete('/sessions/:id', authenticate, async (req, res) => {
 // POST /api/chat — send message (supports session_id)
 // F4: guests still work (no header), but a bad bearer → 401, never silent-guest.
 router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
+  // Started right before the worker dispatch: keeps Cloudflare from cutting
+  // a slow reply (100 s, HTTP 524) — see services/keepAlive.js.
+  let ka = null;
   try {
     const { message: rawMessage, model, session_id, attachment } = req.body;
     // Image-only / voice-only sends arrive with an empty message (the
@@ -538,6 +542,7 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
     // Sticky + weighted-RR selection with failover: each pick honours the
     // session affinity (spilling past SPILL_CAP in-flight tasks), and every
     // outcome feeds the per-model health counters.
+    ka = startKeepAlive(res);
     const tried = new Set();
     for (;;) {
       const cand = wsServer.pickCandidate({
@@ -591,7 +596,7 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
       const detail = lastWorkerError
         ? ` (worker: ${sanitizeWorkerDetail(lastWorkerError)})`
         : '';
-      return res.status(503).json({
+      return ka.send(503, {
         error: `Workers failed to answer right now. Your message is kept — please retry shortly.${detail}`,
         code: 'WORKER_OFFLINE',
         task_id: taskId,
@@ -656,7 +661,7 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
       freeExhausted,
     } = settled || {};
 
-    res.json({
+    ka.send(200, {
       success: true,
       response,
       task_id: taskId,
@@ -687,6 +692,7 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
 
   } catch (err) {
     logger.error({ err }, 'POST /api/chat failed');
+    if (ka) return ka.send(500, { error: 'Server error' });
     res.status(500).json({ error: 'Server error' });
   }
 });

@@ -3,6 +3,19 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.9] — 2026-11-04
+
+### Fixed
+- **Chat showed "Error connecting to server" while a slow worker was still
+  answering:** plankton.click is behind Cloudflare, which aborts a request
+  whose response has not started within 100 s (HTTP 524); CPU workers and
+  large models routinely take longer. `POST /api/chat` and
+  `POST /v1/chat/completions` now commit a 200 after ~20 s and send a space
+  every 15 s (valid leading JSON whitespace, uncompressed, unbuffered by
+  nginx) until the answer is ready. A late failure keeps its real status in
+  the body as `http_status`, which the site's `apiFetch` turns back into the
+  same error handling as before (waiting bubble, retry, etc.).
+
 ## [1.1.8] — 2026-11-04
 
 ### Fixed

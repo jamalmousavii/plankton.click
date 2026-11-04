@@ -58,13 +58,19 @@ export async function apiFetch(path, options = {}) {
     data = null;
   }
 
-  if (res.status === 401 && !path.startsWith('/api/auth')) {
+  // Slow worker replies arrive as 200 + leading whitespace (the backend keeps
+  // Cloudflare's 100 s limit from cutting them); a late failure then carries
+  // its real status in the body as `http_status` — treat it like the real one.
+  const lateStatus = data && Number.isInteger(data.http_status) && data.http_status >= 400 ? data.http_status : null;
+  const status = lateStatus || res.status;
+
+  if (status === 401 && !path.startsWith('/api/auth')) {
     clearSession();
     window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
   }
 
-  if (!res.ok) {
-    throw new ApiError(res.status, (data && data.error) || `Request failed (${res.status})`, data);
+  if (!res.ok || lateStatus) {
+    throw new ApiError(status, (data && data.error) || `Request failed (${status})`, data);
   }
 
   return data;

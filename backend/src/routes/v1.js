@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const router = express.Router();
 const pool = require('../database/pool');
+const { startKeepAlive } = require('../services/keepAlive');
 const { authenticateApiKey } = require('../middleware/apiKey');
 const MODELS = require('../models');
 const { listPlans, TOKEN_BUNDLE, modelOutputPrice, MAX_TASK_TOKENS } = require('../services/plans');
@@ -100,6 +101,7 @@ function splitMessages(messages) {
 
 // POST /v1/chat/completions
 router.post('/chat/completions', async (req, res) => {
+  let ka = null; // see services/keepAlive.js (Cloudflare 100 s limit)
   try {
     const { model, messages, max_tokens, temperature, stream, tools, tool_choice } = req.body || {};
 
@@ -183,6 +185,7 @@ router.post('/chat/completions', async (req, res) => {
       return res.status(r.status).json(r.body);
     }
 
+    ka = startKeepAlive(res);
     let response = null;
     let tokensUsed = 0;
     let workerId = null;
@@ -216,7 +219,7 @@ router.post('/chat/completions', async (req, res) => {
     if (response === null) {
       await failTask('All workers failed for this task');
       const r = openAiError(503, 'Workers failed to answer — retry with backoff.', 'server_error', { code: 'worker_offline', retryable: true });
-      return res.status(r.status).json(r.body);
+      return ka.send(r.status, r.body);
     }
 
     // Output-only charge at the single shared catalog price (v3.45.0).
@@ -242,7 +245,7 @@ router.post('/chat/completions', async (req, res) => {
 
     // prompt_tokens estimated (~4 chars/token); billing stays output-only.
     const promptTokens = Math.ceil(prompt.length / 4);
-    res.json({
+    ka.send(200, {
       id: `chatcmpl-${crypto.randomBytes(12).toString('hex')}`,
       object: 'chat.completion',
       created: Math.floor(Date.now() / 1000),
@@ -252,6 +255,7 @@ router.post('/chat/completions', async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'POST /v1/chat/completions failed');
+    if (ka) return ka.send(500, { error: { message: 'Server error', type: 'server_error', code: 'internal' } });
     res.status(500).json({ error: { message: 'Server error', type: 'server_error', code: 'internal' } });
   }
 });
