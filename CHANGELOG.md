@@ -3,6 +3,19 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.11] — 2026-11-04
+
+### Added
+- **Direct worker endpoint `wss://ws.plankton.click/ws`:** a DNS-only name
+  (no Cloudflare proxy) served by the origin's nginx with its own Let's
+  Encrypt certificate; only `/ws` and `/health` are exposed there. Workers
+  try it first and fall back to `wss://plankton.click/ws` within ~1 s if it
+  fails (DNS missing, filtered, TLS error); after a session that worked they
+  start again from the direct endpoint. The TLS servername now follows the
+  URL's host, the handshake times out after 15 s, and `API_WS_URL` accepts a
+  comma-separated list. Workers behind VPNs/networks that cut long-lived
+  connections through Cloudflare kept dropping mid-task.
+
 ## [1.1.10] — 2026-11-04
 
 ### Fixed

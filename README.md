@@ -13,7 +13,7 @@
   <a href="https://plankton.click">plankton.click</a> ·
   <a href="https://plankton.click/worker">Run a worker</a> ·
   <a href="docs/api.md">API</a> ·
-  <a href="CHANGELOG.md">Changelog</a> · <b>v1.1.10</b>
+  <a href="CHANGELOG.md">Changelog</a> · <b>v1.1.11</b>
 </p>
 
 ---
@@ -22,8 +22,8 @@
 
 A **worker** is any machine (and the person who runs it) that joins the
 Plankton ecosystem and takes part in answering user chats. It runs
-[Ollama](https://ollama.com) locally, connects to `wss://plankton.click/ws`
-with its own token, and receives chat tasks for the models it has pulled.
+[Ollama](https://ollama.com) locally, connects to `wss://ws.plankton.click/ws`
+(direct; falls back to `wss://plankton.click/ws` through Cloudflare) with its own token, and receives chat tasks for the models it has pulled.
 Workers are paid a flat **90%** of every paid message they serve.
 
 ## Links

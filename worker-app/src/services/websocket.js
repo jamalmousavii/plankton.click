@@ -7,6 +7,18 @@ const isWorkerToken = (t) => typeof t === 'string' && /^(pw|kz)_/.test(t);
 // Capability protocol advertised at auth (server: FULL_PROTOCOL in ws.js).
 // 2 = understands `attachment` + `history` on task messages;
 // 3 = also answers `embed` messages (only when an embed handler is wired).
+// 1.1.11: the direct origin endpoint (DNS-only, no Cloudflare) comes first —
+// it survives networks/VPNs that cut long-lived connections through the
+// proxy. The Cloudflare-proxied endpoint stays as the fallback. API_WS_URL
+// (one URL or a comma-separated list) overrides both.
+const DEFAULT_WS_URLS = ['wss://ws.plankton.click/ws', 'wss://plankton.click:443/ws'];
+
+function wsUrlList() {
+  const raw = process.env.API_WS_URL;
+  if (raw && raw.trim()) return raw.split(',').map((u) => u.trim()).filter(Boolean);
+  return DEFAULT_WS_URLS.slice();
+}
+
 const PROTOCOL_CHAT = 2;
 const PROTOCOL_EMBED = 3;
 
@@ -39,6 +51,13 @@ class WorkerWebSocket {
     // M4: task results produced while the socket was down are held here and
     // flushed on the next successful auth instead of being dropped.
     this.pendingResults = [];
+    this.wsUrls = wsUrlList();
+    this.urlIndex = 0;
+    this.urlFailuresThisCycle = 0; // endpoints that failed since the last good session
+  }
+
+  currentUrl() {
+    return this.wsUrls[this.urlIndex % this.wsUrls.length];
   }
 
   connect() {
@@ -60,19 +79,25 @@ class WorkerWebSocket {
 
     this.intentionalClose = false;
     this.authed = false;
-    const wsUrl = process.env.API_WS_URL || 'wss://plankton.click:443/ws';
+    const wsUrl = this.currentUrl();
     const isLocal = /^wss?:\/\/(127\.0\.0\.1|localhost|::1)/.test(wsUrl);
+    let host = 'plankton.click';
+    try { host = new URL(wsUrl).hostname; } catch (e) { /* keep default */ }
     // full TLS verification with pinned ISRG roots (PLANKTON_PIN=0 → system CAs)
     const pinEnabled = process.env.PLANKTON_PIN !== '0';
     const ws = new WebSocket(wsUrl, isLocal ? {} : {
       ca: pinEnabled ? PINNED_ROOTS : undefined,
-      servername: 'plankton.click',
+      servername: host,
+      // a direct endpoint that is filtered must fail fast and hand over to
+      // the next one instead of hanging on the TCP/TLS handshake
+      handshakeTimeout: 15000,
     });
     this.ws = ws;
+    this.sessionAuthed = false;
 
     ws.on('open', () => {
       if (this.ws !== ws) return;
-      console.log('🔌 Connected to Plankton Network');
+      console.log(`🔌 Connected to Plankton Network (${host})`);
       this.connected = true;
       this.reconnectDelay = 5000;
       this.authenticate();
@@ -96,7 +121,7 @@ class WorkerWebSocket {
       this.authed = false;
       this.stopHeartbeat();
       if (!this.intentionalClose) {
-        this.scheduleReconnect();
+        this.pickNextUrl(this.sessionAuthed);
       }
     });
 
@@ -140,6 +165,8 @@ class WorkerWebSocket {
       case 'auth_ok':
         this.workerId = msg.worker_id;
         this.authed = true;
+        this.sessionAuthed = true;
+        this.urlFailuresThisCycle = 0;
         this.authFailCount = 0;
         this.e2eEnabled = !!msg.e2e && isWorkerToken(this.walletAddress);
         console.log(`✅ Authenticated as worker #${this.workerId}${this.e2eEnabled ? ' (e2e)' : ''}`);
@@ -386,8 +413,36 @@ class WorkerWebSocket {
     }
   }
 
-  scheduleReconnect() {
+  // After a session that worked, start again from the preferred (direct)
+  // endpoint. After a failed attempt, move to the next endpoint right away;
+  // only when every endpoint failed does the exponential backoff apply.
+  pickNextUrl(wasAuthed) {
+    if (wasAuthed || this.wsUrls.length < 2) {
+      this.urlIndex = 0;
+      this.urlFailuresThisCycle = 0;
+      this.scheduleReconnect();
+      return;
+    }
+    this.urlFailuresThisCycle += 1;
+    this.urlIndex = (this.urlIndex + 1) % this.wsUrls.length;
+    if (this.urlFailuresThisCycle < this.wsUrls.length) {
+      console.log(`↪ Trying the next endpoint: ${this.currentUrl()}`);
+      this.scheduleReconnect(1000);
+      return;
+    }
+    this.urlFailuresThisCycle = 0;
+    this.scheduleReconnect();
+  }
+
+  scheduleReconnect(fastMs) {
     if (this.reconnectTimer) return;
+    if (fastMs) {
+      this.reconnectTimer = setTimeout(() => {
+        this.reconnectTimer = null;
+        this.connect();
+      }, fastMs);
+      return;
+    }
     console.log(`Reconnecting in ${this.reconnectDelay / 1000}s...`);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;

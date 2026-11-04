@@ -1,6 +1,6 @@
 # Plankton — Development Guide
 
-Version **1.1.10**. A *worker* is any machine (and its owner) that joins the
+Version **1.1.11**. A *worker* is any machine (and its owner) that joins the
 Plankton network and takes part in answering user chats.
 
 ## Prerequisites
@@ -695,6 +695,22 @@ Host/IP, SSH user and key live in the private ops vault — never commit them to
 | User | *(non-root deploy user)* |
 | Backend | /opt/plankton/backend |
 | Frontend | /opt/plankton/frontend |
+
+### Direct worker endpoint (`ws.plankton.click`, 1.1.11)
+
+Workers connect to `wss://ws.plankton.click/ws` first and fall back to
+`wss://plankton.click/ws` (Cloudflare-proxied) within ~1 s. Some networks and
+VPNs cut long-lived connections through the proxy, and a socket dropped
+mid-task used to cost the user the answer.
+
+- DNS: `ws` A record → the server IP, **DNS only** (grey cloud). This makes
+  the origin IP public; only `/ws` and `/health` are served on that name.
+- TLS: its own Let's Encrypt certificate (`certbot certonly --webroot -w
+  /var/www/html -d ws.plankton.click`); the vhost is at the end of
+  `deploy/plankton-nginx.conf`. Workers verify it against the same pinned
+  ISRG roots as the Cloudflare edge.
+- Override on a worker: `API_WS_URL=wss://plankton.click/ws` (Cloudflare
+  only) or a comma-separated list.
 
 ### Deploy Commands
 

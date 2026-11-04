@@ -1,6 +1,6 @@
 # مستندات API — Plankton Network
 
-نسخه بک‌اند: `1.1.10` — پایه: `https://plankton.click` (نمونه: `https://plankton.click/api/chat`)
+نسخه بک‌اند: `1.1.11` — پایه: `https://plankton.click` (نمونه: `https://plankton.click/api/chat`)
 
 همه پاسخ‌ها JSON هستند. در حالت موفقیت معمولاً `success: true` برمی‌گردد و در حالت خطا `error` (رشته) یا `details` (لیست خطاهای اعتبارسنجی).
 
@@ -495,7 +495,7 @@ curl https://plankton.click/v1/embeddings \
 
 ## WebSocket
 
-آدرس: `wss://plankton.click/ws` (از داخل سرور: `ws://127.0.0.1:8444/ws`)
+آدرس: `wss://ws.plankton.click/ws` (مستقیم، بدون Cloudflare) و در صورت قطع بودن، `wss://plankton.click/ws` (از پشت Cloudflare)؛ از داخل سرور: `ws://127.0.0.1:8444/ws`. `API_WS_URL` (یک آدرس یا چند آدرس با کاما) روی ورکر این ترتیب را عوض می‌کند.
 
 - احراز هویت ورکر با `worker_token`.
 - پیام‌های کلیدی: `register`, `task_dispatch`, `task_result`, `heartbeat`.
