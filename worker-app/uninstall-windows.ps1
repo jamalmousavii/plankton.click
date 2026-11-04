@@ -6,7 +6,7 @@
 # ============================================
 
 $ErrorActionPreference = "Stop"
-$PLANKTON_VERSION = "1.1.7"
+$PLANKTON_VERSION = "1.1.8"
 $INSTALL_DIR = "$HOME\plankton-worker"
 $TASK_NAME = "PlanktonWorker"
 

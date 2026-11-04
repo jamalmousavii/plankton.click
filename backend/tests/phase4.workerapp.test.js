@@ -401,3 +401,44 @@ describe('installer regressions (1.1.7)', () => {
     }
   });
 });
+
+describe('installer regressions (1.1.8)', () => {
+  const { execFileSync } = require('child_process');
+  const os = require('os');
+
+  it('step 8 renders a complete systemd unit (a broken sed wrote an empty = "masked" unit)', () => {
+    for (const f of ['install-ubuntu.sh', 'install-redhat.sh']) {
+      const s = read(`worker-app/${f}`);
+      const a = s.indexOf('UNIT_TMP=$(mktemp)');
+      const b = s.indexOf('rm -f "$UNIT_TMP"\n', s.indexOf('$SUDO install -m 644')) + 'rm -f "$UNIT_TMP"\n'.length;
+      expect([f, a > 0 && b > a]).toEqual([f, true]);
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'unit-'));
+      const out = path.join(dir, 'plankton-worker.service');
+      fs.writeFileSync(out, ''); // the empty unit a broken earlier run left behind
+      const script = [
+        'set -e', 'RED=; NC=; SUDO=',
+        'systemctl() { :; }',
+        `INSTALL_DIR=${JSON.stringify(path.join(dir, 'plankton-worker'))}`,
+        'NODE_PATH=/usr/bin/node',
+        `UNIT_TEMPLATE=${JSON.stringify(path.join(__dirname, '..', '..', 'worker-app', 'plankton-worker.service'))}`,
+        `SERVICE_FILE=${JSON.stringify(out)}`,
+        s.slice(a, b),
+      ].join('\n');
+      execFileSync('bash', ['-c', script], { encoding: 'utf8' });
+      const unit = fs.readFileSync(out, 'utf8');
+      fs.rmSync(dir, { recursive: true, force: true });
+      expect([f, unit.includes('ExecStart=/usr/bin/node src/cli.js')]).toEqual([f, true]);
+      expect([f, unit.includes('[Install]'), /@[A-Z_]+@/.test(unit.replace(/^#.*$/gm, ''))]).toEqual([f, true, false]);
+      expect([f, /\| \$SUDO tee "\$SERVICE_FILE"/.test(s)]).toEqual([f, false]);
+    }
+  });
+
+  it('a run that died before the service existed resumes the install instead of the manager menu', () => {
+    for (const f of ['install-ubuntu.sh', 'install-redhat.sh']) {
+      const s = read(`worker-app/${f}`);
+      const resume = s.indexOf('[ ! -s /etc/systemd/system/plankton-worker.service ]');
+      expect([f, resume > 0 && resume < s.indexOf('if manage_menu; then')]).toEqual([f, true]);
+      expect([f, s.includes("jq -r '.worker_token // empty' \"$EXISTING_CONFIG\"")]).toEqual([f, true]);
+    }
+  });
+});

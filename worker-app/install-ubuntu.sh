@@ -11,7 +11,7 @@
 
 set -e
 
-PLANKTON_VERSION="1.1.7"
+PLANKTON_VERSION="1.1.8"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -339,6 +339,16 @@ manage_menu() {
     echo ""
   done
 }
+
+# A run that died before step 8 finished (e.g. the 1.1.7 empty-unit bug)
+# leaves config.json but no usable service: resume the full install instead
+# of opening the manager, reusing the saved token and name.
+if [ -f "$EXISTING_CONFIG" ] && [ "$PLANKTON_FRESH" != "1" ] && [ ! -s /etc/systemd/system/plankton-worker.service ]; then
+  echo -e "${YELLOW}  Previous install did not finish (no plankton-worker service) — resuming the full install.${NC}"
+  [ -z "$WORKER_TOKEN" ] && WORKER_TOKEN=$(jq -r '.worker_token // empty' "$EXISTING_CONFIG" 2>/dev/null || true)
+  [ -z "$WORKER_NAME" ] && WORKER_NAME=$(jq -r '.name // empty' "$EXISTING_CONFIG" 2>/dev/null || true)
+  PLANKTON_FRESH="1"
+fi
 
 if [ -f "$EXISTING_CONFIG" ] && [ "$PLANKTON_FRESH" != "1" ]; then
   if manage_menu; then
@@ -707,11 +717,25 @@ if [ ! -f "$UNIT_TEMPLATE" ]; then
   echo -e "${RED}  ✗ Missing $UNIT_TEMPLATE — run git pull in $INSTALL_DIR and retry${NC}"
   exit 1
 fi
+# Render to a temp file first: a failing sed piped straight into tee wrote an
+# EMPTY unit, which systemd reports as "Unit ... is masked".
+UNIT_TMP=$(mktemp)
 sed -e "s|@USER@|$(whoami)|g" \
     -e "s|@WORKDIR@|$INSTALL_DIR/worker-app|g" \
     -e "s|@NODE@|$NODE_PATH|g" \
-    -e "s|^@ENV_LINES@$|" \
-    "$UNIT_TEMPLATE" | $SUDO tee "$SERVICE_FILE" > /dev/null
+    -e "/^@ENV_LINES@$/d" \
+    "$UNIT_TEMPLATE" > "$UNIT_TMP"
+if ! grep -q "^ExecStart=$NODE_PATH " "$UNIT_TMP" || grep -v "^#" "$UNIT_TMP" | grep -q "@[A-Z_][A-Z_]*@"; then
+  rm -f "$UNIT_TMP"
+  echo -e "${RED}  ✗ Could not render the systemd unit from $UNIT_TEMPLATE${NC}"
+  exit 1
+fi
+# A previous broken run left an empty (= masked) unit or a /dev/null mask
+# symlink: unmask and replace it instead of writing through to /dev/null.
+$SUDO systemctl unmask plankton-worker > /dev/null 2>&1 || true
+$SUDO rm -f "$SERVICE_FILE"
+$SUDO install -m 644 "$UNIT_TMP" "$SERVICE_FILE"
+rm -f "$UNIT_TMP"
 
 run_with_spinner "Enabling service..." $SUDO systemctl daemon-reload
 run_with_spinner "Starting service..." bash -c "$SUDO systemctl enable plankton-worker && $SUDO systemctl start plankton-worker"

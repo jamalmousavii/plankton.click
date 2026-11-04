@@ -3,6 +3,19 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.8] — 2026-11-04
+
+### Fixed
+- **Ubuntu/RHEL install failed at the last step with `sed: unterminated 's'
+  command` and `Unit plankton-worker.service is masked`:** the `@ENV_LINES@`
+  substitution was missing its replacement, so `sed` failed and `tee` wrote an
+  empty unit file, which systemd treats as masked. The unit is now rendered
+  to a temp file, checked (ExecStart present, no placeholders left), and only
+  then installed; a stale empty unit or `/dev/null` mask is removed first.
+- **Re-running after a half-finished install opened the manager menu:** when
+  `config.json` exists but there is no usable `plankton-worker` service, the
+  installer now resumes the full install and reuses the saved token and name.
+
 ## [1.1.7] — 2026-11-03
 
 ### Fixed

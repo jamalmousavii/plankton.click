@@ -25,7 +25,7 @@ fi
 
 set -e
 
-PLANKTON_VERSION="1.1.7"
+PLANKTON_VERSION="1.1.8"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
