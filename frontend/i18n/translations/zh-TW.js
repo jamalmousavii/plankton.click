@@ -63,7 +63,7 @@ const zhTW = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.1.9',
+    version: 'v1.1.10',
   },
   footer: {
     sentence: '© 2026 Plankton Network — 去中心化 LLM 推理平台，版本 {version}。版權所有。',

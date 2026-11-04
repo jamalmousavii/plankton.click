@@ -3,6 +3,22 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.10] — 2026-11-04
+
+### Fixed
+- **Long answers failed with "Workers failed to answer (worker: Worker
+  disconnected)" on workers behind flaky links:** a worker whose connection
+  drops and re-authenticates a few seconds later (NAT/proxy rotation, mobile
+  or filtered networks) kept generating and sent the result on its new
+  socket, but the server had already rejected the task the moment the old
+  socket closed. In-flight tasks are now held for 60 s
+  (`WS_RECONNECT_GRACE_MS`) and stay claimed by that worker; the result is
+  accepted on the new connection. The dispatch timeout is unchanged.
+- **Worker lost a result finished right after reconnecting:** results were
+  sent as soon as the socket was open, before `auth_ok`, and the server
+  dropped them as "Not authenticated". They are now buffered until auth.
+- Server and worker logs include the WebSocket close code and reason.
+
 ## [1.1.9] — 2026-11-04
 
 ### Fixed

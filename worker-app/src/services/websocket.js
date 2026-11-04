@@ -88,9 +88,10 @@ class WorkerWebSocket {
       }
     });
 
-    ws.on('close', () => {
+    ws.on('close', (code, reason) => {
       if (this.ws !== ws) return;
-      console.log('🔌 Disconnected from Plankton Network');
+      const why = reason && reason.length ? `, ${String(reason).slice(0, 120)}` : '';
+      console.log(`🔌 Disconnected from Plankton Network (code ${code}${why})`);
       this.connected = false;
       this.authed = false;
       this.stopHeartbeat();
@@ -335,7 +336,9 @@ class WorkerWebSocket {
   // next auth_ok. The buffer is capped so a long outage can't grow it
   // without bound; the server ignores results for already-resolved tasks.
   sendResult(data) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    // Open is not enough: until auth_ok the server answers "Not authenticated"
+    // and the result would be lost (1.1.10) — buffer it for flushResults().
+    if (this.ws && this.ws.readyState === WebSocket.OPEN && this.authed) {
       this.ws.send(JSON.stringify(data));
       return;
     }

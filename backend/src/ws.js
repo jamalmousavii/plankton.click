@@ -26,6 +26,8 @@ const EMBED_PROTOCOL = 3;
 // Embedding vectors: bounded so a hostile worker cannot balloon memory.
 const MAX_EMBED_DIM = 8192;
 const HEARTBEAT_STATUSES = new Set(['online', 'busy', 'offline']);
+// How long an in-flight task waits for its worker to reconnect (1.1.10).
+const RECONNECT_GRACE_MS = parseInt(process.env.WS_RECONNECT_GRACE_MS || '60000', 10);
 const clampPct = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0;
@@ -142,33 +144,51 @@ class WSServer {
       }
     });
 
-    ws.on('close', () => {
+    ws.on('close', (code, reasonBuf) => {
+      const reason = reasonBuf ? String(reasonBuf).slice(0, 120) : '';
       for (const [workerId, worker] of this.workers) {
         if (worker.ws === ws) {
           this.workers.delete(workerId);
-          // B6: a vanished worker leaves its in-flight tasks hanging — they
-          // would sit the full 180s dispatch timeout (+overhead) and blow
-          // through nginx's 300s ceiling → user gets a 504. Reject them NOW:
-          // the chat route answers WORKER_OFFLINE (retryable) immediately.
+          // B6 + 1.1.10: in-flight tasks used to be rejected the moment the
+          // socket closed. Workers behind flaky links (NAT/proxy rotation)
+          // drop and re-auth within seconds while Ollama keeps generating, and
+          // send the result on the NEW socket — so hold each in-flight task
+          // for RECONNECT_GRACE_MS and only then give up (the chat route
+          // still answers WORKER_OFFLINE, retryable). The dispatch timeout
+          // keeps running underneath, so nothing waits longer than before.
+          const held = [];
           for (const [taskId, cb] of this.taskCallbacks) {
-            if (cb.workerId === workerId) {
-              clearTimeout(cb.timeout);
-              this.taskCallbacks.delete(taskId);
-              cb.reject(new Error('Worker disconnected'));
+            if (cb.workerId === workerId && !cb.orphanTimer) {
+              held.push(taskId);
+              cb.orphanTimer = setTimeout(() => {
+                const cur = this.taskCallbacks.get(taskId);
+                if (cur !== cb) return;
+                if (this.workers.has(workerId)) {
+                  // Back online: keep waiting for the result (dispatch timeout applies).
+                  cb.orphanTimer = null;
+                  return;
+                }
+                clearTimeout(cb.timeout);
+                this.taskCallbacks.delete(taskId);
+                cb.reject(new Error('Worker disconnected'));
+              }, RECONNECT_GRACE_MS);
+              if (cb.orphanTimer.unref) cb.orphanTimer.unref();
             }
           }
           // M4: every row this worker had claimed ('processing' via chat
-          // dispatch or a task_request poll) goes back to pending — with no
-          // result coming, those rows otherwise stayed 'processing' forever
-          // and could never be re-dispatched.
-          pool.query("UPDATE tasks SET status = 'pending' WHERE worker_id = $1 AND status = 'processing'", [workerId])
-            .catch((err) => logger.error({ err, workerId }, 'Failed to reset stranded processing tasks'));
+          // dispatch or a task_request poll) goes back to pending — except the
+          // held chat dispatches above, which must stay claimed by this worker
+          // so its result on the next socket is still accepted.
+          pool.query(
+            "UPDATE tasks SET status = 'pending' WHERE worker_id = $1 AND status = 'processing' AND NOT (id = ANY($2::int[]))",
+            [workerId, held]
+          ).catch((err) => logger.error({ err, workerId }, 'Failed to reset stranded processing tasks'));
           pool.query("UPDATE workers SET status = 'offline' WHERE id = $1", [workerId])
             .catch((err) => logger.error({ err, workerId }, 'Failed to mark worker offline'));
           invalidateCache('/api/workers');
           invalidateCache('/api/models');
           invalidateCache('/api/stats');
-          logger.info({ workerId }, 'Worker disconnected');
+          logger.info({ workerId, code, reason, inFlight: held.length }, 'Worker disconnected');
         }
       }
     });
@@ -586,6 +606,7 @@ class WSServer {
     const callback = this.taskCallbacks.get(task_id);
     if (callback) {
       clearTimeout(callback.timeout);
+      if (callback.orphanTimer) clearTimeout(callback.orphanTimer);
       this.taskCallbacks.delete(task_id);
       callback.resolve({ response: plainResponse, tokens_used, error });
     }
@@ -670,8 +691,8 @@ class WSServer {
         reject(new Error('Task timeout'));
       }, timeoutMs);
 
-      // workerId lets the close handler reject this worker's in-flight tasks
-      // immediately (B6) instead of letting them ride out the full timeout.
+      // workerId lets the close handler find this worker's in-flight tasks
+      // (held for RECONNECT_GRACE_MS, then rejected — B6 / 1.1.10).
       this.taskCallbacks.set(taskId, { resolve, reject, timeout, workerId });
 
       const payload = {
@@ -732,6 +753,7 @@ class WSServer {
     }
     this.taskCallbacks.delete(msg.task_id);
     clearTimeout(cb.timeout);
+    if (cb.orphanTimer) clearTimeout(cb.orphanTimer);
 
     if (msg.error) {
       cb.resolve({ error: String(msg.error).slice(0, 200) });
@@ -943,6 +965,7 @@ class WSServer {
     if (this.cleanupTimer) clearInterval(this.cleanupTimer);
     for (const [, cb] of this.taskCallbacks) {
       clearTimeout(cb.timeout);
+      if (cb.orphanTimer) clearTimeout(cb.orphanTimer);
       try { cb.reject(new Error('Server shutting down')); } catch (e) { /* already settled */ }
     }
     this.taskCallbacks.clear();

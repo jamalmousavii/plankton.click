@@ -102,6 +102,18 @@ describe('M4 client: result buffer + task_request', () => {
     expect(ws.pendingResults).toHaveLength(1); // not lost, re-buffered
   });
 
+  it('buffers a result on an open socket that has not re-authenticated yet (1.1.10)', () => {
+    const ws = new WorkerWebSocket('pw_deadbeef', async () => ({}));
+    ws.ws = openSocket(); // reconnected, auth still in flight
+    ws.authed = false;
+    ws.sendResult({ type: 'task_result', task_id: 13, response: 'late' });
+    expect(ws.ws.send).not.toHaveBeenCalled();
+    expect(ws.pendingResults).toHaveLength(1);
+    ws.handleMessage({ type: 'auth_ok', worker_id: 5 });
+    const sent = ws.ws.send.mock.calls.map((c) => JSON.parse(c[0]));
+    expect(sent.find((m) => m.type === 'task_result').task_id).toBe(13);
+  });
+
   it('caps the buffer so a long outage cannot grow it unbounded', () => {
     const ws = new WorkerWebSocket('pw_deadbeef', async () => ({}));
     ws.ws = { readyState: 3, send: jest.fn() };

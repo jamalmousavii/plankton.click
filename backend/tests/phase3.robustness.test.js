@@ -197,12 +197,16 @@ describe('B4: pending row before invoice', () => {
 });
 
 // ---------------------------------------------------------------------------
-// B6 — a disconnected worker must reject its in-flight tasks immediately.
+// B6 — a disconnected worker's in-flight tasks are rejected once the
+// reconnect grace (1.1.10, 60 s) runs out without the worker coming back.
 // ---------------------------------------------------------------------------
 const WSServer = require('../src/ws');
 
 describe('B6: disconnect rejects in-flight tasks', () => {
-  it('rejects pending dispatchTask callbacks the moment the socket closes', async () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('rejects pending dispatchTask callbacks after the reconnect grace', async () => {
     const server = Object.create(WSServer.prototype);
     server.workers = new Map();
     server.taskCallbacks = new Map();
@@ -232,6 +236,9 @@ describe('B6: disconnect rejects in-flight tasks', () => {
     expect(server.taskCallbacks.get(500).workerId).toBe(42);
 
     handlers.close();
+    expect(server.workers.size).toBe(0);
+    expect(server.taskCallbacks.has(500)).toBe(true); // held for the grace period
+    jest.advanceTimersByTime(60000);
 
     await expect(pending).rejects.toThrow('Worker disconnected');
     expect(server.taskCallbacks.size).toBe(0);
@@ -262,6 +269,7 @@ describe('B6: disconnect rejects in-flight tasks', () => {
     const pendingB = server.dispatchTask(2, 601, 'hi', 'm');
 
     handlersA.close();
+    jest.advanceTimersByTime(60000);
 
     await expect(pendingA).rejects.toThrow('Worker disconnected');
     expect(server.taskCallbacks.has(601)).toBe(true);
@@ -329,5 +337,48 @@ describe('v3.45.0: purchase double-click guard', () => {
     expect(res.status).toBe(409);
     expect(res.body.code).toBe('purchase_pending');
     expect(nowpayments.createInvoice).not.toHaveBeenCalled();
+  });
+});
+
+describe('1.1.10: a worker that reconnects within the grace still delivers its result', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('keeps the dispatch alive across a reconnect and resolves with the new socket\'s result', async () => {
+    const server = Object.create(WSServer.prototype);
+    server.workers = new Map();
+    server.taskCallbacks = new Map();
+    server.authFails = new Map();
+
+    const handlers = {};
+    const oldWs = { on: (ev, fn) => { handlers[ev] = fn; }, send: () => {}, _socket: { remoteAddress: '203.0.113.9' } };
+    server.handleConnection(oldWs, { headers: {} });
+    server.workers.set(42, { id: 42, ws: oldWs, status: 'online', current_model: 'llama3.1:8b', e2eKey: null });
+
+    const pending = server.dispatchTask(42, 700, 'hi', 'llama3.1:8b', null);
+    const resetSql = [];
+    pool.__state.queryImpl = async (sql, params) => {
+      if (/SET status = 'pending'/.test(sql)) resetSql.push(params);
+      if (/SELECT worker_id FROM tasks/.test(sql)) return { rows: [{ worker_id: 42 }] };
+      if (/status = 'completed'/.test(sql)) return { rows: [{ id: 700 }] };
+      return { rows: [] };
+    };
+
+    handlers.close(1006, Buffer.from(''));
+    // the held task is NOT handed back to pending (it must stay claimed by 42)
+    expect(resetSql[0][1]).toEqual([700]);
+
+    // worker re-authenticates on a new socket 5 s later
+    jest.advanceTimersByTime(5000);
+    const newWs = { readyState: 1, send: () => {} };
+    server.workers.set(42, { id: 42, ws: newWs, status: 'online', current_model: 'llama3.1:8b', e2eKey: null });
+
+    // grace expires while the worker is back: still waiting, not rejected
+    jest.advanceTimersByTime(60000);
+    expect(server.taskCallbacks.has(700)).toBe(true);
+
+    await server.handleTaskResult(newWs, { type: 'task_result', task_id: 700, response: 'Hello!', tokens_used: 3 });
+    await expect(pending).resolves.toEqual({ response: 'Hello!', tokens_used: 3, error: undefined });
+    expect(server.taskCallbacks.size).toBe(0);
   });
 });
