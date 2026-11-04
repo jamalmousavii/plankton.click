@@ -17,6 +17,16 @@ const nextConfig = {
       { source: '/org', destination: '/team', permanent: true },
     ];
   },
+  // Self-hosted fonts never change in place (rename the file to update), so
+  // browsers and Cloudflare can keep them for a year.
+  async headers() {
+    return [
+      {
+        source: '/fonts/:file*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+    ];
+  },
   async rewrites() {
     return [
       {

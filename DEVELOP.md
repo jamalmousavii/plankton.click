@@ -1,6 +1,6 @@
 # Plankton — Development Guide
 
-Version **1.1.11**. A *worker* is any machine (and its owner) that joins the
+Version **1.1.12**. A *worker* is any machine (and its owner) that joins the
 Plankton network and takes part in answering user chats.
 
 ## Prerequisites
@@ -678,6 +678,7 @@ The site is designed phone-first. Invariants to keep when touching the frontend:
 - **Keyboard vs. fixed frame** — the chat page is a `100dvh` `overflow-hidden` frame. iOS does *not* shrink the layout viewport when the keyboard opens, so while an `input`/`textarea` is focused `pages/index.js` measures `window.visualViewport` and writes `--app-vv-height` / `--app-vv-shift` on `<html>`; `pages/_app.js` consumes them as the frame's `height` / `translateY`. Always set `interactive-widget=resizes-content` and `viewport-fit=cover` in `_document.js`; never add `maximum-scale` (accessibility violation + iOS ignores it anyway).
 - **No focus zoom** — iOS zooms any focused field under 16px. `styles/globals.css` forces `font-size: 16px !important` on `input/textarea/select` at ≤767px, which intentionally beats Tailwind's `text-sm`. New inputs are covered automatically; do not override with inline font sizes.
 - **Touch targets** — any tappable control ≥40px (44px for primary nav ☰/✕). Hover-only affordances are banned on mobile (session delete is `md:hidden md:group-hover:flex`).
+- **No third-party render-blocking assets** (1.1.12) — fonts are self-hosted in `frontend/public/fonts` (Inter + Space Grotesk, latin/latin-ext variable woff2, `@font-face` in `styles/globals.css`, Inter preloaded in `_document.js`, `Cache-Control: immutable` via `next.config.js`). Many visitors cannot reach Google (e.g. Iran without VPN); a blocking `fonts.googleapis.com` stylesheet left pages blank in Chrome. To update a font, add a new filename instead of overwriting. `backend/tests/frontend.fonts.test.js` guards this. The Google sign-in script loads only on demand.
 - **No transform ancestors for fixed overlays** — the mobile nav (`Navbar.js`) and chat sidebar drawer use `fixed` positioning; the sidebar closes on session pick (`loadSession`) and the nav closes on route change (`useRouter`).
 - **Layout helpers** — composer groups use `md:contents` so mobile gets stacked rows while desktop keeps a single flex row; wallet grids are `grid-cols-1 sm:grid-cols-3`.
 - **Safe areas** — bottom paddings use `pb-[max(1rem,env(safe-area-inset-bottom))]` (chat frame, footer, bottom-sheet modal).

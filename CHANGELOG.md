@@ -3,6 +3,17 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.12] — 2026-11-04
+
+### Fixed
+- **Site hung blank or loaded very slowly in Chrome:** every page loaded its
+  fonts with a render-blocking stylesheet from `fonts.googleapis.com`, which
+  is slow or unreachable for many visitors (notably from Iran without a VPN),
+  so the browser waited for it before painting anything. Inter and Space
+  Grotesk are now self-hosted (`frontend/public/fonts`, latin + latin-ext
+  woff2, `font-display: swap`, Inter preloaded, cached for a year); the site
+  makes no request to Google until someone clicks “Sign in with Google”.
+
 ## [1.1.11] — 2026-11-04
 
 ### Added
