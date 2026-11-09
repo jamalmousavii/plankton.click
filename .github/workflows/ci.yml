@@ -111,9 +111,11 @@ jobs:
           printf '0\n' | HOME="$RUNNER_TEMP/fakehome" bash worker-app/install-macos.sh | grep -q "Plankton Worker Manager"
           echo "macos scripts OK"
       # Windows: no shellcheck/pssa needed — the .NET parser is built in.
+      # Users run stock Windows PowerShell 5.1 (`powershell`), which reads a
+      # BOM-less script as ANSI and lacks PowerShell 7 syntax, so parse there.
       - name: Validate PowerShell scripts
         if: matrix.os == 'windows-latest'
-        shell: pwsh
+        shell: powershell
         run: |
           $files = @('worker-app/install-windows.ps1', 'worker-app/uninstall-windows.ps1')
           $failed = $false

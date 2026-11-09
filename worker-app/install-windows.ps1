@@ -19,7 +19,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$PLANKTON_VERSION = "1.1.12"
+$PLANKTON_VERSION = "1.1.13"
 $INSTALL_DIR = "$HOME\plankton-worker"
 $EXISTING_CONFIG = "$INSTALL_DIR\worker-app\config.json"
 $TASK_NAME = "PlanktonWorker"
@@ -33,9 +33,21 @@ $MODEL_SIZES = [ordered]@{
   "nomic-embed-text" = "0.3 GB"; "bge-m3" = "1.2 GB"
 }
 
-function Step-Done([string]$msg) { Write-Host "  ✅ $msg" -ForegroundColor Green }
-function Step-Warn([string]$msg) { Write-Host "  ⚠ $msg" -ForegroundColor Yellow }
-function Step-Fail([string]$msg) { Write-Host "  ✗ $msg" -ForegroundColor Red; exit 1 }
+function Step-Done([string]$msg) { Write-Host "  [OK] $msg" -ForegroundColor Green }
+function Step-Warn([string]$msg) { Write-Host "  [!] $msg" -ForegroundColor Yellow }
+function Step-Fail([string]$msg) { Write-Host "  [X] $msg" -ForegroundColor Red; exit 1 }
+
+# Run a native command (ollama, icacls) and return $true on exit code 0.
+# Windows PowerShell 5.1 has no `||`, and with $ErrorActionPreference = "Stop"
+# any stderr line a redirected native command prints (ollama's progress bar)
+# becomes a terminating error - so relax it just for the call.
+function Invoke-Native([scriptblock]$cmd) {
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try { & $cmd | Out-Host; return ($LASTEXITCODE -eq 0) }
+  catch { return $false }
+  finally { $ErrorActionPreference = $prev }
+}
 
 function Test-Admin {
   $id = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -52,7 +64,9 @@ function Install-WingetPackage([string]$id, [string]$label) {
 }
 
 function Get-InstalledModels {
+  $prev = $ErrorActionPreference; $ErrorActionPreference = "Continue"
   $list = ollama list 2>$null | Select-Object -Skip 1 | ForEach-Object { ($_ -split '\s+')[0] } | Where-Object { $_ }
+  $ErrorActionPreference = $prev
   return @($list)
 }
 
@@ -79,7 +93,7 @@ function Write-ConfigJson($obj, [string]$path) {
 }
 
 function Protect-Config {
-  icacls $EXISTING_CONFIG /inheritance:r /grant:r "$env:USERNAME:(R,W)" 2>$null | Out-Null
+  Invoke-Native { icacls $EXISTING_CONFIG /inheritance:r /grant:r "${env:USERNAME}:(R,W)" 2>$null | Out-Null } | Out-Null
 }
 
 function Restart-Worker {
@@ -87,7 +101,7 @@ function Restart-Worker {
   Start-Sleep 2
   $t = Get-ScheduledTask -TaskName $TASK_NAME -ErrorAction SilentlyContinue
   if ($t -and $t.State -eq "Running") { Step-Done "plankton-worker running" }
-  else { Step-Warn "plankton-worker not running — check Task Scheduler > $TASK_NAME" }
+  else { Step-Warn "plankton-worker not running - check Task Scheduler > $TASK_NAME" }
 }
 
 function Ensure-Ollama {
@@ -118,8 +132,8 @@ function Show-Manager {
         if (-not $add) { Step-Warn "Nothing to add."; break }
         Ensure-Ollama
         foreach ($m in $add) {
-          if (-not $MODEL_SIZES.Contains($m)) { Step-Warn "$m is not in the catalog — pulling anyway" }
-          ollama pull $m 2>$null || Step-Warn "pull failed for $m"
+          if (-not $MODEL_SIZES.Contains($m)) { Step-Warn "$m is not in the catalog - pulling anyway" }
+          if (-not (Invoke-Native { ollama pull $m })) { Step-Warn "pull failed for $m" }
         }
         $merged = Merge-ConfigModels "add" $add
         if ($merged) { Step-Done "Now serving: $merged"; Restart-Worker }
@@ -128,7 +142,7 @@ function Show-Manager {
         $rm = Read-Host "  Model name to remove"
         if (-not $rm) { break }
         if ($rm -eq "bge-m3") { Step-Warn "bge-m3 is required (it serves embeddings) and cannot be removed"; break }
-        ollama rm $rm 2>$null || Step-Warn "$rm was not pulled locally"
+        if (-not (Invoke-Native { ollama rm $rm 2>$null | Out-Null })) { Step-Warn "$rm was not pulled locally" }
         $merged = Merge-ConfigModels "remove" @($rm)
         if ($merged) { Step-Done "Now serving: $merged"; Restart-Worker }
       }
@@ -136,9 +150,8 @@ function Show-Manager {
         $rp = Read-Host "  Model name to re-pull"
         if (-not $rp) { break }
         Ensure-Ollama
-        ollama rm $rp 2>$null | Out-Null
-        ollama pull $rp 2>$null
-        if ($?) { Step-Done "$rp repaired" } else { Step-Warn "pull failed for $rp" }
+        Invoke-Native { ollama rm $rp 2>$null | Out-Null } | Out-Null
+        if (Invoke-Native { ollama pull $rp }) { Step-Done "$rp repaired" } else { Step-Warn "pull failed for $rp" }
         Restart-Worker
       }
       "4" {
@@ -166,10 +179,9 @@ function Show-Manager {
         git -C $INSTALL_DIR pull
         Write-Host "  Installing npm dependencies..." -ForegroundColor Cyan
         npm --prefix "$INSTALL_DIR\worker-app" ci --omit=dev
-        # Pre-embeddings installs never pulled bge-m3 — make every update add it.
+        # Pre-embeddings installs never pulled bge-m3 - make every update add it.
         Ensure-Ollama
-        ollama pull bge-m3
-        if ($LASTEXITCODE -ne 0) { Step-Warn "could not pull bge-m3 (embeddings stay off until it is installed)" }
+        if (-not (Invoke-Native { ollama pull bge-m3 })) { Step-Warn "could not pull bge-m3 (embeddings stay off until it is installed)" }
         Merge-ConfigModels "add" @("bge-m3") | Out-Null
         Restart-Worker
       }
@@ -261,7 +273,7 @@ $SELECTED = switch ($choice) {
   default { @("llama3.1:8b") }
 }
 # Every worker also serves embeddings (/v1/embeddings + chat RAG over large
-# files), so bge-m3 is installed automatically — never a menu choice.
+# files), so bge-m3 is installed automatically - never a menu choice.
 $SELECTED = @($SELECTED)
 if ($SELECTED -notcontains "bge-m3") { $SELECTED += "bge-m3" }
 Write-Host ""
@@ -270,13 +282,13 @@ Write-Host "  Installing models: $($SELECTED -join ' ')" -ForegroundColor Cyan
 # --- Disk preflight (15GB policy, same as other installers) ---
 if (-not $SkipDiskCheck) {
   $freeGB = [math]::Round((Get-PSDrive C).Free / 1GB)
-  if ($freeGB -lt 15) { Step-Fail "Only ${freeGB}GB free on C: — model downloads need 15GB+ (or -SkipDiskCheck)." }
+  if ($freeGB -lt 15) { Step-Fail "Only ${freeGB}GB free on C: - model downloads need 15GB+ (or -SkipDiskCheck)." }
 }
 
 # --- Step 4: pull ---
 Write-Host "[4/8] Downloading models..." -ForegroundColor Yellow
 foreach ($m in $SELECTED) {
-  ollama pull $m 2>$null || Step-Warn "$m may already exist or download in progress"
+  if (-not (Invoke-Native { ollama pull $m })) { Step-Warn "$m may already exist or download in progress" }
 }
 Step-Done "Models ready"
 
@@ -298,7 +310,7 @@ if (-not $Token) {
   Write-Host "  Paste your token below (input is visible). Get it from https://plankton.click/profile"
   for ($i = 1; $i -le 3; $i++) {
     $Token = (Read-Host "  Worker Token").Trim()
-    if ($Token -match '^(pw|kz)_[0-9a-f]{32,64}$') { Write-Host "  ✓ $($Token.Length) chars received" -ForegroundColor Green; break }
+    if ($Token -match '^(pw|kz)_[0-9a-f]{32,64}$') { Write-Host "  [OK] $($Token.Length) chars received" -ForegroundColor Green; break }
     Write-Host "  Invalid token (expected pw_ + 32-64 hex chars). Try again." -ForegroundColor Yellow
     $Token = ""
     if ($i -eq 3) { Step-Fail "Too many invalid attempts. Grab a fresh token and re-run." }
@@ -317,9 +329,9 @@ if (-not $gpu) { $gpu = "Unknown" }
 $ramGB = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
 $cpu = (Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1).Name
 if (-not $cpu) { $cpu = "Unknown" }
-Write-Host "  ✓ GPU: $gpu" -ForegroundColor Green
-Write-Host "  ✓ RAM: ${ramGB} GB" -ForegroundColor Green
-Write-Host "  ✓ CPU: $cpu" -ForegroundColor Green
+Write-Host "  [OK] GPU: $gpu" -ForegroundColor Green
+Write-Host "  [OK] RAM: ${ramGB} GB" -ForegroundColor Green
+Write-Host "  [OK] CPU: $cpu" -ForegroundColor Green
 Step-Done "System info detected"
 
 # --- Step 7: register ---
@@ -342,11 +354,11 @@ Write-ConfigJson @{
   worker_token = $Token; name = $Name
 } "$INSTALL_DIR\worker-app\config.json"
 Protect-Config
-Write-Host "  ✓ Configuration saved (user-only ACL)" -ForegroundColor Green
+Write-Host "  [OK] Configuration saved (user-only ACL)" -ForegroundColor Green
 
 $nodePath = (Get-Command node).Source
 $action = New-ScheduledTaskAction -Execute $nodePath `
-  -Argument "$INSTALL_DIR\worker-app\src\cli.js" -WorkingDirectory "$INSTALL_DIR\worker-app"
+  -Argument "`"$INSTALL_DIR\worker-app\src\cli.js`"" -WorkingDirectory "$INSTALL_DIR\worker-app"
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 $settings = New-ScheduledTaskSettingsSet -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) `
   -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries

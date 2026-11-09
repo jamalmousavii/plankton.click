@@ -6,7 +6,7 @@
 # ============================================
 
 $ErrorActionPreference = "Stop"
-$PLANKTON_VERSION = "1.1.12"
+$PLANKTON_VERSION = "1.1.13"
 $INSTALL_DIR = "$HOME\plankton-worker"
 $TASK_NAME = "PlanktonWorker"
 
@@ -19,7 +19,7 @@ function Unregister-Worker {
       try {
         $r = Invoke-RestMethod -Uri https://plankton.click/api/workers/unregister -Method POST `
           -Body (@{ worker_token = $tok } | ConvertTo-Json) -ContentType "application/json" -TimeoutSec 15
-        if ($r.success) { Write-Host "  ✓ Removed from your Plankton dashboard (earnings kept in History)" -ForegroundColor Green }
+        if ($r.success) { Write-Host "  [OK] Removed from your Plankton dashboard (earnings kept in History)" -ForegroundColor Green }
       } catch { Write-Host "  ! Could not reach plankton.click - remove it from the dashboard (My Workers)" -ForegroundColor Yellow }
     }
   }
@@ -45,10 +45,10 @@ switch ($choice) {
     Write-Host "Removing worker..." -ForegroundColor Yellow
     Unregister-Worker
     Unregister-ScheduledTask -TaskName $TASK_NAME -Confirm:$false -ErrorAction SilentlyContinue
-    Write-Host "  ✓ Scheduled task removed" -ForegroundColor Green
+    Write-Host "  [OK] Scheduled task removed" -ForegroundColor Green
     if (Test-Path $INSTALL_DIR) {
       Remove-Item -Recurse -Force $INSTALL_DIR
-      Write-Host "  ✓ Worker files removed" -ForegroundColor Green
+      Write-Host "  [OK] Worker files removed" -ForegroundColor Green
     }
     Write-Host ""
     Write-Host "  Worker removed successfully!" -ForegroundColor Green
@@ -61,12 +61,12 @@ switch ($choice) {
     Unregister-ScheduledTask -TaskName $TASK_NAME -Confirm:$false -ErrorAction SilentlyContinue
     if (Test-Path $INSTALL_DIR) {
       Remove-Item -Recurse -Force $INSTALL_DIR
-      Write-Host "  ✓ Worker files removed" -ForegroundColor Green
+      Write-Host "  [OK] Worker files removed" -ForegroundColor Green
     }
     try { Stop-Process -Name ollama -Force -ErrorAction SilentlyContinue } catch {}
     if (Test-Path "$HOME\.ollama") {
       Remove-Item -Recurse -Force "$HOME\.ollama"
-      Write-Host "  ✓ Ollama models removed" -ForegroundColor Green
+      Write-Host "  [OK] Ollama models removed" -ForegroundColor Green
     }
     Write-Host ""
     Write-Host "  To also remove Ollama itself: winget uninstall Ollama.Ollama"

@@ -3,6 +3,23 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.13] — 2026-11-09
+
+### Fixed
+- **Windows installer failed to start with "Missing closing '}'":** stock
+  Windows PowerShell 5.1 reads the BOM-less script as ANSI, so the UTF-8
+  em dash and check marks in it turned into stray quote characters and the
+  whole file failed to parse. Both Windows scripts are now pure ASCII.
+- The installer also used PowerShell 7-only `||`, and redirected `ollama`
+  stderr under `$ErrorActionPreference = "Stop"`, which aborts on 5.1 at the
+  first progress line. Native calls now go through `Invoke-Native`, which
+  checks the exit code, and model downloads show their progress again.
+- The scheduled task now quotes the `cli.js` path, so the worker starts for
+  Windows user names that contain spaces. The config ACL grant uses
+  `${env:USERNAME}`.
+- CI parses the Windows scripts with Windows PowerShell 5.1 instead of
+  `pwsh`, which had hidden all of this.
+
 ## [1.1.12] — 2026-11-04
 
 ### Fixed

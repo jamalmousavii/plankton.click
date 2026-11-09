@@ -1,6 +1,6 @@
 # Plankton — Development Guide
 
-Version **1.1.12**. A *worker* is any machine (and its owner) that joins the
+Version **1.1.13**. A *worker* is any machine (and its owner) that joins the
 Plankton network and takes part in answering user chats.
 
 ## Prerequisites
@@ -164,6 +164,16 @@ worker-app/
         ├── websocket.js   # WebSocket to backend (resource metrics)
         └── api.js         # REST API (register, heartbeat)
 ```
+
+**Windows scripts must run on stock Windows PowerShell 5.1** (1.1.13). Users
+start them with `powershell -File`, which reads a BOM-less script as ANSI: keep
+`install-windows.ps1` / `uninstall-windows.ps1` pure ASCII (an em dash or
+check mark becomes a stray quote and the whole script fails to parse). Do not
+use PowerShell 7 syntax (`||`, `&&`, `??`), and run native commands whose
+stderr you redirect through `Invoke-Native`, since 5.1 turns that stderr into
+a terminating error under `$ErrorActionPreference = "Stop"`. Guarded by
+`backend/tests/windows.installer.test.js` and the CI parse step, which runs
+in `shell: powershell` (5.1), not `pwsh`.
 
 ## Database Schema (25 Tables)
 
