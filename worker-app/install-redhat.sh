@@ -11,7 +11,7 @@
 
 set -e
 
-PLANKTON_VERSION="1.2.3"
+PLANKTON_VERSION="1.2.4"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -304,7 +304,7 @@ manage_identity() {
 
 manage_update_app() {
   run_with_spinner "Updating repository..." bash -c "cd '$INSTALL_DIR' && git pull"
-  run_with_spinner "Installing npm dependencies..." bash -c "cd '$INSTALL_DIR/worker-app' && npm ci --omit=dev"
+  run_with_spinner "Installing npm dependencies..." bash -c "cd '$INSTALL_DIR/worker-app' && npm ci --omit=dev --no-audit --no-fund"
   # Workers installed before embeddings existed never pulled bge-m3: make
   # sure every update leaves it installed and served (/v1/embeddings + RAG).
   manage_ensure_ollama
@@ -588,7 +588,7 @@ fi
 # M7: reproducible install from the committed lockfile, prod deps only —
 # `npm install` re-resolved the tree and pulled Electron's devDependencies
 # onto headless workers for nothing.
-run_with_spinner "Installing npm dependencies..." bash -c "cd '$INSTALL_DIR/worker-app' && npm ci --omit=dev"
+run_with_spinner "Installing npm dependencies..." bash -c "cd '$INSTALL_DIR/worker-app' && npm ci --omit=dev --no-audit --no-fund"
 STEP_END=$(date +%s)
 step_done "Worker installed at $INSTALL_DIR ($((STEP_END - STEP_START))s)"
 

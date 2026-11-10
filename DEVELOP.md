@@ -1,6 +1,6 @@
 # Plankton — Development Guide
 
-Version **1.2.3**. A *worker* is any machine (and its owner) that joins the
+Version **1.2.4**. A *worker* is any machine (and its owner) that joins the
 Plankton network and takes part in answering user chats.
 
 ## Prerequisites
@@ -80,7 +80,7 @@ and `node --check` over `worker-app/src/**/*.js`.
 ## Project Structure
 
 ### frontend/
-Next.js 14 frontend with Tailwind CSS and i18n support.
+Next.js 15 (Pages Router) frontend with Tailwind CSS and i18n support.
 
 ```
 frontend/
@@ -908,3 +908,13 @@ systemctl restart plankton-frontend
 docker exec plankton-postgres psql -U plankton -d plankton -c "SELECT 1"
 ```
 
+
+## Dependency audit (1.2.4)
+
+CI's **Dependency audit** job runs `npm audit --omit=dev --audit-level=high`
+in backend, frontend and worker-app. When it fails, run
+`npm audit fix --package-lock-only` in that folder (no `--force` without
+reading what it changes), re-run the tests and commit the lockfile. The
+frontend pins Next's bundled PostCSS via `"overrides": { "postcss": "$postcss" }`.
+Installers pass `--no-audit --no-fund` to `npm ci`: end users cannot act on
+npm's advisories, CI does.

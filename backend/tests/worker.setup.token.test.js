@@ -136,3 +136,20 @@ describe('worker name without an installer prompt (1.2.3)', () => {
     expect(s).toMatch(/\[string\]\$Name = ""/);
   });
 });
+
+describe('installers do not print npm audit/fund nags (1.2.4)', () => {
+  const dir = path.join(__dirname, '../../worker-app');
+  for (const f of ['install-ubuntu.sh', 'install-redhat.sh', 'install-macos.sh', 'install-windows.ps1']) {
+    test(f, () => {
+      const s = fs.readFileSync(path.join(dir, f), 'utf8');
+      const ci = s.split('\n').filter((l) => /npm(\s+--prefix\s+\S+)?\s+ci\b/.test(l) && !l.trim().startsWith('#'));
+      expect(ci.length).toBeGreaterThan(0);
+      for (const l of ci) expect(l).toMatch(/--no-audit --no-fund/);
+    });
+  }
+  test('CI fails on a high/critical advisory in shipped deps', () => {
+    const ci = fs.readFileSync(path.join(__dirname, '../../.github/workflows/ci.yml'), 'utf8');
+    expect(ci).toContain('npm audit --omit=dev --audit-level=high');
+    expect(ci).toMatch(/for d in backend frontend worker-app/);
+  });
+});

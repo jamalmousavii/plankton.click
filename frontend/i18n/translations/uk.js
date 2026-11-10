@@ -63,7 +63,7 @@ const uk = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.3',
+    version: 'v1.2.4',
   },
   footer: {
     sentence: '© 2026 Plankton Network — децентралізована платформа LLM-інференсу, версія {version}. Усі права захищено.',

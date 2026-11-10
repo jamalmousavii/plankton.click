@@ -3,6 +3,32 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.4] — 2026-11-10
+
+### Security
+- **Fixed every high/critical npm advisory in what we ship.**
+  - Worker: `systeminformation` (Windows command injection,
+    GHSA-3f7j-7jwc-fxfj) and `follow-redirects` (credentials could follow
+    redirects, GHSA-mrwp-f3q8-3g9p). This is what made the worker installer
+    print "high severity vulnerabilities — run npm audit fix".
+  - Backend: `body-parser` and `follow-redirects` (high), `qs` (moderate).
+  - Frontend: **Next.js 14.0.4 → 15.5.29.** 14.x had several critical
+    advisories (image-optimizer RCE, middleware authorization bypass, SSRF);
+    still Pages Router and React 18, no code changes needed. The PostCSS
+    copy bundled inside Next is pinned to the patched one (`overrides`).
+  - Left: one moderate `uuid` advisory inside `google-auth-library` (only
+    reachable when a caller passes its own buffer; we do not).
+- **CI audit gate:** a new job runs `npm audit --omit=dev --audit-level=high`
+  for backend, frontend and worker-app, so a new advisory fails CI before
+  users see it.
+- The installers run `npm ci --no-audit --no-fund`: npm's nag is noise for
+  someone installing a worker (they cannot act on it); the CI gate is where
+  it is acted on.
+
+### Ops
+- Production server: `apt upgrade` (17 packages, kernel 7.0.0-43); a
+  reboot is pending to load the new kernel.
+
 ## [1.2.3] — 2026-11-10
 
 ### Changed

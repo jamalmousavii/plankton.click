@@ -13,7 +13,7 @@
   <a href="https://plankton.click">plankton.click</a> ·
   <a href="https://plankton.click/worker">Run a worker</a> ·
   <a href="docs/api.md">API</a> ·
-  <a href="CHANGELOG.md">Changelog</a> · <b>v1.2.3</b>
+  <a href="CHANGELOG.md">Changelog</a> · <b>v1.2.4</b>
 </p>
 
 ---
@@ -302,7 +302,7 @@ plankton.click/
 │   │   │   └── auth.js        # JWT auth
 │   │   └── cache.js           # Redis caching
 │   └── package.json
-├── frontend/                   # UI (Next.js 14 + Tailwind CSS)
+├── frontend/                   # UI (Next.js 15 + Tailwind CSS)
 │   ├── pages/
 │   │   ├── index.js           # Chat homepage (state hub; UI split into components/chat/)
 │   │   ├── profile.js         # Dashboard (balance, plans + token bundle cards, transactions card, earnings breakdown, worker credit, rank)
@@ -366,7 +366,7 @@ plankton.click/
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 14, React 18, Tailwind CSS |
+| Frontend | Next.js 15 (Pages Router), React 18, Tailwind CSS |
 | Backend | Node.js 22, Express, PostgreSQL, Redis |
 | LLM | Ollama (on workers), 16 models (Llama, Qwen, Gemma, DeepSeek, Phi, GPT-OSS, Mistral, BGE) |
 | Auth | Google OAuth 2.0, JWT |

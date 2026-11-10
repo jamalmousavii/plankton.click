@@ -20,7 +20,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$PLANKTON_VERSION = "1.2.3"
+$PLANKTON_VERSION = "1.2.4"
 $INSTALL_DIR = "$HOME\plankton-worker"
 $EXISTING_CONFIG = "$INSTALL_DIR\worker-app\config.json"
 $TASK_NAME = "PlanktonWorker"
@@ -179,7 +179,7 @@ function Show-Manager {
         Write-Host "  Updating repository..." -ForegroundColor Cyan
         git -C $INSTALL_DIR pull
         Write-Host "  Installing npm dependencies..." -ForegroundColor Cyan
-        npm --prefix "$INSTALL_DIR\worker-app" ci --omit=dev
+        npm --prefix "$INSTALL_DIR\worker-app" ci --omit=dev --no-audit --no-fund
         # Pre-embeddings installs never pulled bge-m3 - make every update add it.
         Ensure-Ollama
         if (-not (Invoke-Native { ollama pull bge-m3 })) { Step-Warn "could not pull bge-m3 (embeddings stay off until it is installed)" }
@@ -297,7 +297,7 @@ Step-Done "Models ready"
 Write-Host "[5/8] Installing Plankton Worker..." -ForegroundColor Yellow
 if (Test-Path $INSTALL_DIR) { git -C $INSTALL_DIR pull }
 else { git clone https://github.com/jamalmousavii/plankton.click.git $INSTALL_DIR }
-npm --prefix "$INSTALL_DIR\worker-app" ci --omit=dev
+npm --prefix "$INSTALL_DIR\worker-app" ci --omit=dev --no-audit --no-fund
 Step-Done "Worker installed at $INSTALL_DIR"
 
 # --- Worker token (the only credential; -Email is ignored since 1.2.1) ---

@@ -1,6 +1,6 @@
 {
   "name": "plankton-backend",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "Plankton Network Backend API",
   "main": "src/server.js",
   "scripts": {

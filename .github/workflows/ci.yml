@@ -87,6 +87,24 @@ jobs:
           for f in $(find worker-app/src -name '*.js'); do node --check "$f"; done
           echo "worker-app sources parse"
 
+  audit:
+    # 1.2.4: a high/critical advisory in what we ship fails CI, so we fix it
+    # before an installer or the server ever prints "run npm audit fix".
+    name: Dependency audit (production deps)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: npm audit (backend, frontend, worker-app)
+        run: |
+          set -e
+          for d in backend frontend worker-app; do
+            echo "== $d"
+            (cd "$d" && npm audit --omit=dev --audit-level=high)
+          done
+
   worker-platforms:
     name: Worker installers (macOS + Windows)
     strategy:
