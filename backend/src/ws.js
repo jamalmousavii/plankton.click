@@ -125,6 +125,18 @@ function isLocalClient(ws) {
   );
 }
 
+// Model names a worker reports, bounded and normalised: Ollama calls an
+// untagged pull "<name>:latest", the catalog uses the bare name (1.2.5).
+function reportedModelList(list) {
+  return list
+    .filter((m) => typeof m === 'string')
+    .map((m) => m.slice(0, 100).trim())
+    .map((m) => (m.toLowerCase().endsWith(':latest') ? m.slice(0, -':latest'.length) : m))
+    .filter(Boolean)
+    .filter((m, i, a) => a.indexOf(m) === i)
+    .slice(0, 32);
+}
+
 class WSServer {
   constructor(server) {
     this.wss = new WebSocketServer({ server, path: '/ws' });
@@ -297,7 +309,7 @@ class WSServer {
     // `ollama list` client-side). Old binaries send nothing → single-model
     // fallback to current_model below.
     const reportedModels = Array.isArray(msg.models)
-      ? msg.models.filter((m) => typeof m === 'string').map((m) => m.slice(0, 100)).slice(0, 32)
+      ? reportedModelList(msg.models)
       : [];
 
     if (this.authRateLimited(ws)) return;
@@ -483,7 +495,7 @@ class WSServer {
     // v3.41.0: workers re-report every installed model each heartbeat (verified
     // against `ollama list` client-side). Old binaries omit it → keep Map state.
     const hbModels = Array.isArray(msg.models)
-      ? msg.models.filter((m) => typeof m === 'string').map((m) => m.slice(0, 100)).slice(0, 32)
+      ? reportedModelList(msg.models)
       : null;
 
     worker.lastHeartbeat = Date.now();
@@ -1047,7 +1059,7 @@ class WSServer {
     job.status = 'done';
     if (job.total) job.completed = job.total;
     const models = Array.isArray(msg.models)
-      ? msg.models.filter((m) => typeof m === 'string').map((m) => m.slice(0, 100)).slice(0, 32)
+      ? reportedModelList(msg.models)
       : [];
     if (models.length > 0) {
       worker.models = models;

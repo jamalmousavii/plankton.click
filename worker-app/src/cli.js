@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const OllamaService = require('./services/ollama');
-const { ModelManager } = require('./services/manager');
+const { ModelManager, installedModels } = require('./services/manager');
 const WorkerService = require('./services/worker');
 const WorkerWebSocket = require('./services/websocket');
 
@@ -67,19 +67,6 @@ const manager = new ModelManager({
 });
 ws.setManager(manager);
 console.log(`   Remote model management: ${manager.enabled() ? 'on' : 'off (config.json remote_manage=false)'}`);
-
-// Installed models (config.csv `models`) verified against `ollama list` —
-// what the server routes to this worker (multi-model).
-function installedModels(configModels, tags) {
-  const wanted = String(configModels || 'llama3.1:8b')
-    .split(',')
-    .map((m) => m.trim())
-    .filter(Boolean);
-  if (!tags) return wanted;
-  const have = new Set(tags.map((t) => String(t.name || t)));
-  const verified = wanted.filter((m) => have.has(m) || have.has(m.split(':')[0]));
-  return verified.length > 0 ? verified : wanted;
-}
 
 async function start() {
   try {

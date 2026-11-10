@@ -3,6 +3,19 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.5] — 2026-11-10
+
+### Fixed
+- **Workers stopped advertising `bge-m3`, so they got no embedding tasks.**
+  Ollama lists an untagged pull as `bge-m3:latest`, but the worker checked
+  its configured `bge-m3` against that list by exact name and dropped it.
+  Embeddings (`/v1/embeddings`, chat RAG) were then never routed to the
+  worker, and the panel's ⚙️ Manage models listed BGE-M3 under "Install"
+  although it was installed. The same hit `nomic-embed-text` and
+  `embeddinggemma`. The worker now treats `name` and `name:latest` as the
+  same model; the server also normalises reported `:latest` names.
+  **Workers need an update (installer → option 5) to get the fix.**
+
 ## [1.2.4] — 2026-11-10
 
 ### Security

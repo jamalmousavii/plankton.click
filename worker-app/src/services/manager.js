@@ -48,6 +48,25 @@ function freeBytes(dir) {
   }
 }
 
+// Ollama names an untagged pull "<name>:latest" in /api/tags, while the
+// catalog and config.json use the bare name ("bge-m3"). Compare both forms.
+function modelKey(name) {
+  const s = String(name || '').trim().toLowerCase();
+  return s.endsWith(':latest') ? s.slice(0, -':latest'.length) : s;
+}
+
+// Installed models (config.json `models`) verified against Ollama's tags —
+// what the server routes to this worker. Before 1.2.5 "bge-m3" never matched
+// "bge-m3:latest", so every worker silently stopped advertising bge-m3 and
+// got no embedding tasks.
+function installedModels(configModels, tags) {
+  const wanted = parseModels(configModels || 'llama3.1:8b');
+  if (!tags) return wanted;
+  const have = new Set(tags.map((t) => modelKey(t && typeof t === 'object' ? (t.name || t.model) : t)));
+  const verified = wanted.filter((m) => have.has(modelKey(m)));
+  return verified.length > 0 ? verified : wanted;
+}
+
 class ModelManager {
   /**
    * @param {object} opts
@@ -152,4 +171,4 @@ class ModelManager {
   }
 }
 
-module.exports = { ModelManager, remoteManageEnabled, MODEL_RE };
+module.exports = { ModelManager, remoteManageEnabled, MODEL_RE, installedModels, modelKey };
