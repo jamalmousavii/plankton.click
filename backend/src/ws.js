@@ -23,6 +23,22 @@ const HISTORY_APP_VERSION = { major: 3, minor: 41 }; // legacy (pre-1.0) binarie
 const FULL_PROTOCOL = 2;
 // protocol >= 3 also answers `embed` messages (vector embeddings via Ollama).
 const EMBED_PROTOCOL = 3;
+// protocol >= 4 (worker 1.1.15+) decrypts E2E `history` / `attachment`.
+// Before that the worker only decrypted them when they arrived as a STRING,
+// but encrypt() yields an object, so every E2E worker silently dropped the
+// conversation window (chats "forgot" earlier turns) and got ciphertext as
+// the image. Older E2E workers get the window folded into the prompt, which
+// they do decrypt, so context works without an update.
+const E2E_PAYLOAD_PROTOCOL = 4;
+
+// Render a conversation window as plain text in front of the new message.
+function foldHistoryIntoPrompt(history, prompt) {
+  const turns = history.map((m) => `${m.role === 'assistant' ? 'Assistant' : 'User'}: ${m.content}`);
+  return '[Earlier in this conversation]\n'
+    + `${turns.join('\n\n')}\n`
+    + '[End of earlier conversation. Use it as context and reply to the new message below.]\n\n'
+    + prompt;
+}
 // Embedding vectors: bounded so a hostile worker cannot balloon memory.
 const MAX_EMBED_DIM = 8192;
 const HEARTBEAT_STATUSES = new Set(['online', 'busy', 'offline']);
@@ -695,10 +711,16 @@ class WSServer {
       // (held for RECONNECT_GRACE_MS, then rejected — B6 / 1.1.10).
       this.taskCallbacks.set(taskId, { resolve, reject, timeout, workerId });
 
+      const histWindow = Array.isArray(history) ? history.slice(-32) : [];
+      // Old E2E workers cannot read an encrypted `history` field (see
+      // E2E_PAYLOAD_PROTOCOL): give them the window inside the prompt.
+      const foldHistory = histWindow.length > 0 && !!worker.e2eKey
+        && !(Number(worker.protocol) >= E2E_PAYLOAD_PROTOCOL);
+      const text = foldHistory ? foldHistoryIntoPrompt(histWindow, prompt) : prompt;
       const payload = {
         type: 'task',
         task_id: taskId,
-        prompt: worker.e2eKey ? encrypt(worker.e2eKey, prompt) : prompt,
+        prompt: worker.e2eKey ? encrypt(worker.e2eKey, text) : text,
         model
       };
       if (media) {
@@ -706,10 +728,10 @@ class WSServer {
           ? encrypt(worker.e2eKey, JSON.stringify(media))
           : media;
       }
-      if (Array.isArray(history) && history.length > 0) {
+      if (histWindow.length > 0 && !foldHistory) {
         payload.history = worker.e2eKey
-          ? encrypt(worker.e2eKey, JSON.stringify(history.slice(0, 32)))
-          : history.slice(0, 32);
+          ? encrypt(worker.e2eKey, JSON.stringify(histWindow))
+          : histWindow;
       }
       worker.ws.send(JSON.stringify(payload));
     });
@@ -991,3 +1013,5 @@ module.exports = WSServer;
 module.exports.computeWeight = computeWeight;
 module.exports.workerSupportsHistory = workerSupportsHistory;
 module.exports.EMBED_PROTOCOL = EMBED_PROTOCOL;
+module.exports.E2E_PAYLOAD_PROTOCOL = E2E_PAYLOAD_PROTOCOL;
+module.exports.foldHistoryIntoPrompt = foldHistoryIntoPrompt;

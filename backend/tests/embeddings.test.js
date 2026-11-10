@@ -210,12 +210,12 @@ describe('chat + embeddings', () => {
 describe('worker app embed handler', () => {
   const WorkerWebSocket = require('../../worker-app/src/services/websocket');
 
-  it('advertises protocol 3 only when an embed handler is wired', () => {
+  it('advertises protocol 4 (embed + E2E payloads) only when an embed handler is wired', () => {
     const withEmbed = new WorkerWebSocket('pw_' + 'a'.repeat(64), async () => ({}), async () => ({}));
     const sent = [];
     withEmbed.send = (m) => sent.push(m);
     withEmbed.authenticate();
-    expect(sent[0].protocol).toBe(3);
+    expect(sent[0].protocol).toBe(4);
     const chatOnly = new WorkerWebSocket('pw_' + 'a'.repeat(64), async () => ({}));
     chatOnly.send = (m) => sent.push(m);
     chatOnly.authenticate();

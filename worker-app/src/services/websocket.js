@@ -21,6 +21,25 @@ function wsUrlList() {
 
 const PROTOCOL_CHAT = 2;
 const PROTOCOL_EMBED = 3;
+// 4 = decrypts E2E `history` / `attachment` objects (1.1.15). Before this the
+// worker only decrypted them when they were strings, but the server sends the
+// encrypted object, so history and attachments were silently lost.
+const PROTOCOL_E2E_PAYLOAD = 4;
+
+// An optional E2E field: decrypt when it is an encrypted envelope (object, or
+// its JSON string form), else return it unchanged.
+function openField(value, walletAddress, what) {
+  let v = value;
+  if (typeof v === 'string' && v.startsWith('{')) {
+    try {
+      const obj = JSON.parse(v);
+      if (isEncrypted(obj)) v = obj;
+    } catch (e) { /* plain text */ }
+  }
+  if (!isEncrypted(v)) return v;
+  if (!isWorkerToken(walletAddress)) throw new Error(`Encrypted ${what} but no e2e key`);
+  return decrypt(deriveKey(walletAddress), v);
+}
 
 class WorkerWebSocket {
   constructor(walletAddress, onTask, onEmbed = null) {
@@ -148,7 +167,7 @@ class WorkerWebSocket {
     // the server only routes media tasks (images/voice notes) to
     // workers that advertise a version new enough to handle `attachment`.
     authMsg.app_version = require('../../package.json').version;
-    authMsg.protocol = this.onEmbed ? PROTOCOL_EMBED : PROTOCOL_CHAT;
+    authMsg.protocol = this.onEmbed ? PROTOCOL_E2E_PAYLOAD : PROTOCOL_CHAT;
     // advertise every installed model for multi-model routing.
     if (this.installedModels.length > 0) authMsg.models = this.installedModels;
     if (isWorkerToken(this.walletAddress)) {
@@ -241,13 +260,7 @@ class WorkerWebSocket {
       // Encrypted as a JSON string when e2e is negotiated, plain object otherwise.
       let media = null;
       if (attachment) {
-        let plainAttachment = attachment;
-        if (typeof attachment === 'string' && isEncrypted(attachment)) {
-          if (!isWorkerToken(this.walletAddress)) {
-            throw new Error('Encrypted attachment but no e2e key');
-          }
-          plainAttachment = decrypt(deriveKey(this.walletAddress), attachment);
-        }
+        const plainAttachment = openField(attachment, this.walletAddress, 'attachment');
         media = typeof plainAttachment === 'string' ? JSON.parse(plainAttachment) : plainAttachment;
       }
 
@@ -256,13 +269,7 @@ class WorkerWebSocket {
       // ignore the 4th onTask argument (backward compatible).
       let history = [];
       if (msg.history) {
-        let plainHistory = msg.history;
-        if (typeof msg.history === 'string' && isEncrypted(msg.history)) {
-          if (!isWorkerToken(this.walletAddress)) {
-            throw new Error('Encrypted history but no e2e key');
-          }
-          plainHistory = decrypt(deriveKey(this.walletAddress), msg.history);
-        }
+        const plainHistory = openField(msg.history, this.walletAddress, 'history');
         const parsed = typeof plainHistory === 'string' ? JSON.parse(plainHistory) : plainHistory;
         if (Array.isArray(parsed)) {
           history = parsed

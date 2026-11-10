@@ -3,6 +3,21 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.15] — 2026-11-10
+
+### Fixed
+- **Chats still forgot the earlier turns (root cause):** the server sends
+  the conversation window to E2E workers encrypted, and `encrypt()` returns
+  an object, but the worker only decrypted `history` when it was a string.
+  So every E2E worker (all current ones) silently dropped the window and the
+  model saw only the newest message ("There is no previous message."),
+  for signed-in users and guests alike. Found by testing 1.1.14 against the
+  live worker. Workers now decrypt the envelope and advertise protocol 4.
+  For older E2E workers the server folds the window into the encrypted
+  prompt as text, so context works before they update.
+- **Images and voice notes reached E2E workers as ciphertext** (same bug on
+  `attachment`). Fixed in the worker (update it to get this).
+
 ## [1.1.14] — 2026-11-10
 
 ### Fixed

@@ -1,6 +1,6 @@
 # Plankton — Development Guide
 
-Version **1.1.14**. A *worker* is any machine (and its owner) that joins the
+Version **1.1.15**. A *worker* is any machine (and its owner) that joins the
 Plankton network and takes part in answering user chats.
 
 ## Prerequisites
@@ -648,7 +648,16 @@ history ≥ 3.41). Bump `FULL_PROTOCOL` (server) and `PROTOCOL`
 (`worker-app/src/services/websocket.js`) together when the task message format
 changes. Never gate on the app version again: it was reset at 1.0.0.
 
-`protocol: 3` (current worker app) also answers `embed` messages:
+`protocol: 4` (worker 1.1.15+) decrypts E2E `history` and `attachment`.
+`encrypt()` returns an object envelope `{v, iv, tag, data}`; workers before
+1.1.15 only decrypted those fields when they were strings, so on every E2E
+worker the conversation window was dropped and attachments reached Ollama as
+ciphertext. For E2E workers below protocol 4, `dispatchTask` folds the window
+into the (encrypted) prompt as text (`foldHistoryIntoPrompt`) instead of
+sending a `history` field. Covered end to end (server dispatch → worker
+handler) by `backend/tests/e2e.payloads.test.js`.
+
+`protocol: 3` also answers `embed` messages:
 `{type:'embed', task_id, model, input: string[]}` → `{type:'embed_result',
 task_id, embeddings: number[][], tokens_used}` (both encrypted under E2E). The
 server only routes embeddings to `protocol >= 3` workers (`EMBED_PROTOCOL` in
