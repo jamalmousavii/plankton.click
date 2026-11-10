@@ -1,6 +1,6 @@
 # Plankton — Development Guide
 
-Version **1.2.1**. A *worker* is any machine (and its owner) that joins the
+Version **1.2.2**. A *worker* is any machine (and its owner) that joins the
 Plankton network and takes part in answering user chats.
 
 ## Prerequisites
@@ -539,7 +539,11 @@ One user can run **unlimited workers**, add/remove/rename from profile. No cap.
   `worker_token: null` (token stays in DB for re-auth).
   `PUT /api/workers/mine/:id/token` rotates the token and clears the flag
   (for reinstalling the same machine).
-- Profile shows a **guide modal** on first visit and every time before Add Worker.
+- No intro popup (removed in 1.2.2). **+ Add Worker** opens the form; after
+  Create, `components/InstallCommands.js` shows per-OS install commands
+  (Ubuntu, Red Hat, macOS, Windows) with the token embedded, plus the token
+  itself. It is also shown for an unused or rotated token. Only a string
+  matching `^(pw|kz)_[0-9a-f]{32,64}$` is put into a command.
 - Legacy account token (`users.worker_token`) still works only when the user
   has exactly 1 active worker; otherwise the API asks for the per-worker token.
 - `machine_id`/`name` columns from are kept for display/compat but no

@@ -3,6 +3,20 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.2] — 2026-11-10
+
+### Changed
+- **No intro popup on the workers page.** **+ Add Worker** opens the form
+  directly.
+- **Install commands with the token inside.** After a worker is created (or
+  its token is rotated, or while its token is still unused), the page shows
+  a ready-to-run command for Ubuntu/Debian, Red Hat/Fedora, macOS and
+  Windows (PowerShell 5.1 safe) with the worker token already in it, so the
+  installer never asks for it. The token is shown on its own too, with a
+  copy button. The Quick Install box at the top uses the same per-OS tabs.
+- Removed the 8 guide-popup strings from all 33 locales and added the new
+  install strings.
+
 ## [1.2.1] — 2026-11-10
 
 ### Changed

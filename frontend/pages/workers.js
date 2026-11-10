@@ -5,6 +5,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import Navbar from '../components/Navbar';
 import EarningsBreakdown from '../components/EarningsBreakdown';
 import WorkerModels from '../components/WorkerModels';
+import InstallCommands from '../components/InstallCommands';
 import { useAuth, apiFetch, ApiError } from '../utils/api';
 
 const MODELS_LIST = [
@@ -48,15 +49,11 @@ export default function Workers() {
   const [newWorkerName, setNewWorkerName] = useState('');
   const [newWorkerToken, setNewWorkerToken] = useState('');
   const [newWorkerLoading, setNewWorkerLoading] = useState(false);
-  const [copiedWorkerId, setCopiedWorkerId] = useState(null);
-  const [showGuideModal, setShowGuideModal] = useState(false);
-  const [guideForAdd, setGuideForAdd] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [regenTokenId, setRegenTokenId] = useState(null);
   const [regenTokenVal, setRegenTokenVal] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [copiedInstall, setCopiedInstall] = useState(null);
   const [history, setHistory] = useState(null);
   const [myRank, setMyRank] = useState(null); // v3.29.0 — account earnings breakdown
   // v3.41.3 — per-worker lifetime drill-down (active + history rows share it).
@@ -113,10 +110,6 @@ export default function Workers() {
       fetchWorkers();
       fetchHistory();
       fetchRank();
-      if (!localStorage.getItem('plankton-guide-seen')) {
-        setGuideForAdd(false);
-        setShowGuideModal(true);
-      }
     }
     setLoading(false);
   }, [user]);
@@ -199,34 +192,9 @@ export default function Workers() {
     } catch (err) { setWorkerMsg(`❌ ${err instanceof ApiError ? err.message : 'Remove failed'}`); }
   };
 
-  const copyText = (text, workerId) => {
-    navigator.clipboard.writeText(text);
-    setCopiedWorkerId(workerId);
-    setTimeout(() => setCopiedWorkerId(null), 2000);
-  };
-
-  const ubuntuInstallCmd = 'wget -O install-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token YOUR_TOKEN';
-  const redhatInstallCmd = 'wget -O install-redhat.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-redhat.sh && bash install-redhat.sh --token YOUR_TOKEN';
-
-  const copyInstall = (cmd, id) => {
-    navigator.clipboard.writeText(cmd);
-    setCopiedInstall(id);
-    setTimeout(() => setCopiedInstall(null), 2000);
-  };
-
-  const openAddWorker = () => {
-    setGuideForAdd(true);
-    setShowGuideModal(true);
-  };
-
-  const closeGuide = () => {
-    setShowGuideModal(false);
-    localStorage.setItem('plankton-guide-seen', '1');
-    if (guideForAdd) {
-      setShowAddForm(true);
-      setGuideForAdd(false);
-    }
-  };
+  // 1.2.2: no intro popup — "+ Add worker" opens the form directly, and the
+  // created worker's install commands (token inside) appear right below it.
+  const openAddWorker = () => setShowAddForm(true);
 
   const createWorker = async () => {
     setNewWorkerLoading(true);
@@ -285,30 +253,6 @@ export default function Workers() {
     <div className={`flex-1 page-surface`}>
       <Head><title>{t('profile.myWorkers')} - Plankton Network</title></Head>
 
-      {/* Guide modal */}
-      {showGuideModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4" role="dialog" aria-modal="true">
-          <div className="bg-white border border-sky-200 rounded-t-2xl sm:rounded-xl p-6 max-w-md w-full space-y-4 shadow-2xl max-h-[85dvh] overflow-y-auto overscroll-contain pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:pb-6">
-            <h3 className="text-lg font-bold text-gray-800">{t('profile.workerGuideTitle')}</h3>
-            <div className="space-y-2 text-sm text-gray-600">
-              <p>{t('profile.workerGuideStep1')}</p>
-              <p>{t('profile.workerGuideStep2')}</p>
-              <code className="block text-xs text-emerald-700 bg-sky-50 border border-sky-100 px-2 py-1 rounded break-all">
-                wget -O install-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token YOUR_TOKEN
-              </code>
-              <p>{t('profile.workerGuideStep3')}</p>
-              <p className="text-gray-400">{t('profile.workerGuideStep4')}</p>
-              <p>{t('profile.workerGuideStep5')}</p>
-            </div>
-            <div className="flex gap-2 justify-end pt-2">
-              <button onClick={closeGuide} className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white text-sm font-bold">
-                {guideForAdd ? t('profile.workerGuideContinue') : t('profile.workerGuideClose')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <Navbar />
         {errorBanner}
 
@@ -325,46 +269,7 @@ export default function Workers() {
         <div className="bg-white rounded-xl border border-sky-100 shadow-sm p-5 md:p-6 mb-6">
           <h2 className="text-lg font-bold text-gray-800 mb-1">⚡ {t('worker.quickInstall')}</h2>
           <p className="text-gray-500 text-xs mb-4">{t('worker.connectStep2')}</p>
-          <div className="space-y-3">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <span>🐧</span>
-                <span className="text-gray-800 font-bold text-sm">{t('worker.ubuntu')}</span>
-              </div>
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                <div className="flex-1 bg-sky-50 border border-sky-100 rounded-lg px-3 py-2 font-mono text-xs text-emerald-700 overflow-x-auto">
-                  <code>{ubuntuInstallCmd}</code>
-                </div>
-                <button
-                  onClick={() => copyInstall(ubuntuInstallCmd, 'ubuntu')}
-                  className={`px-4 py-2 rounded-lg font-bold text-sm transition min-h-[40px] ${
-                    copiedInstall === 'ubuntu' ? 'bg-emerald-500 text-white' : 'bg-sky-500 hover:bg-sky-600 text-white'
-                  }`}
-                >
-                  {copiedInstall === 'ubuntu' ? t('worker.copied') : t('worker.copyCmd')}
-                </button>
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <span>🎩</span>
-                <span className="text-gray-800 font-bold text-sm">{t('worker.redhat')}</span>
-              </div>
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                <div className="flex-1 bg-sky-50 border border-sky-100 rounded-lg px-3 py-2 font-mono text-xs text-emerald-700 overflow-x-auto">
-                  <code>{redhatInstallCmd}</code>
-                </div>
-                <button
-                  onClick={() => copyInstall(redhatInstallCmd, 'redhat')}
-                  className={`px-4 py-2 rounded-lg font-bold text-sm transition min-h-[40px] ${
-                    copiedInstall === 'redhat' ? 'bg-emerald-500 text-white' : 'bg-sky-500 hover:bg-sky-600 text-white'
-                  }`}
-                >
-                  {copiedInstall === 'redhat' ? t('worker.copied') : t('worker.copyCmd')}
-                </button>
-              </div>
-            </div>
-          </div>
+          <InstallCommands />
           <p className="text-gray-400 text-xs mt-3">
             <Link href="/worker" className="text-sky-600 hover:text-sky-700">📖 {t('worker.installDocsDesc')}</Link>
             {' · '}
@@ -483,24 +388,9 @@ export default function Workers() {
                   </div>
                   {expandedId === m.id && renderEarnPanel(m.id)}
 
-                  {m.worker_token ? (
-                    <div className="flex items-center gap-2 pt-1">
-                      <code className="flex-1 text-emerald-700 text-xs break-all bg-white border border-sky-100 px-2 py-1 rounded">{m.worker_token}</code>
-                      <button onClick={() => copyText(m.worker_token, m.id)}
-                        className={`px-3 py-1 rounded text-xs font-bold transition ${copiedWorkerId === m.id ? 'bg-emerald-500 text-white' : 'bg-sky-500 hover:bg-sky-600 text-white'}`}>
-                        {copiedWorkerId === m.id ? '✓' : '📋'}
-                      </button>
-                    </div>
-                  ) : regenTokenId === m.id && regenTokenVal ? (
-                    <div className="space-y-2 pt-1">
-                      <div className="flex items-center gap-2">
-                        <code className="flex-1 text-emerald-700 text-xs break-all bg-white border border-sky-100 px-2 py-1 rounded">{regenTokenVal}</code>
-                        <button onClick={() => copyText(regenTokenVal, m.id)}
-                          className={`px-3 py-1 rounded text-xs font-bold transition ${copiedWorkerId === m.id ? 'bg-emerald-500 text-white' : 'bg-sky-500 hover:bg-sky-600 text-white'}`}>
-                          {copiedWorkerId === m.id ? '✓' : '📋'}
-                        </button>
-                      </div>
-                      <code className="block text-gray-600 text-xs break-all bg-white border border-sky-100 px-2 py-1 rounded">wget -O install-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token {regenTokenVal}</code>
+                  {m.worker_token || (regenTokenId === m.id && regenTokenVal) ? (
+                    <div className="pt-1">
+                      <InstallCommands token={m.worker_token || regenTokenVal} />
                     </div>
                   ) : (
                     <div className="flex items-center justify-between gap-2 pt-1">
@@ -528,15 +418,9 @@ export default function Workers() {
                     </button>
                   </div>
                   {newWorkerToken && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <code className="flex-1 text-emerald-700 text-xs break-all bg-sky-50 border border-sky-100 px-2 py-1 rounded">{newWorkerToken}</code>
-                        <button onClick={() => copyText(newWorkerToken, 'new')}
-                          className={`px-3 py-1 rounded text-xs font-bold transition ${copiedWorkerId === 'new' ? 'bg-emerald-500 text-white' : 'bg-sky-500 hover:bg-sky-600 text-white'}`}>
-                          {copiedWorkerId === 'new' ? '✓' : '📋'}
-                        </button>
-                      </div>
-                      <code className="block text-gray-600 text-xs break-all bg-sky-50 border border-sky-100 px-2 py-1 rounded">wget -O install-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token {newWorkerToken}</code>
+                    <div className="space-y-2 pt-1">
+                      <p className="text-emerald-700 text-xs font-semibold">✅ {t('worker.createdRunThis')}</p>
+                      <InstallCommands token={newWorkerToken} />
                     </div>
                   )}
                 </div>
@@ -559,15 +443,9 @@ export default function Workers() {
                     </button>
                   </div>
                   {newWorkerToken && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <code className="flex-1 text-emerald-700 text-xs break-all bg-sky-50 border border-sky-100 px-2 py-1 rounded">{newWorkerToken}</code>
-                        <button onClick={() => copyText(newWorkerToken, 'new')}
-                          className={`px-3 py-1 rounded text-xs font-bold transition ${copiedWorkerId === 'new' ? 'bg-emerald-500 text-white' : 'bg-sky-500 hover:bg-sky-600 text-white'}`}>
-                          {copiedWorkerId === 'new' ? '✓' : '📋'}
-                        </button>
-                      </div>
-                      <code className="block text-gray-600 text-xs break-all bg-sky-50 border border-sky-100 px-2 py-1 rounded">wget -O install-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token {newWorkerToken}</code>
+                    <div className="space-y-2 pt-1">
+                      <p className="text-emerald-700 text-xs font-semibold">✅ {t('worker.createdRunThis')}</p>
+                      <InstallCommands token={newWorkerToken} />
                     </div>
                   )}
                 </div>

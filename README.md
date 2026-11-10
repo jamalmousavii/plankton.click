@@ -13,7 +13,7 @@
   <a href="https://plankton.click">plankton.click</a> ·
   <a href="https://plankton.click/worker">Run a worker</a> ·
   <a href="docs/api.md">API</a> ·
-  <a href="CHANGELOG.md">Changelog</a> · <b>v1.2.1</b>
+  <a href="CHANGELOG.md">Changelog</a> · <b>v1.2.2</b>
 </p>
 
 ---
@@ -114,8 +114,11 @@ update (installer → option 5). To turn it off on a machine, set
 
 ### Add another worker (same account, unlimited)
 Each server-worker gets its **own unique token** (the token IS the worker identity).
-1. Profile → Worker Settings → **+ Add Worker** (optional name) → copy its token
-2. On the new machine, install with **that token**:
+1. `/workers` → **+ Add Worker** (optional name) → **Create**. The page then
+   shows the install command for Ubuntu/Debian, Red Hat, macOS and Windows
+   with **the token already inside** (plus the token on its own) — copy the
+   one for your OS.
+2. Run it on the new machine; the installer does not ask for the token:
 ```bash
 wget -O install-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token pw_... --name my-second-worker
 ```

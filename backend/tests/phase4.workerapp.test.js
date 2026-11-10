@@ -406,11 +406,16 @@ describe('installer regressions (1.1.7)', () => {
   });
 
   it('install commands overwrite a stale script (plain wget saves install-ubuntu.sh.1)', () => {
-    for (const f of ['README.md', 'frontend/pages/worker.js', 'frontend/pages/workers.js']) {
+    for (const f of ['README.md', 'frontend/pages/worker.js']) {
       const s = read(f);
       expect([f, /wget https:\/\/raw\.githubusercontent\.com\/jamalmousavii\/plankton\.click/.test(s)]).toEqual([f, false]);
       expect([f, s.includes('wget -O install-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh')]).toEqual([f, true]);
     }
+    // 1.2.2: /workers renders its commands from components/InstallCommands.js
+    const ic = read('frontend/components/InstallCommands.js');
+    expect(ic).toContain("const RAW = 'https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app';");
+    expect(ic).toContain('wget -O install-ubuntu.sh ${RAW}/install-ubuntu.sh');
+    expect(ic).toContain('wget -O install-redhat.sh ${RAW}/install-redhat.sh');
   });
 });
 
