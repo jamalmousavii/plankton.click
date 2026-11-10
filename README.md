@@ -13,7 +13,7 @@
   <a href="https://plankton.click">plankton.click</a> ·
   <a href="https://plankton.click/worker">Run a worker</a> ·
   <a href="docs/api.md">API</a> ·
-  <a href="CHANGELOG.md">Changelog</a> · <b>v1.1.15</b>
+  <a href="CHANGELOG.md">Changelog</a> · <b>v1.2.0</b>
 </p>
 
 ---
@@ -101,6 +101,16 @@ The install script automatically sets up:
 
 Requires **~15 GB free disk** (checked before the model download; bypass with
 `PLANKTON_SKIP_DISK_CHECK=1`). Every script passes `shellcheck` (enforced in CI).
+
+### Manage models from the panel (1.2.0)
+Profile → Worker Settings → **⚙️ Manage models** on a worker card installs or
+removes models on that machine, with live download progress — no console
+needed. Only catalog models, only by the worker's owner, one operation at a
+time; the worker checks free disk before downloading and never removes
+`bge-m3` or its last chat model. Workers installed before 1.2.0 need one
+update (installer → option 5). To turn it off on a machine, set
+`"remote_manage": false` in `~/plankton-worker/worker-app/config.json` (or
+`PLANKTON_REMOTE_MANAGE=0`) and restart the worker.
 
 ### Add another worker (same account, unlimited)
 Each server-worker gets its **own unique token** (the token IS the worker identity).

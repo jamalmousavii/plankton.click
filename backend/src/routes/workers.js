@@ -185,6 +185,114 @@ router.put('/mine/model', authenticate, async (req, res) => {
   }
 });
 
+// ---- Remote model management (1.2.0) ---------------------------------
+// The owner installs/removes Ollama models on their own worker from the
+// panel. Only catalog models, only the worker's owner, one job at a time;
+// the worker itself re-checks everything (worker-app/src/services/manager.js).
+const MANAGE_REQUIRED = new Set(['bge-m3']);
+
+function catalogSizeGb(entry) {
+  const n = parseFloat(String((entry && entry.ram) || '').replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+async function ownedWorker(req) {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  const r = await pool.query(
+    `SELECT id, ram, models FROM workers
+      WHERE id = $1 AND user_id = $2 AND (status IS NULL OR status != 'removed')`,
+    [id, req.user.id]
+  );
+  return r.rows[0] || null;
+}
+
+function manageState(wsServer, row) {
+  const live = wsServer && wsServer.workers ? wsServer.workers.get(row.id) : null;
+  const online = !!(live && live.status === 'online');
+  let installed = [];
+  if (online && Array.isArray(live.models) && live.models.length > 0) installed = live.models;
+  else if (Array.isArray(row.models)) installed = row.models;
+  return {
+    online,
+    manage: online ? (live.manage || null) : null,
+    installed,
+    job: wsServer && typeof wsServer.getManageJob === 'function' ? wsServer.getManageJob(row.id) : null,
+  };
+}
+
+const MANAGE_STATUS = {
+  WORKER_OFFLINE: 409, MANAGE_BUSY: 409, MANAGE_DISABLED: 403, MANAGE_UNSUPPORTED: 400,
+};
+
+// GET /api/workers/mine/:id/models — installed models, catalog, live job
+router.get('/mine/:id/models', authenticate, async (req, res) => {
+  try {
+    const row = await ownedWorker(req);
+    if (!row) return res.status(404).json({ error: 'Worker not found' });
+    const MODELS = require('../models');
+    const state = manageState(req.app.get('wsServer'), row);
+    res.json({
+      success: true,
+      worker_id: row.id,
+      worker_ram: row.ram || null,
+      ...state,
+      required: [...MANAGE_REQUIRED],
+      catalog: MODELS.map((m) => ({
+        id: m.id, name: m.name, size: m.size, ram: m.ram, size_gb: catalogSizeGb(m), category: m.category,
+      })),
+    });
+  } catch (err) {
+    logger.error({ err }, 'GET worker models failed');
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/workers/mine/:id/models { model } — install (pull) a catalog model
+router.post('/mine/:id/models', authenticate, async (req, res) => {
+  try {
+    const model = typeof req.body.model === 'string' ? req.body.model.trim() : '';
+    const MODELS = require('../models');
+    const entry = MODELS.find((m) => m.id === model);
+    if (!entry) return res.status(400).json({ error: 'Unknown model', code: 'UNKNOWN_MODEL' });
+    const row = await ownedWorker(req);
+    if (!row) return res.status(404).json({ error: 'Worker not found' });
+    const wsServer = req.app.get('wsServer');
+    if (!wsServer || typeof wsServer.startManage !== 'function') return res.status(503).json({ error: 'Unavailable' });
+    const out = wsServer.startManage(row.id, 'pull', model, catalogSizeGb(entry));
+    if (out.error) return res.status(MANAGE_STATUS[out.code] || 409).json({ error: out.error, code: out.code });
+    logger.info({ userId: req.user.id, workerId: row.id, model }, 'Remote model install requested');
+    res.status(202).json({ success: true, job: out.job });
+  } catch (err) {
+    logger.error({ err }, 'POST worker models failed');
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/workers/mine/:id/models/:model — remove an installed model
+router.delete('/mine/:id/models/:model', authenticate, async (req, res) => {
+  try {
+    const model = String(req.params.model || '').trim();
+    if (!model || model.length > 100) return res.status(400).json({ error: 'Invalid model', code: 'UNKNOWN_MODEL' });
+    if (MANAGE_REQUIRED.has(model)) {
+      return res.status(400).json({ error: `${model} is required (it serves embeddings) and cannot be removed`, code: 'MODEL_REQUIRED' });
+    }
+    const row = await ownedWorker(req);
+    if (!row) return res.status(404).json({ error: 'Worker not found' });
+    const wsServer = req.app.get('wsServer');
+    if (!wsServer || typeof wsServer.startManage !== 'function') return res.status(503).json({ error: 'Unavailable' });
+    const state = manageState(wsServer, row);
+    if (!state.installed.includes(model)) return res.status(404).json({ error: 'Model is not installed on this worker', code: 'NOT_INSTALLED' });
+    const out = wsServer.startManage(row.id, 'remove', model);
+    if (out.error) return res.status(MANAGE_STATUS[out.code] || 409).json({ error: out.error, code: out.code });
+    logger.info({ userId: req.user.id, workerId: row.id, model }, 'Remote model removal requested');
+    res.status(202).json({ success: true, job: out.job });
+  } catch (err) {
+    logger.error({ err }, 'DELETE worker model failed');
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // PUT /api/workers/mine/:id — rename a worker (own workers only)
 router.put('/mine/:id', authenticate, async (req, res) => {
   try {

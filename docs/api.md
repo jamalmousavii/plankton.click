@@ -1,6 +1,6 @@
 # مستندات API — Plankton Network
 
-نسخه بک‌اند: `1.1.15` — پایه: `https://plankton.click` (نمونه: `https://plankton.click/api/chat`)
+نسخه بک‌اند: `1.2.0` — پایه: `https://plankton.click` (نمونه: `https://plankton.click/api/chat`)
 
 همه پاسخ‌ها JSON هستند. در حالت موفقیت معمولاً `success: true` برمی‌گردد و در حالت خطا `error` (رشته) یا `details` (لیست خطاهای اعتبارسنجی).
 
@@ -208,6 +208,14 @@
 
 ورکرهای خودِ کاربر (به‌جز `removed`)؛ `worker_token` بعد از اولین اتصال `null` می‌شود.
 از `v3.22.0` ورکرهایی که بیش از **۱۰ روز** است تماس نگرفته‌اند هم از این لیست حذف و به History می‌روند (با اتصال دوباره خودبه‌خود برمی‌گردند).
+
+### مدیریت مدل‌های ورکر از پنل (از 1.2.0، فقط مالک ورکر)
+
+- `GET /api/workers/mine/:id/models` → `{ online, manage, installed, catalog, job, worker_ram, required }`؛ `manage` یکی از `on` / `off` (مالک در config.json خاموشش کرده) / `null` (برنامهٔ ورکر قدیمی است).
+- `POST /api/workers/mine/:id/models` با `{ "model": "phi4:14b" }` → `202 { job }`؛ فقط مدل‌های کاتالوگ. خطاها: `UNKNOWN_MODEL` (400)، `MANAGE_UNSUPPORTED` (400)، `MANAGE_DISABLED` (403)، `WORKER_OFFLINE` / `MANAGE_BUSY` (409).
+- `DELETE /api/workers/mine/:id/models/:model` → `202 { job }`؛ `bge-m3` قابل حذف نیست (`MODEL_REQUIRED`).
+
+`job` = `{ id, action: pull|remove, model, status: running|done|failed, phase, completed, total, error }` (بایت). پنل هر ۲ ثانیه تا پایان کار آن را می‌خواند. در هر ورکر فقط یک عملیات هم‌زمان اجرا می‌شود.
 
 ### `GET /api/workers/history` (نیازمند JWT)
 

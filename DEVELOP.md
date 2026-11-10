@@ -1,6 +1,6 @@
 # Plankton — Development Guide
 
-Version **1.1.15**. A *worker* is any machine (and its owner) that joins the
+Version **1.2.0**. A *worker* is any machine (and its owner) that joins the
 Plankton network and takes part in answering user chats.
 
 ## Prerequisites
@@ -637,6 +637,36 @@ itself were removed.
   (add/remove/repair models, token/name, update, restart). Smoke-test with a
   fake HOME: `HOME=/tmp/fakehome bash worker-app/install-ubuntu.sh`.
 
+
+### Remote model management (1.2.0)
+
+The owner installs/removes models on a worker from the panel
+(`frontend/components/WorkerModels.js` on `/workers`). Flow:
+`POST|DELETE /api/workers/mine/:id/models` (owner + catalog checks,
+`routes/workers.js`) → `wsServer.startManage()` sends
+`{type:'manage', id, action:'pull'|'remove', model, size_gb}` → the worker's
+`ModelManager` (`worker-app/src/services/manager.js`) calls Ollama's HTTP API
+(`/api/pull` streamed, `/api/delete`) and answers `manage_progress`
+`{id, status, completed, total}` (≤1/s) and `manage_result`
+`{id, ok, models | error}` → `ws.js` updates the in-memory job (one per
+worker, `getManageJob`) and the served model list (Map + `workers.models`).
+The panel polls `GET …/models` every 2 s while a job runs.
+
+Security rules — keep them when extending this:
+- Only two actions, on a model **name**; never a shell command. The worker
+  re-validates the name (`MODEL_RE`), the action, and refuses parallel jobs.
+- Only catalog models (`backend/src/models.js`) and only the worker's owner.
+- `bge-m3` and the last chat model cannot be removed (both sides check).
+- The worker checks free disk (catalog size + 10%) before downloading and
+  aborts a download with no data for 10 minutes.
+- Owner switch-off: `"remote_manage": false` in config.json or
+  `PLANKTON_REMOTE_MANAGE=0`. Workers advertise `manage: true|false` at auth;
+  old workers send nothing (`manage: null` → `MANAGE_UNSUPPORTED`).
+- Worker-supplied error text is sanitized before it reaches the panel.
+
+Tests: `remote.manage.test.js` (routes, job state, ModelManager, progress
+parsing) and `remote.manage.integration.test.js` (real WSServer + real worker
+client + a fake streaming Ollama over local sockets).
 
 ### Capability protocol (1.0.0)
 

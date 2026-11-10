@@ -1,6 +1,6 @@
 {
   "name": "plankton-worker",
-  "version": "1.1.15",
+  "version": "1.2.0",
   "description": "Plankton Network Worker Application",
   "author": "Plankton Network",
   "main": "src/main.js",

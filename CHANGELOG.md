@@ -3,6 +3,24 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] — 2026-11-10
+
+### Added
+- **Manage a worker's models from the panel:** Profile → Worker Settings →
+  ⚙️ Manage models installs or removes Ollama models on that machine, with
+  live download progress (percent and GB), so a new catalog model can be
+  added without opening a console. The server sends the worker one narrow
+  command over its existing connection (`pull` / `remove` of a model name);
+  the worker calls Ollama's HTTP API itself and never runs a shell command.
+  Only catalog models, only the worker's owner, one operation at a time. The
+  worker checks free disk before downloading, never removes `bge-m3` or its
+  last chat model, and starts serving a new model right away (no restart).
+  The panel warns when a model needs more RAM than the worker has.
+- Owners can turn it off per machine with `"remote_manage": false` in
+  config.json (or `PLANKTON_REMOTE_MANAGE=0`).
+- Workers installed before 1.2.0 need one update (installer → option 5);
+  until then the panel says so.
+
 ## [1.1.15] — 2026-11-10
 
 ### Fixed

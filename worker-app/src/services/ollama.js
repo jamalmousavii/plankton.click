@@ -196,6 +196,84 @@ class OllamaService {
     return response.data;
   }
 
+  // Download a model through Ollama's HTTP API (1.2.0 remote management).
+  // Ollama streams NDJSON status lines; layer sizes arrive per digest, so the
+  // overall progress is the sum over digests. onProgress({ status,
+  // completed, total }) fires for every line. Resolves when Ollama reports
+  // success; rejects on an error line, a dropped stream, or `stallMs`
+  // without any data (a stuck download must not hold the worker forever).
+  pullModel(model, onProgress = () => {}, { stallMs = 10 * 60 * 1000 } = {}) {
+    return new Promise((resolve, reject) => {
+      const layers = new Map();
+      let buffer = '';
+      let done = false;
+      let stallTimer = null;
+      const controller = new AbortController();
+      const finish = (err) => {
+        if (done) return;
+        done = true;
+        clearTimeout(stallTimer);
+        if (err) { controller.abort(); reject(err); } else resolve();
+      };
+      const armStall = () => {
+        clearTimeout(stallTimer);
+        stallTimer = setTimeout(() => finish(new Error('Download stalled (no data for 10 minutes)')), stallMs);
+        if (stallTimer.unref) stallTimer.unref();
+      };
+      const handleLine = (line) => {
+        if (!line.trim()) return;
+        let evt;
+        try { evt = JSON.parse(line); } catch (e) { return; }
+        if (evt.error) { finish(new Error(String(evt.error).slice(0, 200))); return; }
+        if (evt.digest && Number.isFinite(evt.total)) {
+          layers.set(evt.digest, { total: evt.total, completed: Number(evt.completed) || 0 });
+        }
+        let total = 0;
+        let completed = 0;
+        for (const l of layers.values()) { total += l.total; completed += Math.min(l.completed, l.total); }
+        onProgress({ status: String(evt.status || '').slice(0, 80), completed, total });
+        if (evt.status === 'success') finish();
+      };
+      armStall();
+      axios.post(`${this.url}/api/pull`, { model, stream: true }, {
+        responseType: 'stream',
+        timeout: 0,
+        signal: controller.signal,
+      }).then((response) => {
+        response.data.on('data', (chunk) => {
+          armStall();
+          buffer += chunk.toString('utf8');
+          let nl;
+          while ((nl = buffer.indexOf('\n')) >= 0) {
+            handleLine(buffer.slice(0, nl));
+            buffer = buffer.slice(nl + 1);
+          }
+        });
+        response.data.on('end', () => {
+          if (buffer) handleLine(buffer);
+          finish(new Error('Download ended before Ollama reported success'));
+        });
+        response.data.on('error', (err) => finish(new Error(`Download failed: ${err.message}`)));
+      }).catch((err) => {
+        const msg = err.response && err.response.status
+          ? `Ollama refused the download (HTTP ${err.response.status})`
+          : `Ollama not reachable: ${err.message}`;
+        finish(new Error(msg));
+      });
+    });
+  }
+
+  // Remove a model from Ollama (DELETE /api/delete). A model that is not
+  // present counts as removed.
+  async deleteModel(model) {
+    try {
+      await axios.delete(`${this.url}/api/delete`, { data: { model }, timeout: 60000 });
+    } catch (err) {
+      if (err.response && err.response.status === 404) return;
+      throw new Error(err.response ? `Ollama could not remove ${model} (HTTP ${err.response.status})` : `Ollama not reachable: ${err.message}`);
+    }
+  }
+
   async getStatus() {
     try {
       const response = await axios.get(`${this.url}/api/tags`, { timeout: 5000 });

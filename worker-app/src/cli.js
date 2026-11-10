@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const OllamaService = require('./services/ollama');
+const { ModelManager } = require('./services/manager');
 const WorkerService = require('./services/worker');
 const WorkerWebSocket = require('./services/websocket');
 
@@ -45,6 +46,27 @@ const ws = new WorkerWebSocket(
   },
   (model, inputs) => ollama.embed(model, inputs)
 );
+
+// 1.2.0: the owner installs/removes models from the worker panel. After a
+// change the served list is re-verified against Ollama and re-advertised at
+// once (heartbeat), so routing picks the new model up without a restart.
+const manager = new ModelManager({
+  ollama,
+  configPath,
+  onModels: async (models) => {
+    try { Object.assign(config, manager.readConfig()); } catch (e) { config.models = models.join(','); }
+    ws.heartbeatDefaultModel = config.default_model;
+    try {
+      const status = await ollama.getStatus();
+      ws.setModels(installedModels(config.models, status.models));
+    } catch (e) {
+      ws.setModels(installedModels(config.models, null));
+    }
+    ws.sendHeartbeat('online', { current_model: config.default_model });
+  },
+});
+ws.setManager(manager);
+console.log(`   Remote model management: ${manager.enabled() ? 'on' : 'off (config.json remote_manage=false)'}`);
 
 // Installed models (config.csv `models`) verified against `ollama list` —
 // what the server routes to this worker (multi-model).

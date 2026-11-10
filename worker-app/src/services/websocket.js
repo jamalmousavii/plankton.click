@@ -70,6 +70,8 @@ class WorkerWebSocket {
     // M4: task results produced while the socket was down are held here and
     // flushed on the next successful auth instead of being dropped.
     this.pendingResults = [];
+    // 1.2.0 remote model management (services/manager.js), set by cli.js.
+    this.manager = null;
     this.wsUrls = wsUrlList();
     this.urlIndex = 0;
     this.urlFailuresThisCycle = 0; // endpoints that failed since the last good session
@@ -150,6 +152,10 @@ class WorkerWebSocket {
     });
   }
 
+  setManager(manager) {
+    this.manager = manager;
+  }
+
   setModels(models) {
     if (Array.isArray(models)) {
       this.installedModels = models
@@ -170,6 +176,9 @@ class WorkerWebSocket {
     authMsg.protocol = this.onEmbed ? PROTOCOL_E2E_PAYLOAD : PROTOCOL_CHAT;
     // advertise every installed model for multi-model routing.
     if (this.installedModels.length > 0) authMsg.models = this.installedModels;
+    // 1.2.0: true = the owner may install/remove models from the panel,
+    // false = turned off in config.json; absent (old workers) = unsupported.
+    if (this.manager) authMsg.manage = this.manager.enabled();
     if (isWorkerToken(this.walletAddress)) {
       authMsg.worker_token = this.walletAddress;
       authMsg.e2e = 1;
@@ -224,6 +233,15 @@ class WorkerWebSocket {
 
       case 'embed':
         this.handleEmbed(msg);
+        break;
+
+      case 'manage':
+        if (this.manager) {
+          this.manager.handle(msg, (frame) => this.send(frame))
+            .catch((err) => console.error('Remote management error:', err.message));
+        } else {
+          this.send({ type: 'manage_result', id: msg.id, ok: false, error: 'Remote management is not supported by this worker' });
+        }
         break;
 
       case 'error':

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useLanguage } from '../i18n/LanguageContext';
 import Navbar from '../components/Navbar';
 import EarningsBreakdown from '../components/EarningsBreakdown';
+import WorkerModels from '../components/WorkerModels';
 import { useAuth, apiFetch, ApiError } from '../utils/api';
 
 const MODELS_LIST = [
@@ -467,6 +468,7 @@ export default function Workers() {
                       </div>
                     </div>
                   )}
+                  <WorkerModels workerId={m.id} onChanged={fetchWorkers} />
                   <div className="flex justify-between text-sm"><span className="text-gray-500">{t('profile.uptime')}</span><span className="text-gray-800">{parseFloat(m.uptime || 0).toFixed(1)}%</span></div>
                   <div className="flex justify-between text-sm"><span className="text-gray-500">{t('profile.totalTasks')}</span><span className="text-gray-800">{m.total_tasks || 0}</span></div>
                   <div className="flex justify-between text-sm items-center">

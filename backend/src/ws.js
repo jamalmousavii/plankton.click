@@ -31,6 +31,11 @@ const EMBED_PROTOCOL = 3;
 // they do decrypt, so context works without an update.
 const E2E_PAYLOAD_PROTOCOL = 4;
 
+// Worker-supplied error text shown in the panel: no control chars or markup.
+function sanitizeWorkerText(raw) {
+  return String(raw || '').replace(/[\u0000-\u001f\u007f<>]/g, ' ').trim().slice(0, 200);
+}
+
 // Render a conversation window as plain text in front of the new message.
 function foldHistoryIntoPrompt(history, prompt) {
   const turns = history.map((m) => `${m.role === 'assistant' ? 'Assistant' : 'User'}: ${m.content}`);
@@ -204,6 +209,7 @@ class WSServer {
           invalidateCache('/api/workers');
           invalidateCache('/api/models');
           invalidateCache('/api/stats');
+          this.interruptManageJob(workerId);
           logger.info({ workerId, code, reason, inFlight: held.length }, 'Worker disconnected');
         }
       }
@@ -230,6 +236,12 @@ class WSServer {
         break;
       case 'task_request':
         await this.handleTaskRequest(ws, msg);
+        break;
+      case 'manage_progress':
+        this.handleManageProgress(ws, msg);
+        break;
+      case 'manage_result':
+        await this.handleManageResult(ws, msg);
         break;
       default:
         ws.send(JSON.stringify({ type: 'error', message: 'Unknown message type' }));
@@ -278,6 +290,9 @@ class WSServer {
       ? msg.app_version.slice(0, 32)
       : null;
     const protocol = Number.isInteger(msg.protocol) ? msg.protocol : 0;
+    // 1.2.0 remote model management: 'on' / 'off' (owner disabled it) /
+    // null (worker app too old to support it).
+    const manage = msg.manage === true ? 'on' : (msg.manage === false ? 'off' : null);
     // v3.41.0: workers report every installed model (verified against
     // `ollama list` client-side). Old binaries send nothing → single-model
     // fallback to current_model below.
@@ -375,6 +390,7 @@ class WSServer {
       existing.status = 'online';
       if (appVersion) existing.app_version = appVersion;
       existing.protocol = protocol;
+      existing.manage = manage;
       if (reportedModels.length > 0) existing.models = reportedModels;
       if (e2e && worker_token) {
         existing.e2eKey = deriveKey(worker_token);
@@ -422,6 +438,7 @@ class WSServer {
       current_model: (existing && existing.current_model) || null,
       app_version: appVersion || (existing && existing.app_version) || null,
       protocol,
+      manage,
       // E2E key only when THIS auth advertised e2e support (never inherit from
       // a replaced session — an old worker binary replacing it must stay plaintext)
       e2eKey: (e2e && worker_token) ? deriveKey(worker_token) : null
@@ -955,6 +972,103 @@ class WSServer {
   }
 
   // Live per-worker model roster for the panel (installed + down-marked).
+  // ---- Remote model management (1.2.0) --------------------------------
+  // One job per worker, held in memory: the panel polls it for progress.
+  // The worker only accepts `pull` / `remove` of a model name (see
+  // worker-app/src/services/manager.js); the route checks ownership and the
+  // catalog before anything reaches here.
+
+  manageJobs() {
+    if (!this.manageJobMap) this.manageJobMap = new Map();
+    return this.manageJobMap;
+  }
+
+  getManageJob(workerId) {
+    return this.manageJobs().get(workerId) || null;
+  }
+
+  // Returns { job } or { error, code }.
+  startManage(workerId, action, model, sizeGb = 0) {
+    const worker = this.workers.get(workerId);
+    if (!worker || worker.status !== 'online' || !worker.ws) return { error: 'Worker is offline', code: 'WORKER_OFFLINE' };
+    if (worker.manage === 'off') return { error: 'Remote management is turned off on this worker', code: 'MANAGE_DISABLED' };
+    if (worker.manage !== 'on') return { error: 'Update the worker app once to manage models from the panel', code: 'MANAGE_UNSUPPORTED' };
+    const current = this.getManageJob(workerId);
+    if (current && current.status === 'running') return { error: `Busy: ${current.action} ${current.model} is still running`, code: 'MANAGE_BUSY' };
+    const job = {
+      id: crypto.randomUUID(),
+      action,
+      model,
+      status: 'running',
+      phase: '',
+      completed: 0,
+      total: 0,
+      error: null,
+      started_at: new Date().toISOString(),
+      finished_at: null,
+    };
+    try {
+      worker.ws.send(JSON.stringify({ type: 'manage', id: job.id, action, model, size_gb: sizeGb }));
+    } catch (err) {
+      return { error: 'Worker is offline', code: 'WORKER_OFFLINE' };
+    }
+    this.manageJobs().set(workerId, job);
+    return { job };
+  }
+
+  manageJobFor(ws, msg) {
+    const worker = this.findWorkerByWs(ws);
+    if (!worker) return null;
+    const job = this.getManageJob(worker.id);
+    if (!job || job.id !== msg.id || job.status !== 'running') return null;
+    return { worker, job };
+  }
+
+  handleManageProgress(ws, msg) {
+    const hit = this.manageJobFor(ws, msg);
+    if (!hit) return;
+    const num = (v) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.floor(Number(v)) : 0);
+    hit.job.phase = typeof msg.status === 'string' ? msg.status.replace(/[^\w .:-]/g, '').slice(0, 60) : '';
+    hit.job.total = num(msg.total);
+    hit.job.completed = Math.min(num(msg.completed), hit.job.total || num(msg.completed));
+  }
+
+  async handleManageResult(ws, msg) {
+    const hit = this.manageJobFor(ws, msg);
+    if (!hit) return;
+    const { worker, job } = hit;
+    job.finished_at = new Date().toISOString();
+    if (!msg.ok) {
+      job.status = 'failed';
+      job.error = sanitizeWorkerText(msg.error) || 'Failed';
+      logger.warn({ workerId: worker.id, action: job.action, model: job.model, err: job.error }, 'Remote model management failed');
+      return;
+    }
+    job.status = 'done';
+    if (job.total) job.completed = job.total;
+    const models = Array.isArray(msg.models)
+      ? msg.models.filter((m) => typeof m === 'string').map((m) => m.slice(0, 100)).slice(0, 32)
+      : [];
+    if (models.length > 0) {
+      worker.models = models;
+      if (job.action === 'pull' && worker.modelHealth) delete worker.modelHealth[job.model];
+      await pool.query('UPDATE workers SET models = $1::jsonb WHERE id = $2', [JSON.stringify(models), worker.id])
+        .catch((err) => logger.warn({ err, workerId: worker.id }, 'Failed to persist worker models'));
+      invalidateCache('/api/workers');
+      invalidateCache('/api/models');
+    }
+    logger.info({ workerId: worker.id, action: job.action, model: job.model }, 'Remote model management done');
+  }
+
+  interruptManageJob(workerId) {
+    const job = this.getManageJob(workerId);
+    if (job && job.status === 'running') {
+      job.status = 'failed';
+      job.error = 'Worker disconnected during the operation';
+      job.finished_at = new Date().toISOString();
+    }
+  }
+
   liveModels() {
     const out = {};
     for (const [workerId, worker] of this.workers) {
