@@ -13,7 +13,7 @@
   <a href="https://plankton.click">plankton.click</a> ·
   <a href="https://plankton.click/worker">Run a worker</a> ·
   <a href="docs/api.md">API</a> ·
-  <a href="CHANGELOG.md">Changelog</a> · <b>v1.2.2</b>
+  <a href="CHANGELOG.md">Changelog</a> · <b>v1.2.3</b>
 </p>
 
 ---
@@ -118,7 +118,9 @@ Each server-worker gets its **own unique token** (the token IS the worker identi
    shows the install command for Ubuntu/Debian, Red Hat, macOS and Windows
    with **the token already inside** (plus the token on its own) — copy the
    one for your OS.
-2. Run it on the new machine; the installer does not ask for the token:
+2. Run it on the new machine; the installer asks for neither the token nor a
+   name (the name comes from the panel, or the machine's hostname if you left
+   it empty; `--name` still overrides):
 ```bash
 wget -O install-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh --token pw_... --name my-second-worker
 ```

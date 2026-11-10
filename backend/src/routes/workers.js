@@ -433,7 +433,7 @@ router.post('/setup', async (req, res) => {
     // `email` is no longer needed (1.2.1): the token alone identifies the
     // worker (or, for a legacy account token, the user — users.worker_token is
     // UNIQUE). Older installers still send it; it is ignored.
-    const { gpu_model, ram, cpu, models, machine_id, name } = req.body;
+    const { gpu_model, ram, cpu, models, machine_id, name, default_name } = req.body;
     const worker_token = legacyToken(req.body);
 
     if (!worker_token || typeof worker_token !== 'string') {
@@ -447,6 +447,10 @@ router.post('/setup', async (req, res) => {
     const safeCpu = safeStr(cpu, 200);
     const safeMachine = safeStr(machine_id, 100);
     const safeName = safeStr(name, 100);
+    // 1.2.3: installers no longer ask for a name. `name` (from --name) wins,
+    // then the name set in the panel, then the machine's hostname (which also
+    // replaces the panel's placeholder 'worker1' given to unnamed workers).
+    const safeDefaultName = (safeStr(default_name, 100) || '').trim() || null;
     const safeModels = Array.isArray(models) ? models.filter((m) => typeof m === 'string').map((m) => m.slice(0, 100)).slice(0, 32) : ['llama3.1:8b'];
 
     const modelsJson = JSON.stringify(safeModels);
@@ -463,11 +467,11 @@ router.post('/setup', async (req, res) => {
       const workerId = workerResult.rows[0].id;
       const result = await pool.query(
         `UPDATE workers SET gpu_model = $1, ram = $2, cpu = $3, models = $4,
-                machine_id = COALESCE($5, machine_id), name = COALESCE($6, name),
+                machine_id = COALESCE($5, machine_id), name = COALESCE($6::text, CASE WHEN name IS NULL OR name IN ('', 'worker1') THEN $8::text END, name),
                 status = 'online', token_used_at = COALESCE(token_used_at, CURRENT_TIMESTAMP),
                 last_seen = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
          WHERE id = $7 RETURNING *`,
-        [safeGpu, safeRam, safeCpu, modelsJson, safeMachine || null, (safeName || '').trim() || null, workerId]
+        [safeGpu, safeRam, safeCpu, modelsJson, safeMachine || null, (safeName || '').trim() || null, workerId, safeDefaultName]
       );
       invalidateCache('/api/workers');
       invalidateCache('/api/stats');

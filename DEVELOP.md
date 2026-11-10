@@ -1,6 +1,6 @@
 # Plankton — Development Guide
 
-Version **1.2.2**. A *worker* is any machine (and its owner) that joins the
+Version **1.2.3**. A *worker* is any machine (and its owner) that joins the
 Plankton network and takes part in answering user chats.
 
 ## Prerequisites

@@ -63,7 +63,7 @@ const de = {
     freeNote: 'Gratis-Plan: 2.000.000 Tokens pro Tag für alle — ohne Karte.',
     pricingSub: 'Bezahlt mit Krypto. Pläne laufen 30 Tage; Token-Pakete verfallen nie.',
     loginToBuy: 'Zuerst anmelden zum Kaufen (Login oben).',
-    version: 'v1.2.2',
+    version: 'v1.2.3',
   },
   footer: {
     sentence: '© 2026 Plankton Network — Dezentrale LLM-Inferenzplattform, Version {version}. Alle Rechte vorbehalten.',

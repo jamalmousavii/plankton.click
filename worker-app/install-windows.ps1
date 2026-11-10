@@ -20,7 +20,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$PLANKTON_VERSION = "1.2.2"
+$PLANKTON_VERSION = "1.2.3"
 $INSTALL_DIR = "$HOME\plankton-worker"
 $EXISTING_CONFIG = "$INSTALL_DIR\worker-app\config.json"
 $TASK_NAME = "PlanktonWorker"
@@ -313,11 +313,9 @@ if (-not $Token) {
     if ($i -eq 3) { Step-Fail "Too many invalid attempts. Grab a fresh token and re-run." }
   }
 }
-if (-not $Name) {
-  $hn = $env:COMPUTERNAME; if (-not $hn) { $hn = "worker" }
-  $Name = Read-Host "  Worker Name [$hn]"
-  if (-not $Name) { $Name = $hn }
-}
+# Worker name (1.2.3: no prompt). Set in the panel; -Name still overrides it,
+# otherwise the server keeps the panel's name or uses this computer's name.
+$hn = $env:COMPUTERNAME; if (-not $hn) { $hn = "worker" }
 
 # --- Step 6: system info ---
 Write-Host "[6/8] Detecting system info..." -ForegroundColor Yellow
@@ -334,14 +332,17 @@ Step-Done "System info detected"
 # --- Step 7: register ---
 Write-Host "[7/8] Registering worker..." -ForegroundColor Yellow
 $setupBody = @{
-  worker_token = $Token; name = $Name
+  worker_token = $Token; name = $Name; default_name = $hn
   gpu_model = $gpu; ram = "${ramGB} GB"; cpu = $cpu; models = $SELECTED
 } | ConvertTo-Json -Depth 5
 try {
   $setupResp = Invoke-RestMethod -Uri https://plankton.click/api/workers/setup -Method POST `
     -Body $setupBody -ContentType "application/json" -TimeoutSec 30
 } catch { $setupResp = $null }
-if ($setupResp -and $setupResp.success) { Step-Done "Worker registered" }
+if ($setupResp -and $setupResp.success) {
+  if ($setupResp.worker -and $setupResp.worker.name) { $Name = [string]$setupResp.worker.name }
+  Step-Done "Worker registered"
+}
 else { Step-Fail "Registration failed. Check the worker token." }
 
 # --- Step 8: scheduled task + config ---

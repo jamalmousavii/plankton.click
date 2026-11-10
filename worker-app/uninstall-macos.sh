@@ -8,7 +8,7 @@
 
 set -e
 
-PLANKTON_VERSION="1.2.2"
+PLANKTON_VERSION="1.2.3"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'

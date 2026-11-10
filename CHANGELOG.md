@@ -3,6 +3,17 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.3] — 2026-11-10
+
+### Changed
+- **The installers no longer ask for a worker name.** The name given in the
+  panel is kept; when it was left empty (the panel's placeholder `worker1`)
+  the machine's hostname / computer name is used. `--name` / `-Name` still
+  override it. The installer then shows and saves the name the server
+  settled on.
+- `POST /api/workers/setup` accepts `default_name` (the hostname) for that
+  fallback; older installers that send `name` keep working.
+
 ## [1.2.2] — 2026-11-10
 
 ### Changed

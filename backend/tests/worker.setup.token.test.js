@@ -28,7 +28,7 @@ function app() {
     if (sql.includes('FROM workers WHERE worker_token')) {
       return params[0] === WORKER_TOKEN ? { rows: [{ id: 5, user_id: 7, status: 'offline' }] } : { rows: [] };
     }
-    if (sql.startsWith('UPDATE workers')) return { rows: [{ id: params[params.length - 1] }] };
+    if (sql.startsWith('UPDATE workers')) return { rows: [{ id: sql.includes('machine_id') ? params[6] : params[params.length - 1] }] };
     if (sql.includes('FROM users WHERE worker_token')) {
       return params[0] === ACCOUNT_TOKEN ? { rows: [{ id: 7 }] } : { rows: [] };
     }
@@ -88,4 +88,51 @@ describe('installers no longer ask for an email', () => {
       expect(s).toMatch(/--email\) shift 2|\[string\]\$Email/);
     });
   }
+});
+
+describe('worker name without an installer prompt (1.2.3)', () => {
+  const setupUpdate = () => pool.__state.calls.find(([sql]) => sql.startsWith('UPDATE workers'));
+
+  test('the hostname is sent separately and the panel name is not overwritten', async () => {
+    await request(app()).post('/api/workers/setup')
+      .send({ worker_token: WORKER_TOKEN, name: '', default_name: 'gpu-box-01', models: ['llama3.1:8b'] });
+    const [sql, params] = setupUpdate();
+    // explicit name, else the panel's (unless it is the placeholder), else hostname
+    expect(sql).toContain("name = COALESCE($6::text, CASE WHEN name IS NULL OR name IN ('', 'worker1') THEN $8::text END, name)");
+    expect(params[5]).toBeNull();
+    expect(params[7]).toBe('gpu-box-01');
+  });
+
+  test('--name still wins', async () => {
+    await request(app()).post('/api/workers/setup')
+      .send({ worker_token: WORKER_TOKEN, name: ' my-box ', default_name: 'host' });
+    const [, params] = setupUpdate();
+    expect(params[5]).toBe('my-box');
+  });
+
+  test('a non-string or blank hostname is ignored', async () => {
+    await request(app()).post('/api/workers/setup')
+      .send({ worker_token: WORKER_TOKEN, default_name: { x: 1 } });
+    expect(setupUpdate()[1][7]).toBeNull();
+    await request(app()).post('/api/workers/setup')
+      .send({ worker_token: WORKER_TOKEN, default_name: '   ' });
+    expect(setupUpdate()[1][7]).toBeNull();
+  });
+
+  const dir = path.join(__dirname, '../../worker-app');
+  for (const f of ['install-ubuntu.sh', 'install-redhat.sh', 'install-macos.sh']) {
+    test(`${f} does not prompt for a name and sends the hostname`, () => {
+      const s = fs.readFileSync(path.join(dir, f), 'utf8');
+      expect(s).not.toMatch(/Worker Name \[/);
+      expect(s).toMatch(/--name\) WORKER_NAME="\$2"/);
+      expect(s).toContain('default_name: $host');
+      expect(s).toContain(".worker.name // empty");
+    });
+  }
+  test('install-windows.ps1 does not prompt for a name and sends the computer name', () => {
+    const s = fs.readFileSync(path.join(dir, 'install-windows.ps1'), 'utf8');
+    expect(s).not.toMatch(/Read-Host "  Worker Name/);
+    expect(s).toContain('default_name = $hn');
+    expect(s).toMatch(/\[string\]\$Name = ""/);
+  });
 });

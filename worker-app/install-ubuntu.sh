@@ -11,7 +11,7 @@
 
 set -e
 
-PLANKTON_VERSION="1.2.2"
+PLANKTON_VERSION="1.2.3"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -622,12 +622,10 @@ if [ -z "$WORKER_TOKEN" ]; then
   done
 fi
 
-# --- Worker name (shown in dashboard) ---
-if [ -z "$WORKER_NAME" ]; then
-  DEFAULT_NAME=$(hostname 2>/dev/null || echo "worker")
-  read -r -p "  Worker Name [${DEFAULT_NAME}]: " WORKER_NAME
-  WORKER_NAME=${WORKER_NAME:-$DEFAULT_NAME}
-fi
+# --- Worker name (1.2.3: no prompt) ---
+# The name is set in the panel. --name still overrides it; otherwise the
+# server keeps the panel's name, or uses this hostname when there is none.
+HOST_NAME=$(hostname 2>/dev/null || echo "worker")
 
 # --- Step 6: Detect System ---
 step_start 6 "Detecting system info..."
@@ -664,11 +662,12 @@ STEP_START=$(date +%s)
 SETUP_PAYLOAD=$(jq -n \
   --arg token "$WORKER_TOKEN" \
   --arg name "$WORKER_NAME" \
+  --arg host "$HOST_NAME" \
   --arg gpu "$GPU_MODEL" \
   --arg ram "$RAM_SIZE" \
   --arg cpu "$CPU_MODEL" \
   --arg models "$SELECTED_MODELS" \
-  '{worker_token: $token, name: $name, gpu_model: $gpu, ram: $ram, cpu: $cpu, models: ($models | split(" ") | map(select(length > 0)))}')
+  '{worker_token: $token, name: $name, default_name: $host, gpu_model: $gpu, ram: $ram, cpu: $cpu, models: ($models | split(" ") | map(select(length > 0)))}')
 
 SETUP_RESPONSE=$(printf '%s' "$SETUP_PAYLOAD" | curl -s -X POST https://plankton.click/api/workers/setup \
   -H "Content-Type: application/json" \
@@ -676,6 +675,9 @@ SETUP_RESPONSE=$(printf '%s' "$SETUP_PAYLOAD" | curl -s -X POST https://plankton
 
 STEP_END=$(date +%s)
 if echo "$SETUP_RESPONSE" | grep -q '"success":true'; then
+  # The name the server settled on (panel name, --name, or hostname).
+  REG_NAME=$(printf '%s' "$SETUP_RESPONSE" | jq -r '.worker.name // empty' 2>/dev/null || true)
+  [ -n "$REG_NAME" ] && WORKER_NAME="$REG_NAME"
   step_done "Worker registered ($((STEP_END - STEP_START))s)"
 else
   step_fail "Registration failed. Check the worker token."
