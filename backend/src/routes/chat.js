@@ -38,10 +38,74 @@ const DEFAULT_MODEL = 'llama3.1:8b';
 
 // Conversation window (v3.41.0): the last turns sent with every dispatch so
 // workers can actually use context. Sliding window — newest first until the
-// soft token budget, hard cap above that. Estimate ~4 chars/token.
+// token budget.
+//
+// 1.1.14: the budget must fit the worker's Ollama context (workers ≥ 1.1.14
+// ask for num_ctx 8192; older ones run Ollama's default 4096, which silently
+// drops the OLDEST messages — exactly the earlier questions). Token estimates
+// count non-Latin script (Persian, Arabic, CJK…) at ~2 chars/token instead
+// of 4, and an over-long earlier answer is clipped instead of dropped, so
+// the previous turn always survives.
 const HISTORY_TURNS = 10;
-const HISTORY_TOKENS = 6000;
-const HISTORY_HARD_TOKENS = 16000;
+const HISTORY_TOKENS = 3500;
+const HISTORY_PAIR_TOKENS = 1500;
+
+function estimateTokens(text) {
+  const s = String(text || '');
+  let ascii = 0;
+  for (let i = 0; i < s.length; i++) if (s.charCodeAt(i) < 128) ascii++;
+  return Math.ceil(ascii / 4 + (s.length - ascii) / 2);
+}
+
+// Cut `text` to about `maxTokens`, keeping its beginning and end.
+function clipToTokens(text, maxTokens) {
+  const s = String(text || '');
+  const total = estimateTokens(s);
+  if (total <= maxTokens) return s;
+  const keep = Math.max(200, Math.floor(s.length * (maxTokens / total)));
+  const head = Math.floor(keep * 0.7);
+  return `${s.slice(0, head)}\n[…]\n${s.slice(s.length - (keep - head))}`;
+}
+
+// pairs: [{ prompt, response }] newest first → [{role, content}] oldest first.
+function windowHistory(pairs) {
+  const history = [];
+  let tokens = 0;
+  let truncated = pairs.length >= HISTORY_TURNS;
+  for (const pair of pairs.slice(0, HISTORY_TURNS)) {
+    let u = String(pair.prompt || '');
+    let a = String(pair.response || '');
+    if (estimateTokens(u) + estimateTokens(a) > HISTORY_PAIR_TOKENS) {
+      u = clipToTokens(u, Math.floor(HISTORY_PAIR_TOKENS / 3));
+      a = clipToTokens(a, HISTORY_PAIR_TOKENS - estimateTokens(u));
+      truncated = true;
+    }
+    const t = estimateTokens(u) + estimateTokens(a);
+    if (tokens + t > HISTORY_TOKENS) { truncated = true; break; }
+    tokens += t;
+    history.unshift({ role: 'user', content: u }, { role: 'assistant', content: a });
+  }
+  return { history, truncated, tokens };
+}
+
+// Guests have no stored session, so the browser sends its recent turns
+// (1.1.14). Only well-formed user→assistant pairs of strings are kept; the
+// same window and budget apply as for stored sessions.
+function guestPairs(raw) {
+  if (!Array.isArray(raw)) return [];
+  const msgs = raw.slice(-HISTORY_TURNS * 2);
+  const pairs = [];
+  for (let i = 0; i + 1 < msgs.length; i++) {
+    const u = msgs[i]; const a = msgs[i + 1];
+    if (u && a && u.role === 'user' && a.role === 'assistant'
+      && typeof u.content === 'string' && typeof a.content === 'string'
+      && a.content.trim()) {
+      pairs.push({ prompt: u.content.slice(0, 20000), response: a.content.slice(0, 20000) });
+      i++;
+    }
+  }
+  return pairs.reverse(); // newest first
+}
 
 // RAG over large attached files: past RAG_MIN_CHARS the file is chunked,
 // embedded together with the question on a worker (bge-m3), and only the
@@ -95,19 +159,7 @@ async function buildHistory(sessionId) {
       ORDER BY id DESC LIMIT $2`,
     [sessionId, HISTORY_TURNS]
   );
-  const history = [];
-  let tokens = 0;
-  let truncated = rows.rows.length === HISTORY_TURNS;
-  for (const row of rows.rows) { // newest first: most relevant wins the budget
-    const u = String(row.prompt || '');
-    const a = String(row.response || '');
-    const t = Math.ceil((u.length + a.length) / 4);
-    if (t > HISTORY_HARD_TOKENS) { truncated = true; continue; } // single giant pair (e.g. file dump) never fits
-    if (tokens + t > HISTORY_TOKENS) { truncated = true; break; }
-    tokens += t;
-    history.unshift({ role: 'user', content: u }, { role: 'assistant', content: a });
-  }
-  return { history, truncated, tokens };
+  return windowHistory(rows.rows); // newest first: most relevant wins the budget
 }
 
 // MODEL_UNAVAILABLE alternatives (v3.40.0): catalog models that have online
@@ -288,7 +340,7 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
   // a slow reply (100 s, HTTP 524) — see services/keepAlive.js.
   let ka = null;
   try {
-    const { message: rawMessage, model, session_id, attachment } = req.body;
+    const { message: rawMessage, model, session_id, attachment, history: guestHistory } = req.body;
     // Image-only / voice-only sends arrive with an empty message (the
     // validator allows that exactly when an attachment is present).
     const message = typeof rawMessage === 'string' ? rawMessage : '';
@@ -470,7 +522,7 @@ router.post('/', strictIfHeader, chatRules, validate, async (req, res) => {
     let historyTruncated = false;
     let historyTokens = 0;
     try {
-      const built = await buildHistory(sessionId);
+      const built = userId ? await buildHistory(sessionId) : windowHistory(guestPairs(guestHistory));
       history = built.history;
       historyTruncated = built.truncated;
       historyTokens = built.tokens;
@@ -727,3 +779,4 @@ router.__chunkText = chunkText;
 router.__ragPrompt = ragPrompt;
 
 module.exports = router;
+module.exports._history = { estimateTokens, clipToTokens, windowHistory, guestPairs, HISTORY_TOKENS };

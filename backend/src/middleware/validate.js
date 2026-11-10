@@ -49,6 +49,12 @@ const chatRules = [
     return true;
   }),
   body('model').optional().isLength({ max: 100 }).withMessage('Model name too long'),
+  // Guest conversation window (1.1.14): recent turns from the browser.
+  body('history').optional({ values: 'null' }).custom((value) => {
+    if (value === undefined || value === null) return true;
+    if (!Array.isArray(value) || value.length > 40) throw new Error('History must be an array of at most 40 messages');
+    return true;
+  }),
   body('attachment').optional({ values: 'null' }).custom((value) => {
     if (value === undefined || value === null) return true;
     if (typeof value !== 'object' || Array.isArray(value)) throw new Error('Attachment must be an object');

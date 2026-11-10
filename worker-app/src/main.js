@@ -79,7 +79,7 @@ async function stopWorking() {
 }
 
 app.whenReady().then(() => {
-  ollamaService = new OllamaService();
+  ollamaService = new OllamaService(undefined, { numCtx: config.num_ctx });
   workerService = new WorkerService();
   apiService = new ApiService();
 

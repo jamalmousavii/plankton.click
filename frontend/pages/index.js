@@ -12,6 +12,7 @@ import Composer from '../components/chat/Composer';
 import { apiFetch, ApiError } from '../utils/api';
 import { audioBlobToWav16k } from '../lib/audio';
 import { chatModels, sortModels, topOnlineModel, workerCount } from '../utils/models';
+import { guestTurns } from '../utils/guestHistory';
 
 const AUTO_RETRY_MAX = 3;
 const AUTO_RETRY_MS = 10000;
@@ -633,6 +634,7 @@ export default function Home() {
 
   const applyReplyBubble = (id, data) =>
     replaceBubble(id, {
+      ok: true,
       content: data.response,
       source: data.source || null,
       worker_id: data.worker_id || null,
@@ -730,6 +732,9 @@ export default function Home() {
     const userMessage = message;
     const sentAttachment = attachment;
     const sentModel = selectedModel;
+    // Guests have no stored session: send the recent answered turns so the
+    // worker keeps the context (signed-in chats use the server's session).
+    const guestHistory = token ? null : guestTurns(chatRef.current);
     setMessage('');
     setAttachment(null);
     setAttachError('');
@@ -758,6 +763,7 @@ export default function Home() {
           model: selectedModel,
           session_id: sessionAtSend,
           ...(sentAttachment ? { attachment: sentAttachment } : {}),
+          ...(guestHistory && guestHistory.length ? { history: guestHistory } : {}),
         }),
       });
       // The user changed threads while this was in flight: the reply is
@@ -765,6 +771,7 @@ export default function Home() {
       if (sessionAtSend !== activeSessionRef.current) return;
       if (data.success) {
         setChat(prev => [...prev, {
+          ok: true,
           role: 'assistant',
           content: data.response,
           source: data.source || null,

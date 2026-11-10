@@ -1,6 +1,6 @@
 # Plankton — Development Guide
 
-Version **1.1.13**. A *worker* is any machine (and its owner) that joins the
+Version **1.1.14**. A *worker* is any machine (and its owner) that joins the
 Plankton network and takes part in answering user chats.
 
 ## Prerequisites
@@ -617,8 +617,22 @@ itself were removed.
   a model for that worker (success resets).
 - Selection: sticky session → weighted round-robin (GPU-tier score) for new
   sessions → spill past 2 in-flight tasks. Guests: pure WRR per message.
-- Context: last 10 turns / ~6k tokens (16k hard cap) sent as `history` to
-  `app_version >= 3.41` workers only; billing stays output-only.
+- Context (1.1.14): last 10 turns within ~3.5k tokens sent as `history` to
+  history-capable workers; billing stays output-only. Tokens are estimated at
+  4 chars/token for ASCII and 2 for other scripts (Persian, Arabic, CJK), and
+  a turn over 1.5k tokens is clipped (head + tail) rather than dropped, so the
+  previous turn always survives. Guests have no stored session: the chat page
+  sends its last answered turns (`history` in `POST /api/chat`, built by
+  `frontend/utils/guestHistory.js`, only bubbles marked `ok`); the server
+  keeps only well-formed user→assistant string pairs (`guestPairs`) and
+  applies the same window. Signed-in chats ignore a client `history`.
+- Worker context window (1.1.14): every Ollama generation request carries
+  `options.num_ctx` (default 8192; `OLLAMA_NUM_CTX` env or `num_ctx` in
+  config.json, `0` = Ollama's default). Ollama's own default (4096 on CPU and
+  small GPUs) silently drops the OLDEST messages, which made chats forget the
+  earlier questions. Keep one value for all requests: a different `num_ctx`
+  reloads the model. The worker also trims the oldest pairs itself
+  (`fitHistory`), keeping ~1.5k tokens for the reply.
 - Installer: re-running on an installed box opens the manager menu
   (add/remove/repair models, token/name, update, restart). Smoke-test with a
   fake HOME: `HOME=/tmp/fakehome bash worker-app/install-ubuntu.sh`.

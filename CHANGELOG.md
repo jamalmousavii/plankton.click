@@ -3,6 +3,26 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.14] — 2026-11-10
+
+### Fixed
+- **Chats forgot the earlier questions:** workers called Ollama without a
+  context size, so Ollama used its default (4096 tokens on CPU and small
+  GPUs) and silently dropped the oldest messages once a chat outgrew it. The
+  server's history budget (6k estimated tokens) was also far over that
+  window for Persian and other non-Latin text, where it counted 4 chars per
+  token. Workers now ask Ollama for an 8192-token window on every request
+  (`OLLAMA_NUM_CTX` / config `num_ctx` to change it) and trim the oldest
+  turns to fit. The server estimates non-Latin text at 2 chars/token, sends
+  at most ~3.5k tokens, and clips an over-long earlier answer instead of
+  dropping the whole turn.
+
+### Added
+- **Context for guests:** chats without an account had no session, so every
+  message went to the worker alone. The chat page now sends the last
+  answered turns with each message; the server validates them and applies
+  the same window. Signed-in chats keep using the stored session.
+
 ## [1.1.13] — 2026-11-09
 
 ### Fixed

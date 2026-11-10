@@ -3,11 +3,57 @@ const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+// Context window asked of Ollama (1.1.14). Ollama's default (4096 on CPU and
+// small GPUs) is smaller than a chat with history, and Ollama then silently
+// drops the OLDEST messages, so the model "forgets" the earlier questions.
+// One fixed value for every request: a different num_ctx reloads the model.
+// Override with OLLAMA_NUM_CTX or config.json `num_ctx`; 0 = Ollama default.
+const DEFAULT_NUM_CTX = 8192;
+// Room kept for the answer when fitting history into the window.
+const REPLY_RESERVE_TOKENS = 1536;
+
+function resolveNumCtx(configured) {
+  const raw = process.env.OLLAMA_NUM_CTX !== undefined && process.env.OLLAMA_NUM_CTX !== ''
+    ? process.env.OLLAMA_NUM_CTX : configured;
+  if (raw === undefined || raw === null || raw === '') return DEFAULT_NUM_CTX;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0) return DEFAULT_NUM_CTX;
+  return n === 0 ? 0 : Math.min(Math.max(n, 2048), 131072);
+}
+
+// Rough token count: Latin text ~4 chars/token, other scripts ~2.
+function estimateTokens(text) {
+  const s = String(text || '');
+  let ascii = 0;
+  for (let i = 0; i < s.length; i++) if (s.charCodeAt(i) < 128) ascii++;
+  return Math.ceil(ascii / 4 + (s.length - ascii) / 2);
+}
+
+// Drop the oldest user/assistant pairs until history + prompt leave room for
+// the reply inside num_ctx — the newest turns are the ones that matter.
+function fitHistory(history, prompt, numCtx) {
+  const list = Array.isArray(history) ? history.slice() : [];
+  const ctx = numCtx || 4096;
+  const budget = ctx - REPLY_RESERVE_TOKENS - estimateTokens(prompt);
+  let total = list.reduce((n, m) => n + estimateTokens(m && m.content), 0);
+  while (list.length > 0 && total > budget) {
+    const drop = list.length >= 2 ? 2 : 1;
+    for (const m of list.splice(0, drop)) total -= estimateTokens(m && m.content);
+  }
+  return list;
+}
+
 class OllamaService {
-  constructor(model = 'llama3.1:8b') {
+  constructor(model = 'llama3.1:8b', { numCtx } = {}) {
     this.url = 'http://localhost:11434';
     this.model = model;
     this.isRunning = false;
+    this.numCtx = resolveNumCtx(numCtx);
+  }
+
+  // Ollama `options` sent with every generation request.
+  ollamaOptions() {
+    return this.numCtx ? { options: { num_ctx: this.numCtx } } : {};
   }
 
   setModel(model) {
@@ -79,6 +125,7 @@ class OllamaService {
         model: model || this.model,
         prompt: prompt,
         stream: false,
+        ...this.ollamaOptions(),
       }, { timeout: 170000 });
       return response.data;
     } catch (error) {
@@ -102,6 +149,7 @@ class OllamaService {
           images: [media.data],
         }],
         stream: false,
+        ...this.ollamaOptions(),
       }, { timeout: 170000 });
       return {
         response: (response.data.message && response.data.message.content) || '',
@@ -116,7 +164,7 @@ class OllamaService {
   // [{ role: 'user'|'assistant', content }] (already capped server-side);
   // media still rides the `images` slot of the final user message.
   async chatWithHistory(prompt, model, media, history) {
-    const messages = [...(Array.isArray(history) ? history : [])];
+    const messages = fitHistory(history, prompt, this.numCtx);
     const last = { role: 'user', content: prompt };
     if (media && media.data) last.images = [media.data];
     messages.push(last);
@@ -125,6 +173,7 @@ class OllamaService {
         model: model || this.model,
         messages,
         stream: false,
+        ...this.ollamaOptions(),
       }, { timeout: 170000 });
       return {
         response: (response.data.message && response.data.message.content) || '',
@@ -164,3 +213,7 @@ class OllamaService {
 }
 
 module.exports = OllamaService;
+module.exports.fitHistory = fitHistory;
+module.exports.resolveNumCtx = resolveNumCtx;
+module.exports.estimateTokens = estimateTokens;
+module.exports.DEFAULT_NUM_CTX = DEFAULT_NUM_CTX;

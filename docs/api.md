@@ -1,6 +1,6 @@
 # مستندات API — Plankton Network
 
-نسخه بک‌اند: `1.1.13` — پایه: `https://plankton.click` (نمونه: `https://plankton.click/api/chat`)
+نسخه بک‌اند: `1.1.14` — پایه: `https://plankton.click` (نمونه: `https://plankton.click/api/chat`)
 
 همه پاسخ‌ها JSON هستند. در حالت موفقیت معمولاً `success: true` برمی‌گردد و در حالت خطا `error` (رشته) یا `details` (لیست خطاهای اعتبارسنجی).
 
@@ -95,6 +95,15 @@
 
 ```json
 { "message": "سلام", "model": "llama3.1:8b", "session_id": 12 }
+```
+
+کاربر واردشده تاریخچهٔ گفتگو را از روی `session_id` دارد. مهمان session ندارد و می‌تواند نوبت‌های قبلی را در `history` بفرستد (از 1.1.14؛ حداکثر ۴۰ پیام، فقط جفت‌های user→assistant متنی پذیرفته می‌شوند و همان سقف توکن اعمال می‌شود):
+
+```json
+{ "message": "و پایتختش؟", "history": [
+  { "role": "user", "content": "بزرگ‌ترین کشور آفریقا کدام است؟" },
+  { "role": "assistant", "content": "الجزایر." }
+] }
 ```
 
 پاسخ موفق:

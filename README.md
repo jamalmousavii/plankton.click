@@ -13,7 +13,7 @@
   <a href="https://plankton.click">plankton.click</a> ·
   <a href="https://plankton.click/worker">Run a worker</a> ·
   <a href="docs/api.md">API</a> ·
-  <a href="CHANGELOG.md">Changelog</a> · <b>v1.1.13</b>
+  <a href="CHANGELOG.md">Changelog</a> · <b>v1.1.14</b>
 </p>
 
 ---

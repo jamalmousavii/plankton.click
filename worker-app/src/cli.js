@@ -23,8 +23,9 @@ if (!config.worker_token) {
 
 console.log('🚀 Plankton Worker starting...');
 console.log(`   Model: ${config.default_model}`);
+console.log(`   Context window (num_ctx): ${OllamaService.resolveNumCtx(config.num_ctx) || "Ollama default"}`);
 
-const ollama = new OllamaService(config.default_model);
+const ollama = new OllamaService(config.default_model, { numCtx: config.num_ctx });
 const worker = new WorkerService();
 
 const ws = new WorkerWebSocket(
