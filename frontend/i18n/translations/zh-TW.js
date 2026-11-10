@@ -63,7 +63,7 @@ const zhTW = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — 去中心化 LLM 推理平台，版本 {version}。版權所有。',
@@ -286,7 +286,7 @@ const zhTW = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: '安裝工作節點腳本，輸入您的電子郵件和權杖以進行連接。',
+    workerInstallDesc: '安裝工作節點腳本，並貼上工作節點權杖以進行連接。',
     workerToken: '工作節點權杖',
     getWorkerToken: '取得工作節點權杖',
     workerTokenDesc: '複製此權杖並在安裝工作節點時貼上。',

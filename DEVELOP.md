@@ -1,6 +1,6 @@
 # Plankton — Development Guide
 
-Version **1.2.0**. A *worker* is any machine (and its owner) that joins the
+Version **1.2.1**. A *worker* is any machine (and its owner) that joins the
 Plankton network and takes part in answering user chats.
 
 ## Prerequisites
@@ -470,7 +470,8 @@ For headless servers (no desktop/Electron), the service runs `cli.js` directly
 (there are **no CLI flags** — `cli.js` reads `worker-app/config.json` only):
 
 ```bash
-# token/email live in config.json, written by the install script
+# the worker token lives in config.json, written by the install script
+# (the installer asks for the token only — no email since 1.2.1)
 cat "$HOME/plankton-worker/worker-app/config.json"
 systemctl start plankton-worker
 ```

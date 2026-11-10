@@ -63,7 +63,7 @@ const nl = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — Gedecentraliseerd LLM-inferentieplatform, versie {version}. Alle rechten voorbehouden.',
@@ -286,7 +286,7 @@ const nl = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: 'Installeer het workerscript, voer je e-mail en token in om te verbinden.',
+    workerInstallDesc: 'Installeer het workerscript en plak je workertoken om te verbinden.',
     workerToken: 'Worker-token',
     getWorkerToken: 'Worker-token Ophalen',
     workerTokenDesc: 'Kopieer dit token en plak het tijdens de worker-installatie.',

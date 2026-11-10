@@ -63,7 +63,7 @@ const pl = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — zdecentralizowana platforma inferencji LLM, wersja {version}. Wszelkie prawa zastrzeżone.',
@@ -286,7 +286,7 @@ const pl = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: 'Zainstaluj skrypt workera, podaj swój e-mail i token, aby się połączyć.',
+    workerInstallDesc: 'Zainstaluj skrypt workera i wklej token workera, aby się połączyć.',
     workerToken: 'Token Workera',
     getWorkerToken: 'Pobierz Token Workera',
     workerTokenDesc: 'Skopiuj ten token i wklej go podczas instalacji workera.',

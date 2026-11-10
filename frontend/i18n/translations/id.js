@@ -63,7 +63,7 @@ const id = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — platform inferensi LLM terdesentralisasi, versi {version}. Hak cipta dilindungi.',
@@ -286,7 +286,7 @@ const id = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: 'Instal skrip worker, masukkan email dan token Anda untuk terhubung.',
+    workerInstallDesc: 'Instal skrip worker dan tempelkan token worker Anda untuk terhubung.',
     workerToken: 'Token Worker',
     getWorkerToken: 'Dapatkan Token Worker',
     workerTokenDesc: 'Salin token ini dan tempel saat pemasangan worker.',

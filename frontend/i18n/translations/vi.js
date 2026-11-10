@@ -63,7 +63,7 @@ const vi = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — nền tảng suy luận LLM phi tập trung, phiên bản {version}. Mọi quyền được bảo lưu.',
@@ -286,7 +286,7 @@ const vi = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: 'Cài đặt script worker, nhập email và token của bạn để kết nối.',
+    workerInstallDesc: 'Cài đặt script worker và dán token của worker để kết nối.',
     workerToken: 'Token Worker',
     getWorkerToken: 'Lấy Token Worker',
     workerTokenDesc: 'Sao chép token này và dán trong quá trình cài đặt worker.',

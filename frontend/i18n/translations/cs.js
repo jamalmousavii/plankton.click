@@ -63,7 +63,7 @@ const cs = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — Decentralizovaná LLM inferenční platforma, verze {version}. Všechna práva vyhrazena.',
@@ -286,7 +286,7 @@ const cs = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: 'Nainstalujte workerský skript, zadejte svůj e-mail a token pro připojení.',
+    workerInstallDesc: 'Nainstalujte workerský skript a pro připojení vložte token workeru.',
     workerToken: 'Token workeru',
     getWorkerToken: 'Získat token workeru',
     workerTokenDesc: 'Zkopírujte tento token a vložte ho během instalace workeru.',

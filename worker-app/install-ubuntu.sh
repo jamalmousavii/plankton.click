@@ -4,14 +4,14 @@
 # ============================================
 # Usage:
 #   wget -O install-ubuntu.sh https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-ubuntu.sh && bash install-ubuntu.sh
-#   bash install-ubuntu.sh --email user@email.com --token-file /path/to/token
+#   bash install-ubuntu.sh --token-file /path/to/token
 #   (--token still works, but a token on the command line is readable from
 #    `ps` by every user on the box — prefer --token-file or the prompt.)
 # ============================================
 
 set -e
 
-PLANKTON_VERSION="1.2.0"
+PLANKTON_VERSION="1.2.1"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -167,14 +167,15 @@ echo -e "${GREEN}  Plankton Network Worker Installer (Ubuntu/Debian) v${PLANKTON
 echo -e "${GREEN}========================================${NC}"
 echo ""
 
-# Parse --email, --token / --token-file, --name and --fresh flags
-USER_EMAIL=""
+# Parse --token / --token-file, --name and --fresh flags. The token alone
+# identifies the worker and its owner; --email is still accepted (ignored)
+# so older copy-pasted commands keep working.
 WORKER_TOKEN=""
 WORKER_NAME=""
 PLANKTON_FRESH="0"
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --email) USER_EMAIL="$2"; shift 2 ;;
+    --email) shift 2 ;; # ignored since 1.2.1 — the token is enough
     --token) WORKER_TOKEN="$2"; shift 2 ;;
     --token-file) WORKER_TOKEN=$(tr -d '\r\n' < "$2" 2>/dev/null); shift 2 ;;
     --name) WORKER_NAME="$2"; shift 2 ;;
@@ -588,19 +589,12 @@ run_with_spinner "Installing npm dependencies..." bash -c "cd '$INSTALL_DIR/work
 STEP_END=$(date +%s)
 step_done "Worker installed at $INSTALL_DIR ($((STEP_END - STEP_START))s)"
 
-# --- Email & Token ---
+# --- Worker token ---
 echo ""
 echo -e "${CYAN}========================================${NC}"
 echo -e "${CYAN}  Connect to Plankton Network${NC}"
 echo -e "${CYAN}========================================${NC}"
 echo ""
-
-if [ -z "$USER_EMAIL" ]; then
-  echo -e "  Enter your account email and worker token"
-  echo -e "  (Get your token from https://plankton.click/profile)"
-  echo ""
-  read -r -p "  Email: " USER_EMAIL
-fi
 
 if [ -z "$WORKER_TOKEN" ]; then
   # Token prompt is VISIBLE input (user decision): paste/type shows on screen
@@ -664,18 +658,17 @@ step_done "System info detected ($((STEP_END - STEP_START))s)"
 step_start 7 "Registering worker..."
 STEP_START=$(date +%s)
 
-# M6/H4: build the body with jq (quotes in name/email can't break it) and
+# M6/H4: build the body with jq (quotes in the name can't break it) and
 # stream it on stdin — curl's argv is world-readable via `ps`, and this body
 # carries the worker token.
 SETUP_PAYLOAD=$(jq -n \
-  --arg email "$USER_EMAIL" \
   --arg token "$WORKER_TOKEN" \
   --arg name "$WORKER_NAME" \
   --arg gpu "$GPU_MODEL" \
   --arg ram "$RAM_SIZE" \
   --arg cpu "$CPU_MODEL" \
   --arg models "$SELECTED_MODELS" \
-  '{email: $email, worker_token: $token, name: $name, gpu_model: $gpu, ram: $ram, cpu: $cpu, models: ($models | split(" ") | map(select(length > 0)))}')
+  '{worker_token: $token, name: $name, gpu_model: $gpu, ram: $ram, cpu: $cpu, models: ($models | split(" ") | map(select(length > 0)))}')
 
 SETUP_RESPONSE=$(printf '%s' "$SETUP_PAYLOAD" | curl -s -X POST https://plankton.click/api/workers/setup \
   -H "Content-Type: application/json" \
@@ -685,7 +678,7 @@ STEP_END=$(date +%s)
 if echo "$SETUP_RESPONSE" | grep -q '"success":true'; then
   step_done "Worker registered ($((STEP_END - STEP_START))s)"
 else
-  step_fail "Registration failed. Check email and token."
+  step_fail "Registration failed. Check the worker token."
   echo -e "  ${YELLOW}Response: $SETUP_RESPONSE${NC}"
   # M2: do not start a service with a token the server rejected — the old
   # script only warned and continued into step 8.
@@ -754,7 +747,7 @@ echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}  Installation Complete!${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
-echo -e "  Email:  ${GREEN}${USER_EMAIL}${NC}"
+echo -e "  Name:   ${GREEN}${WORKER_NAME}${NC}"
 echo -e "  GPU:    ${GREEN}${GPU_MODEL}${NC}"
 echo -e "  RAM:    ${GREEN}${RAM_SIZE}${NC}"
 echo -e "  CPU:    ${GREEN}${CPU_MODEL}${NC}"

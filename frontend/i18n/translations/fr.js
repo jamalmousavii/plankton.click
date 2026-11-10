@@ -63,7 +63,7 @@ const fr = {
     freeNote: 'Offre gratuite : 2 000 000 de jetons par jour pour tous — sans carte bancaire.',
     pricingSub: 'Payez en crypto. Les offres durent 30 jours ; les packs de jetons n\'expirent jamais.',
     loginToBuy: 'Connectez-vous d\'abord pour acheter (connexion en haut).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — plateforme d\'inférence LLM décentralisée, version {version}. Tous droits réservés.',
@@ -286,7 +286,7 @@ const fr = {
     historyLastSeenLabel: 'Vu pour la dernière fois :',
     reasonUninstalled: 'désinstallé',
     reasonStale: 'hors ligne >10 j',
-    workerInstallDesc: 'Installez le script du worker, saisissez votre e-mail et votre jeton pour vous connecter.',
+    workerInstallDesc: 'Installez le script du worker et collez le jeton du worker pour vous connecter.',
     workerToken: 'Jeton du worker',
     getWorkerToken: 'Obtenir le jeton du worker',
     workerTokenDesc: 'Copiez ce jeton et collez-le lors de l\'installation du worker.',

@@ -430,7 +430,10 @@ router.post('/token', authenticate, async (req, res) => {
 // token IS the worker identity. Unlimited workers per user, no cap.
 router.post('/setup', async (req, res) => {
   try {
-    const { email, gpu_model, ram, cpu, models, machine_id, name } = req.body;
+    // `email` is no longer needed (1.2.1): the token alone identifies the
+    // worker (or, for a legacy account token, the user — users.worker_token is
+    // UNIQUE). Older installers still send it; it is ignored.
+    const { gpu_model, ram, cpu, models, machine_id, name } = req.body;
     const worker_token = legacyToken(req.body);
 
     if (!worker_token || typeof worker_token !== 'string') {
@@ -473,10 +476,10 @@ router.post('/setup', async (req, res) => {
 
     // 2) Legacy account token (users.worker_token): only unambiguous when the
     // user has exactly 1 active worker; otherwise require the per-worker token.
-    if (email) {
+    {
       const userResult = await pool.query(
-        'SELECT id FROM users WHERE email = $1 AND worker_token = $2',
-        [email, worker_token]
+        'SELECT id FROM users WHERE worker_token = $1',
+        [worker_token]
       );
       if (userResult.rows.length > 0) {
         const userId = userResult.rows[0].id;
@@ -507,9 +510,9 @@ router.post('/setup', async (req, res) => {
   }
 });
 
-// POST /api/workers/register — DISABLED (use /setup with email + token instead)
+// POST /api/workers/register — DISABLED (use /setup with the worker token instead)
 router.post('/register', authenticate, async (req, res) => {
-  return res.status(403).json({ error: 'Manual registration disabled. Use /api/workers/setup with email and worker token.' });
+  return res.status(403).json({ error: 'Manual registration disabled. Use /api/workers/setup with the worker token.' });
 });
 
 // POST /api/workers/unregister — called by uninstall-*.sh (v3.22.0).

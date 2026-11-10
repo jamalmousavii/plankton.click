@@ -63,7 +63,7 @@ const th = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — แพลตฟอร์มการอนุมาน LLM แบบกระจายศูนย์ รุ่น {version} สงวนลิขสิทธิ์ทุกประการ',
@@ -286,7 +286,7 @@ const th = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: 'ติดตั้งสคริปต์เวิร์กเกอร์ ใส่อีเมลและโทเคนของคุณเพื่อเชื่อมต่อ',
+    workerInstallDesc: 'ติดตั้งสคริปต์เวิร์กเกอร์ แล้ววางโทเคนของเวิร์กเกอร์เพื่อเชื่อมต่อ',
     workerToken: 'โทเคนเวิร์กเกอร์',
     getWorkerToken: 'รับโทเคนเวิร์กเกอร์',
     workerTokenDesc: 'คัดลอกโทเคนนี้และวางในระหว่างติดตั้งเวิร์กเกอร์',

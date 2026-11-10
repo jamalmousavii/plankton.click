@@ -4,7 +4,8 @@
 # Usage (PowerShell, regular user terminal):
 #   Invoke-WebRequest -Uri https://raw.githubusercontent.com/jamalmousavii/plankton.click/main/worker-app/install-windows.ps1 -OutFile install-windows.ps1
 #   powershell -ExecutionPolicy Bypass -File .\install-windows.ps1
-#   .\install-windows.ps1 -Email user@email.com -Token pw_xxx
+#   .\install-windows.ps1 -Token pw_xxx
+#   (-Email is still accepted but ignored: the token alone identifies the worker)
 # Re-running on an installed box opens the Manager menu (add/remove/repair
 # models, token/name, update, restart) instead of reinstalling.
 # ============================================
@@ -19,7 +20,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$PLANKTON_VERSION = "1.2.0"
+$PLANKTON_VERSION = "1.2.1"
 $INSTALL_DIR = "$HOME\plankton-worker"
 $EXISTING_CONFIG = "$INSTALL_DIR\worker-app\config.json"
 $TASK_NAME = "PlanktonWorker"
@@ -299,12 +300,8 @@ else { git clone https://github.com/jamalmousavii/plankton.click.git $INSTALL_DI
 npm --prefix "$INSTALL_DIR\worker-app" ci --omit=dev
 Step-Done "Worker installed at $INSTALL_DIR"
 
-# --- Email & token ---
+# --- Worker token (the only credential; -Email is ignored since 1.2.1) ---
 Write-Host ""
-if (-not $Email) {
-  Write-Host "  Enter your account email and worker token (get it from https://plankton.click/profile)"
-  $Email = Read-Host "  Email"
-}
 if (-not $Token) {
   # Visible input (same UX decision as other installers).
   Write-Host "  Paste your token below (input is visible). Get it from https://plankton.click/profile"
@@ -337,7 +334,7 @@ Step-Done "System info detected"
 # --- Step 7: register ---
 Write-Host "[7/8] Registering worker..." -ForegroundColor Yellow
 $setupBody = @{
-  email = $Email; worker_token = $Token; name = $Name
+  worker_token = $Token; name = $Name
   gpu_model = $gpu; ram = "${ramGB} GB"; cpu = $cpu; models = $SELECTED
 } | ConvertTo-Json -Depth 5
 try {
@@ -345,7 +342,7 @@ try {
     -Body $setupBody -ContentType "application/json" -TimeoutSec 30
 } catch { $setupResp = $null }
 if ($setupResp -and $setupResp.success) { Step-Done "Worker registered" }
-else { Step-Fail "Registration failed. Check email and token." }
+else { Step-Fail "Registration failed. Check the worker token." }
 
 # --- Step 8: scheduled task + config ---
 Write-Host "[8/8] Saving config + starting service..." -ForegroundColor Yellow

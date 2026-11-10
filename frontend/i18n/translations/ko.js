@@ -63,7 +63,7 @@ const ko = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — 탈중앙화 LLM 추론 플랫폼, 버전 {version}. 모든 권리 보유.',
@@ -286,7 +286,7 @@ const ko = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: '워커 스크립트를 설치하고 이메일과 토큰을 입력하여 연결하세요.',
+    workerInstallDesc: '워커 스크립트를 설치하고 워커 토큰을 붙여넣어 연결하세요.',
     workerToken: '워커 토큰',
     getWorkerToken: '워커 토큰 받기',
     workerTokenDesc: '이 토큰을 복사하여 워커 설치 시 붙여넣으세요.',

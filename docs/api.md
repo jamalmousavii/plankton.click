@@ -1,6 +1,6 @@
 # مستندات API — Plankton Network
 
-نسخه بک‌اند: `1.2.0` — پایه: `https://plankton.click` (نمونه: `https://plankton.click/api/chat`)
+نسخه بک‌اند: `1.2.1` — پایه: `https://plankton.click` (نمونه: `https://plankton.click/api/chat`)
 
 همه پاسخ‌ها JSON هستند. در حالت موفقیت معمولاً `success: true` برمی‌گردد و در حالت خطا `error` (رشته) یا `details` (لیست خطاهای اعتبارسنجی).
 
@@ -241,10 +241,11 @@
 ### `POST /api/workers/setup` (عمومی، با توکن)
 
 ```json
-{ "email": "a@b.co", "worker_token": "pw_...", "gpu_model": "...", "ram": "32 GB", "cpu": "...", "models": ["llama3.1:8b"], "machine_id": "...", "name": "vps1" }
+{ "worker_token": "pw_...", "gpu_model": "...", "ram": "32 GB", "cpu": "...", "models": ["llama3.1:8b"], "machine_id": "...", "name": "vps1" }
 ```
 
 - توکنِ ورکرِ اختصاصی → بلافاصله ثبت/به‌روزرسانی.
+- ایمیل لازم نیست (از 1.2.1): خودِ توکن ورکر و صاحبش را مشخص می‌کند؛ فیلد `email` از نصب‌کننده‌های قدیمی نادیده گرفته می‌شود.
 - توکنِ سطح حساب → فقط وقتی کاربر دقیقاً یک ورکر فعال دارد؛ در غیر این صورت `409`.
 - ورکرِ `removed` دوباره زنده نمی‌شود → `401`.
 

@@ -63,7 +63,7 @@ const hi = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — विकेंद्रीकृत LLM इन्फरेंस प्लेटफ़ॉर्म, संस्करण {version}। सर्वाधिकार सुरक्षित।',
@@ -286,7 +286,7 @@ const hi = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: 'वर्कर स्क्रिप्ट इंस्टॉल करें, कनेक्ट करने के लिए अपना ईमेल और टोकन दर्ज करें।',
+    workerInstallDesc: 'वर्कर स्क्रिप्ट इंस्टॉल करें और कनेक्ट करने के लिए वर्कर टोकन पेस्ट करें।',
     workerToken: 'वर्कर टोकन',
     getWorkerToken: 'वर्कर टोकन प्राप्त करें',
     workerTokenDesc: 'इस टोकन को कॉपी करें और वर्कर इंस्टॉलेशन के दौरान पेस्ट करें।',

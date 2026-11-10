@@ -63,7 +63,7 @@ const sv = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — decentraliserad LLM-inferensplattform, version {version}. Alla rättigheter förbehållna.',
@@ -286,7 +286,7 @@ const sv = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: 'Installera workerskriptet, ange din e-post och token för att ansluta.',
+    workerInstallDesc: 'Installera workerskriptet och klistra in workertoken för att ansluta.',
     workerToken: 'Worker-token',
     getWorkerToken: 'Hämta worker-token',
     workerTokenDesc: 'Kopiera den här token och klistra in den vid installation av workern.',

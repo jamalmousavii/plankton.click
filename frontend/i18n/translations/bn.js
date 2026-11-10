@@ -63,7 +63,7 @@ const bn = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — ডিসেন্ট্রালাইজড LLM ইনফারেন্স প্ল্যাটফর্ম, সংস্করণ {version}। সর্বস্বত্ব সংরক্ষিত।',
@@ -286,7 +286,7 @@ const bn = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: 'ওয়ার্কার স্ক্রিপ্ট ইনস্টল করুন, সংযুক্ত করতে আপনার ইমেইল ও টোকেন লিখুন।',
+    workerInstallDesc: 'ওয়ার্কার স্ক্রিপ্ট ইনস্টল করুন এবং সংযুক্ত করতে ওয়ার্কার টোকেন পেস্ট করুন।',
     workerToken: 'ওয়ার্কার টোকেন',
     getWorkerToken: 'ওয়ার্কার টোকেন পান',
     workerTokenDesc: 'এই টোকেনটি কপি করুন এবং ওয়ার্কার ইনস্টলেশনের সময় পেস্ট করুন।',

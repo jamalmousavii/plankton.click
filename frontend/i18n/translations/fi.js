@@ -63,7 +63,7 @@ const fi = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — Hajautettu LLM-inferenssalusta, versio {version}. Kaikki oikeudet pidätetään.',
@@ -286,7 +286,7 @@ const fi = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: 'Asenna workerskripti ja syötä sähköpostisi ja tokeni yhdistääksesi.',
+    workerInstallDesc: 'Asenna workerskripti ja liitä workerin tokeni yhdistääksesi.',
     workerToken: 'Worker-token',
     getWorkerToken: 'Hae worker-token',
     workerTokenDesc: 'Kopioi tämä tokeni ja liitä se workerin asennuksen aikana.',

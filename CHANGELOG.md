@@ -3,6 +3,21 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.1] — 2026-11-10
+
+### Changed
+- **Installing a worker asks only for the worker token — no email.** The
+  token already identifies the worker and its owner (the email was never
+  used by the worker or the server for per-worker tokens), so asking for
+  both was redundant. Applies to the Ubuntu, Red Hat, macOS and Windows
+  installers. `--email` / `-Email` are still accepted and ignored, so
+  copied commands keep working; old installers that send an email also
+  keep working.
+- `POST /api/workers/setup` resolves a legacy account token from the token
+  alone (`users.worker_token` is unique) instead of email + token.
+- The profile's install hint now says "paste your worker token" in all 33
+  languages.
+
 ## [1.2.0] — 2026-11-10
 
 ### Added

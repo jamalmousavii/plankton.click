@@ -63,7 +63,7 @@ const hu = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — decentralizált LLM-inferencia platform, {version} verzió. Minden jog fenntartva.',
@@ -286,7 +286,7 @@ const hu = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: 'Telepítse a workerszkriptet, adja meg e-mailjét és tokenjét a csatlakozáshoz.',
+    workerInstallDesc: 'Telepítse a workerszkriptet, és a csatlakozáshoz illessze be a worker tokenjét.',
     workerToken: 'Worker token',
     getWorkerToken: 'Worker token lekérése',
     workerTokenDesc: 'Másolja ki ezt a tokent, és illessze be a worker telepítésekor.',

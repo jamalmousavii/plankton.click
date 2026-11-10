@@ -63,7 +63,7 @@ const he = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — פלטפורמת הסקת LLM מבוזרת, גרסה {version}. כל הזכויות שמורות.',
@@ -286,7 +286,7 @@ const he = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: 'התקן את סקריפט הוורקר, הזן דוא״ל וטוקן כדי להתחבר.',
+    workerInstallDesc: 'התקן את סקריפט הוורקר והדבק את טוקן הוורקר כדי להתחבר.',
     workerToken: 'טוקן וורקר',
     getWorkerToken: 'קבל טוקן וורקר',
     workerTokenDesc: 'העתק את הטוקן והדבק אותו במהלך התקנת הוורקר.',

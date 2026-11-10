@@ -63,7 +63,7 @@ const tr = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — merkezi olmayan LLM çıkarım platformu, sürüm {version}. Tüm hakları saklıdır.',
@@ -286,7 +286,7 @@ const tr = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: 'Bağlanmak için worker betiğini kurun, e-postanızı ve tokenınızı girin.',
+    workerInstallDesc: 'Worker betiğini kurun ve bağlanmak için worker tokenınızı yapıştırın.',
     workerToken: 'Worker Tokenı',
     getWorkerToken: 'Worker Tokenı Al',
     workerTokenDesc: 'Bu tokenı kopyalayın ve worker kurulumu sırasında yapıştırın.',

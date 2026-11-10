@@ -63,7 +63,7 @@ const ar = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — منصة استدلال LLM لامركزية، الإصدار {version}. جميع الحقوق محفوظة.',
@@ -286,7 +286,7 @@ const ar = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: 'ثبّت سكربت العامل وأدخل بريدك الإلكتروني ورمزك للاتصال.',
+    workerInstallDesc: 'ثبّت سكربت العامل والصق رمز العامل للاتصال.',
     workerToken: 'رمز العامل',
     getWorkerToken: 'الحصول على رمز العامل',
     workerTokenDesc: 'انسخ هذا الرمز والصقه أثناء تثبيت العامل.',

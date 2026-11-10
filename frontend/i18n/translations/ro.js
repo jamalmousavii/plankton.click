@@ -63,7 +63,7 @@ const ro = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — platformă de inferență LLM descentralizată, versiunea {version}. Toate drepturile rezervate.',
@@ -286,7 +286,7 @@ const ro = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: 'Instalează scriptul de worker, introdu emailul și tokenul pentru a te conecta.',
+    workerInstallDesc: 'Instalează scriptul de worker și lipește tokenul workerului pentru a te conecta.',
     workerToken: 'Token worker',
     getWorkerToken: 'Obține tokenul workerului',
     workerTokenDesc: 'Copiază acest token și lipește-l în timpul instalării workerului.',

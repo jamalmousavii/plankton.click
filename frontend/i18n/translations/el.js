@@ -63,7 +63,7 @@ const el = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — Αποκεντρωμένη πλατφόρμα συμπερασμού LLM, έκδοση {version}. Με επιφύλαξη παντός δικαιώματος.',
@@ -286,7 +286,7 @@ const el = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: 'Εγκαταστήστε το σενάριο worker, εισαγάγετε το email και το token σας για σύνδεση.',
+    workerInstallDesc: 'Εγκαταστήστε το σενάριο worker και επικολλήστε το token του worker για σύνδεση.',
     workerToken: 'Token worker',
     getWorkerToken: 'Λήψη token worker',
     workerTokenDesc: 'Αντιγράψτε αυτό το token και επικολλήστε το κατά την εγκατάσταση του worker.',

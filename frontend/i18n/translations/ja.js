@@ -63,7 +63,7 @@ const ja = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — 分散型LLM推論プラットフォーム、バージョン {version}。すべての権利を保有します。',
@@ -286,7 +286,7 @@ const ja = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: 'ワーカースクリプトをインストールし、メールアドレスとトークンを入力して接続します。',
+    workerInstallDesc: 'ワーカースクリプトをインストールし、ワーカートークンを貼り付けて接続します。',
     workerToken: 'ワーカートークン',
     getWorkerToken: 'ワーカートークンを取得',
     workerTokenDesc: 'このトークンをコピーして、ワーカーのインストール時に貼り付けてください。',

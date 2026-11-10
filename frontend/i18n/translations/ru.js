@@ -63,7 +63,7 @@ const ru = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — децентрализованная платформа LLM-инференса, версия {version}. Все права защищены.',
@@ -286,7 +286,7 @@ const ru = {
     historyLastSeenLabel: 'Last seen:',
     reasonUninstalled: 'uninstalled',
     reasonStale: 'offline >10d',
-    workerInstallDesc: 'Установите скрипт воркера, введите электронную почту и токен для подключения.',
+    workerInstallDesc: 'Установите скрипт воркера и вставьте токен воркера для подключения.',
     workerToken: 'Токен воркера',
     getWorkerToken: 'Получить токен воркера',
     workerTokenDesc: 'Скопируйте этот токен и вставьте его при установке воркера.',

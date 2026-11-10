@@ -63,7 +63,7 @@ const de = {
     freeNote: 'Gratis-Plan: 2.000.000 Tokens pro Tag für alle — ohne Karte.',
     pricingSub: 'Bezahlt mit Krypto. Pläne laufen 30 Tage; Token-Pakete verfallen nie.',
     loginToBuy: 'Zuerst anmelden zum Kaufen (Login oben).',
-    version: 'v1.2.0',
+    version: 'v1.2.1',
   },
   footer: {
     sentence: '© 2026 Plankton Network — Dezentrale LLM-Inferenzplattform, Version {version}. Alle Rechte vorbehalten.',
@@ -286,7 +286,7 @@ const de = {
     historyLastSeenLabel: 'Zuletzt gesehen:',
     reasonUninstalled: 'deinstalliert',
     reasonStale: 'offline >10 T',
-    workerInstallDesc: 'Installiere das Worker-Skript und gib deine E-Mail und dein Token ein, um dich zu verbinden.',
+    workerInstallDesc: 'Installiere das Worker-Skript und füge dein Worker-Token ein, um dich zu verbinden.',
     workerToken: 'Worker-Token',
     getWorkerToken: 'Worker-Token erhalten',
     workerTokenDesc: 'Kopiere dieses Token und füge es bei der Worker-Installation ein.',
