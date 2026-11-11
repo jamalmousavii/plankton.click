@@ -16,6 +16,17 @@ const { logger } = require('../logger');
 // The model every worker installs by default (multilingual, incl. Persian).
 const DEFAULT_EMBED_MODEL = 'bge-m3';
 const EMBED_MODELS = MODELS.filter((m) => m.category === 'embedding').map((m) => m.id);
+// 1.2.6: embeddinggemma and nomic-embed-text left the catalog (nothing used
+// them; every worker has bge-m3). Requests that still name them are served by
+// bge-m3 instead of failing — the response's `model` says which one ran.
+const RETIRED_EMBED_MODELS = new Set(['embeddinggemma', 'nomic-embed-text']);
+
+function resolveEmbedModel(model) {
+  if (model === undefined || model === null || model === '') return DEFAULT_EMBED_MODEL;
+  const name = String(model).trim().toLowerCase().replace(/:latest$/, '');
+  if (RETIRED_EMBED_MODELS.has(name)) return DEFAULT_EMBED_MODEL;
+  return EMBED_MODELS.includes(name) ? name : String(model);
+}
 
 const MAX_INPUTS = 64;
 const MAX_INPUT_CHARS = 8192;
@@ -56,7 +67,8 @@ function normaliseInputs(input) {
 
 // Embed `input` for a user (or a guest by IP) and settle the cost.
 // Returns { embeddings, tokensUsed, cost, workerId, taskId }.
-async function embed({ wsServer, userId = null, guestKey = null, model = DEFAULT_EMBED_MODEL, input }) {
+async function embed({ wsServer, userId = null, guestKey = null, model: requested = DEFAULT_EMBED_MODEL, input }) {
+  const model = resolveEmbedModel(requested);
   if (!EMBED_MODELS.includes(model)) {
     throw new EmbedError(`Unknown embedding model '${model}'. Available: ${EMBED_MODELS.join(', ')}`, 'model_not_found', 400);
   }
@@ -136,7 +148,7 @@ async function embed({ wsServer, userId = null, guestKey = null, model = DEFAULT
     ).catch((e) => logger.error({ err: e, taskId }, 'Failed to mark billing_pending'));
   }
 
-  return { embeddings: result.embeddings, tokensUsed: result.tokensUsed, cost, workerId, taskId };
+  return { embeddings: result.embeddings, tokensUsed: result.tokensUsed, cost, workerId, taskId, model };
 }
 
 function cosine(a, b) {
@@ -158,6 +170,8 @@ module.exports = {
   EmbedError,
   DEFAULT_EMBED_MODEL,
   EMBED_MODELS,
+  RETIRED_EMBED_MODELS,
+  resolveEmbedModel,
   MAX_INPUTS,
   MAX_INPUT_CHARS,
 };

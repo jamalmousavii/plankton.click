@@ -25,7 +25,7 @@ describe('model catalog', () => {
       'gpt-oss:20b', 'phi4:14b', 'llama3.2:3b',
       'qwen3-coder:30b', 'qwen2.5-coder:32b',
       'qwen3-vl:8b', 'gemma4:12b', 'gemma3:27b', 'mistral-small3.2:24b',
-      'embeddinggemma', 'nomic-embed-text', 'bge-m3',
+      'bge-m3',
     ]);
     for (const m of MODELS) {
       expect(allowed.has(m.id)).toBe(true);

@@ -172,6 +172,56 @@ describe('POST /v1/embeddings', () => {
   });
 });
 
+describe('retired embedding models (1.2.6)', () => {
+  const { resolveEmbedModel, EMBED_MODELS } = require('../src/services/embeddings');
+  const MODELS = require('../src/models');
+
+  it('only bge-m3 is left in the catalog', () => {
+    expect(EMBED_MODELS).toEqual(['bge-m3']);
+    expect(MODELS.map((m) => m.id)).not.toEqual(expect.arrayContaining(['embeddinggemma']));
+    expect(MODELS.map((m) => m.id)).not.toEqual(expect.arrayContaining(['nomic-embed-text']));
+  });
+
+  it('old names are served by bge-m3; unknown names still fail', () => {
+    expect(resolveEmbedModel('embeddinggemma')).toBe('bge-m3');
+    expect(resolveEmbedModel('nomic-embed-text:latest')).toBe('bge-m3');
+    expect(resolveEmbedModel(undefined)).toBe('bge-m3');
+    expect(resolveEmbedModel('BGE-M3')).toBe('bge-m3');
+    expect(resolveEmbedModel('qwen3:32b')).toBe('qwen3:32b');
+  });
+
+  it('POST /v1/embeddings with a retired name answers with bge-m3 vectors', async () => {
+    pool.__state.queryImpl = async (sql) => {
+      if (String(sql).includes('FROM api_keys')) return { rows: [{ id: 1, user_id: 7, name: 'x', banned: false }] };
+      if (String(sql).includes('user_token_balances')) return { rows: [{ tokens: 5000 }] };
+      if (String(sql).includes('INSERT INTO tasks')) return { rows: [{ id: 41 }] };
+      return { rows: [] };
+    };
+    const ws = fakeWs((inputs) => inputs.map(() => [0.1]), { tokens: 2 });
+    const a = express();
+    a.use(express.json());
+    a.set('wsServer', ws);
+    a.use('/v1', v1Routes);
+    const res = await request(a).post('/v1/embeddings')
+      .set('Authorization', `Bearer sk_${'e'.repeat(48)}`).send({ model: 'nomic-embed-text', input: 'hi' });
+    expect(res.status).toBe(200);
+    expect(res.body.model).toBe('bge-m3');
+    expect(ws.dispatchEmbed).toHaveBeenCalledWith(3, 41, 'bge-m3', ['hi']);
+  });
+});
+
+describe('installers no longer offer the retired embedding models', () => {
+  const fs = require('fs');
+  const path = require('path');
+  for (const f of ['install-ubuntu.sh', 'install-redhat.sh', 'install-macos.sh', 'install-windows.ps1']) {
+    it(f, () => {
+      const s = fs.readFileSync(path.join(__dirname, '../../worker-app', f), 'utf8');
+      expect(s).not.toMatch(/embeddinggemma|nomic-embed-text/);
+      expect(s).toMatch(/bge-m3/);
+    });
+  }
+});
+
 describe('chat + embeddings', () => {
   it('refuses to chat with an embedding model', async () => {
     const a = express();

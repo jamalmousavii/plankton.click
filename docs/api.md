@@ -1,6 +1,6 @@
 # مستندات API — Plankton Network
 
-نسخه بک‌اند: `1.2.5` — پایه: `https://plankton.click` (نمونه: `https://plankton.click/api/chat`)
+نسخه بک‌اند: `1.2.6` — پایه: `https://plankton.click` (نمونه: `https://plankton.click/api/chat`)
 
 همه پاسخ‌ها JSON هستند. در حالت موفقیت معمولاً `success: true` برمی‌گردد و در حالت خطا `error` (رشته) یا `details` (لیست خطاهای اعتبارسنجی).
 
@@ -393,7 +393,7 @@ curl https://plankton.click/v1/chat/completions \
 
 ### Embeddings — `POST /v1/embeddings`
 
-ورودی `{model, input: string | string[], encoding_format?: "float"}`؛ مدل‌ها: `bge-m3` (پیش‌فرض، روی همهٔ ورکرها نصب است)، `embeddinggemma`، `nomic-embed-text`.
+ورودی `{model, input: string | string[], encoding_format?: "float"}`؛ مدل: `bge-m3` (پیش‌فرض، روی همهٔ ورکرها نصب است). از 1.2.6 نام‌های قدیمی `embeddinggemma` و `nomic-embed-text` حذف شده‌اند و با `bge-m3` پاسخ داده می‌شوند (فیلد `model` پاسخ `bge-m3` است؛ ابعاد بردار با آن مدل‌ها فرق دارد).
 خروجی استاندارد OpenAI: `{object:"list", data:[{object:"embedding", index, embedding:number[]}], model, usage:{prompt_tokens, total_tokens}}`.
 
 - محدودیت: حداکثر ۶۴ ورودی، هر ورودی ۸۱۹۲ کاراکتر، مجموع ۲۰۰٬۰۰۰ کاراکتر → وگرنه `400`.

@@ -1,6 +1,6 @@
 # Plankton — Development Guide
 
-Version **1.2.5**. A *worker* is any machine (and its owner) that joins the
+Version **1.2.6**. A *worker* is any machine (and its owner) that joins the
 Plankton network and takes part in answering user chats.
 
 ## Prerequisites
@@ -235,8 +235,6 @@ Models defined in `backend/src/models.js` with per-model pricing:
 
 | Model | Size | Input/1M | Output/1M | Cheapest hosted elsewhere (in / out) |
 |-------|------|----------|-----------|------|
-| nomic-embed-text | 274M | $0.005 | — | 0.01–0.02 |
-| embeddinggemma | 300M | $0.006 | — | 0.01–0.02 |
 | bge-m3 | 567M | $0.008 | — | 0.01–0.02 |
 | llama3.2:3b | 3B | $0.010 | $0.020 | ~0.01–0.02 |
 | llama3.1:8b | 8B | $0.015 | $0.025 | 0.02 / 0.03 (DeepInfra) |

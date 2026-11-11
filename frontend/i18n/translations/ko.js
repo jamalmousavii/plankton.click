@@ -63,7 +63,7 @@ const ko = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.5',
+    version: 'v1.2.6',
   },
   footer: {
     sentence: '© 2026 Plankton Network — 탈중앙화 LLM 추론 플랫폼, 버전 {version}. 모든 권리 보유.',

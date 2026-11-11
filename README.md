@@ -13,7 +13,7 @@
   <a href="https://plankton.click">plankton.click</a> ·
   <a href="https://plankton.click/worker">Run a worker</a> ·
   <a href="docs/api.md">API</a> ·
-  <a href="CHANGELOG.md">Changelog</a> · <b>v1.2.5</b>
+  <a href="CHANGELOG.md">Changelog</a> · <b>v1.2.6</b>
 </p>
 
 ---
@@ -48,7 +48,7 @@ Workers are paid a flat **90%** of every paid message they serve.
 - **Payments** — USD wallet via NowPayments (BTC, ETH, BNB, USDT, TRX, DOGE, XRP), USDT-TRC20 withdrawals, daily free allowance, Plus/Pro/Max plans, never-expiring token bundles, teams with their own plan and tokens.
 - **Worker free credit** — an online worker earns its owner $1/day of free chat.
 - **Coder API** — OpenAI-compatible `/v1` for coding agents (opencode, Continue, Aider…).
-- **Embeddings** — `POST /v1/embeddings` (OpenAI shape, `bge-m3` / `embeddinggemma` / `nomic-embed-text`), billed on input tokens; every worker installs `bge-m3` automatically.
+- **Embeddings** — `POST /v1/embeddings` (OpenAI shape, `bge-m3`; the retired names `embeddinggemma` / `nomic-embed-text` are answered by `bge-m3`), billed on input tokens; every worker installs `bge-m3` automatically.
 - **Chat over large files (RAG)** — a big attached file is split into excerpts, embedded with `bge-m3`, and only the passages most relevant to the question reach the chat model.
 - **Support tickets + full admin panel** (users, workers, tasks, tickets, payments, purchases, teams) with an audit log.
 - **33 languages** with browser detection and RTL for FA/AR/HE/UR.
@@ -192,8 +192,6 @@ completions. Embedding models are not offered in the chat UI.
 
 | Model | Size | Input/1M | Output/1M | Cheapest hosted elsewhere (in / out) |
 |-------|------|----------|-----------|------|
-| nomic-embed-text | 274M | $0.005 | — | 0.01–0.02 |
-| embeddinggemma | 300M | $0.006 | — | 0.01–0.02 |
 | bge-m3 | 567M | $0.008 | — | 0.01–0.02 |
 | llama3.2:3b | 3B | $0.010 | $0.020 | ~0.01–0.02 |
 | llama3.1:8b | 8B | $0.015 | $0.025 | 0.02 / 0.03 (DeepInfra) |
@@ -249,7 +247,7 @@ it as `×N`.
 | Chat | llama3.2:3b ×0.8 · llama3.1:8b ×1 · gpt-oss:20b ×2.8 · phi4:14b ×3.2 · qwen3:32b ×8 · llama3.3:70b ×10 · deepseek-r1:70b ×11.2 |
 | Code | qwen2.5-coder:32b ×7.2 · qwen3-coder:30b ×8 |
 | Vision | qwen3-vl:8b ×3.2 · gemma4:12b ×3.6 · mistral-small3.2:24b ×4 · gemma3:27b ×4.8 |
-| Embedding | nomic-embed-text ×0.2 · embeddinggemma ×0.24 · bge-m3 ×0.32 |
+| Embedding | bge-m3 ×0.32 |
 
 Example: the Free tier's 2M allowance tokens/day = 2.5M real tokens on
 llama3.2:3b, 2M on llama3.1:8b, 200K on llama3.3:70b.

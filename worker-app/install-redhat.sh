@@ -11,7 +11,7 @@
 
 set -e
 
-PLANKTON_VERSION="1.2.5"
+PLANKTON_VERSION="1.2.6"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -148,8 +148,6 @@ MODEL_SIZES[qwen3-coder:30b]="18 GB"
 MODEL_SIZES[qwen2.5-coder:32b]="20 GB"
 MODEL_SIZES[qwen3-vl:8b]="8 GB"
 MODEL_SIZES[gemma4:12b]="7 GB"
-MODEL_SIZES[embeddinggemma]="0.5 GB"
-MODEL_SIZES[nomic-embed-text]="0.3 GB"
 MODEL_SIZES[bge-m3]="1.2 GB"
 MODEL_SIZES[llama3.2:3b]="2 GB"
 MODEL_SIZES[phi4:14b]="9 GB"

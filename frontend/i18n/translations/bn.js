@@ -63,7 +63,7 @@ const bn = {
     freeNote: 'Free plan: 2,000,000 tokens/day for everyone — no card needed.',
     pricingSub: 'Paid with crypto. Plans last 30 days; token bundles never expire.',
     loginToBuy: 'Sign in first to buy (Login at the top).',
-    version: 'v1.2.5',
+    version: 'v1.2.6',
   },
   footer: {
     sentence: '© 2026 Plankton Network — ডিসেন্ট্রালাইজড LLM ইনফারেন্স প্ল্যাটফর্ম, সংস্করণ {version}। সর্বস্বত্ব সংরক্ষিত।',

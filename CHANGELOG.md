@@ -3,6 +3,22 @@
 All notable changes to Plankton are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.6] — 2026-11-11
+
+### Removed
+- **`embeddinggemma` and `nomic-embed-text` left the catalog.** Nothing in
+  Plankton used them (chat RAG and `/v1/embeddings` default to `bge-m3`,
+  which every worker installs), they confused worker owners in ⚙️ Manage
+  models, and an API call naming them failed unless some worker had pulled
+  one by hand. They are gone from the panel, `/v1/models`, the pricing
+  tables and all four installers.
+- `/v1/embeddings` requests that still name them are answered by `bge-m3`
+  instead of failing; the response's `model` field says `bge-m3`. Note the
+  vector size differs (1024 vs 768), so stored vectors from those models
+  are not comparable with the new ones.
+- Workers that pulled either model keep it on disk; ⚙️ Manage models lists
+  it under Installed with a Remove button to free the space.
+
 ## [1.2.5] — 2026-11-10
 
 ### Fixed

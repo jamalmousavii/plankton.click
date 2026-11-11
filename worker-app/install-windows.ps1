@@ -20,7 +20,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$PLANKTON_VERSION = "1.2.5"
+$PLANKTON_VERSION = "1.2.6"
 $INSTALL_DIR = "$HOME\plankton-worker"
 $EXISTING_CONFIG = "$INSTALL_DIR\worker-app\config.json"
 $TASK_NAME = "PlanktonWorker"
@@ -30,8 +30,7 @@ $MODEL_SIZES = [ordered]@{
   "llama3.2:3b" = "2 GB"; "phi4:14b" = "9 GB"; "gpt-oss:20b" = "14 GB"
   "qwen3:32b" = "20 GB"; "qwen3-coder:30b" = "18 GB"; "qwen2.5-coder:32b" = "20 GB"
   "qwen3-vl:8b" = "8 GB"; "gemma4:12b" = "7 GB"; "gemma3:27b" = "18 GB"
-  "mistral-small3.2:24b" = "15 GB"; "embeddinggemma" = "0.5 GB"
-  "nomic-embed-text" = "0.3 GB"; "bge-m3" = "1.2 GB"
+  "mistral-small3.2:24b" = "15 GB"; "bge-m3" = "1.2 GB"
 }
 
 function Step-Done([string]$msg) { Write-Host "  [OK] $msg" -ForegroundColor Green }
@@ -264,7 +263,7 @@ $SELECTED = switch ($choice) {
   "d" { @("qwen3-coder:30b", "qwen2.5-coder:32b") }
   "e" { @("qwen3-vl:8b", "gemma4:12b", "mistral-small3.2:24b", "gemma3:27b") }
   "f" { @("llama3.1:8b", "qwen3-coder:30b", "qwen3-vl:8b") }
-  "g" { @($MODEL_SIZES.Keys | Where-Object { $_ -notin @("embeddinggemma", "nomic-embed-text", "bge-m3") }) }
+  "g" { @($MODEL_SIZES.Keys | Where-Object { $_ -ne "bge-m3" }) }
   "h" { @("llama3.2:3b") } "i" { @("phi4:14b") } "j" { @("gpt-oss:20b") }
   "k" { @("qwen3:32b") } "l" { @("mistral-small3.2:24b") } "m" { @("gemma3:27b") }
   "0" {

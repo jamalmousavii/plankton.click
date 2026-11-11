@@ -296,7 +296,7 @@ router.post('/embeddings', async (req, res) => {
     res.json({
       object: 'list',
       data: out.embeddings.map((embedding, index) => ({ object: 'embedding', index, embedding })),
-      model,
+      model: out.model || model, // 1.2.6: a retired embedding name is served by bge-m3
       usage: { prompt_tokens: out.tokensUsed, total_tokens: out.tokensUsed },
     });
   } catch (err) {

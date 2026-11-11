@@ -22,8 +22,6 @@ const MODELS = [
   { id: 'gemma4:12b', name: 'Gemma 4', size: '12B', ram: '7 GB', category: 'vision', desc: 'Multimodal + tools + thinking', inputPrice: 0.03, outputPrice: 0.09, vision: true, audio: true },
 
   // Embedding — Kamel-tarin
-  { id: 'embeddinggemma', name: 'EmbeddingGemma', size: '300M', ram: '0.5 GB', category: 'embedding', desc: 'Newest (100+ languages, Matryoshka)', inputPrice: 0.006, outputPrice: 0.006, vision: false, audio: false },
-  { id: 'nomic-embed-text', name: 'Nomic Embed', size: '274M', ram: '0.3 GB', category: 'embedding', desc: 'Classic default for RAG', inputPrice: 0.005, outputPrice: 0.005, vision: false, audio: false },
   { id: 'bge-m3', name: 'BGE-M3', size: '567M', ram: '1.2 GB', category: 'embedding', desc: 'Multilingual + long-document RAG', inputPrice: 0.008, outputPrice: 0.008, vision: false, audio: false },
 ];
 
